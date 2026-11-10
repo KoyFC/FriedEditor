@@ -525,6 +525,23 @@ namespace fried::editor
         select(id);
     }
 
+    std::vector<AssetIssue> Editor::issues() const
+    {
+        return validateAssets(m_platform, m_project.assetsDirectory());
+    }
+
+    bool Editor::fixIssue(const AssetIssue &issue, std::string *error)
+    {
+        if (!applyFix(issue, m_project.assetsDirectory(), m_project.directory() + "/.fried-editor/originals", error))
+        {
+            return false;
+        }
+        m_message = "Fixed " + issue.m_asset + ", the original is kept in .fried-editor/originals";
+        m_needsLoad = true;
+        changed();
+        return true;
+    }
+
     void Editor::setGizmoMode(GizmoMode mode)
     {
         m_gizmoMode = mode;

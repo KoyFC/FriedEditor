@@ -117,7 +117,7 @@ namespace imgui_backend
         auto &commands = m_editor.commands();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(m_editor.message().c_str());
-        std::string right = commands.isClean() ? "Saved" : "Unsaved changes";
+        std::string right = (m_issues.empty() ? std::string() : std::to_string(m_issues.size()) + " asset issues   ") + (commands.isClean() ? "Saved" : "Unsaved changes");
         ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - 20);
         ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : ImVec4(1.0f, 0.56f, 0.18f, 1.0f), "%s", right.c_str());
     }
@@ -587,6 +587,85 @@ namespace imgui_backend
                 m_editor.dropAsset(entry.m_root, entry.m_path, m_editor.viewport().frameWidth() / 2.0, m_editor.viewport().frameHeight() / 2.0);
             }
             ImGui::PopID();
+        }
+    }
+}
+
+namespace imgui_backend
+{
+    void Panels::issues()
+    {
+        // Reading every asset is not free, so the list is made again when the platform changes, after a fix, and every few seconds.
+        double now = ImGui::GetTime();
+        bool isStale = now - m_issuesCheckedAt > 3.0 || m_issuesPlatform != m_editor.platform();
+        if (ImGui::Button("Check again") || isStale)
+        {
+            m_issues = m_editor.issues();
+            m_issuesCheckedAt = now;
+            m_issuesPlatform = m_editor.platform();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("for %s", fried::editor::platformLabel(m_editor.platform()).c_str());
+
+        bool hasFixes = false;
+        for (const auto &issue : m_issues)
+        {
+            hasFixes = hasFixes || issue.m_fix != fried::editor::AssetIssue::Fix::None;
+        }
+        if (hasFixes)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("Fix all"))
+            {
+                for (const auto &issue : m_issues)
+                {
+                    std::string error;
+                    if (issue.m_fix != fried::editor::AssetIssue::Fix::None && !m_editor.fixIssue(issue, &error))
+                    {
+                        m_issuesMessage = error;
+                    }
+                }
+                m_issuesCheckedAt = -100;
+            }
+        }
+        ImGui::Separator();
+
+        if (m_issues.empty())
+        {
+            ImGui::TextDisabled("The assets suit this platform.");
+        }
+        int index = 0;
+        for (const auto &issue : m_issues)
+        {
+            ImGui::PushID(index++);
+            bool isError = issue.m_severity == fried::editor::AssetIssue::Severity::Error;
+            ImGui::TextColored(isError ? ImVec4(0.95f, 0.38f, 0.38f, 1.0f) : ImVec4(1.0f, 0.78f, 0.30f, 1.0f), "%s", isError ? "Error" : "Warning");
+            ImGui::SameLine();
+            if (!issue.m_asset.empty())
+            {
+                ImGui::TextUnformatted(issue.m_asset.c_str());
+                ImGui::SameLine();
+            }
+            ImGui::TextDisabled("%s", issue.m_message.c_str());
+            if (issue.m_fix != fried::editor::AssetIssue::Fix::None)
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton(issue.m_fixLabel.c_str()))
+                {
+                    std::string error;
+                    if (!m_editor.fixIssue(issue, &error))
+                    {
+                        m_issuesMessage = error;
+                    }
+                    m_issuesCheckedAt = -100;
+                }
+            }
+            ImGui::PopID();
+        }
+        if (!m_issuesMessage.empty())
+        {
+            ImGui::Separator();
+            ImGui::TextColored(ImVec4(0.95f, 0.38f, 0.38f, 1.0f), "%s", m_issuesMessage.c_str());
         }
     }
 }

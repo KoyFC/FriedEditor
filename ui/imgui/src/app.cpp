@@ -45,6 +45,7 @@ namespace imgui_backend
             ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.26f, nullptr, &center);
             ImGui::DockBuilderDockWindow("Hierarchy", left);
             ImGui::DockBuilderDockWindow("Inspector", right);
+            ImGui::DockBuilderDockWindow("Issues###Issues", bottom);
             ImGui::DockBuilderDockWindow("Assets", bottom);
             ImGui::DockBuilderDockWindow("Viewport", center);
             ImGui::DockBuilderFinish(dockspace);
@@ -245,6 +246,12 @@ namespace imgui_backend
             if (ImGui::Begin("Assets"))
             {
                 panels.assets();
+            }
+            ImGui::End();
+            std::string issuesTitle = panels.issueCount() > 0 ? "Issues (" + std::to_string(panels.issueCount()) + ")###Issues" : "Issues###Issues";
+            if (ImGui::Begin(issuesTitle.c_str()))
+            {
+                panels.issues();
             }
             ImGui::End();
 

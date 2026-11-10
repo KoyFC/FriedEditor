@@ -18,6 +18,10 @@ namespace imgui_backend
         void hierarchy();
         void inspector();
         void assets();
+        void issues();
+
+        // How many problems the assets have for the platform being previewed, for the tab and the status bar.
+        int issueCount() const { return (int)m_issues.size(); }
         void statusBar();
 
     private:
@@ -32,6 +36,10 @@ namespace imgui_backend
         ImageCache m_images;
         int m_dragKind = 0;
         int m_assetFilter = 0;
+        std::vector<fried::editor::AssetIssue> m_issues;
+        double m_issuesCheckedAt = -100;
+        fried::editor::Platform m_issuesPlatform = fried::editor::Platform::Pc;
+        std::string m_issuesMessage;
         std::map<ImGuiID, std::string> m_textEdits;
     };
 }

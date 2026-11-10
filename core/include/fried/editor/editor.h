@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fried/editor/asset_browser.h"
+#include "fried/editor/asset_validation.h"
 #include "fried/editor/command_stack.h"
 #include "fried/editor/gizmo.h"
 #include "fried/editor/platform.h"
@@ -122,6 +123,10 @@ namespace fried::editor
 
         // An image dropped on an object with a Sprite becomes its texture, and anywhere else a new Sprite. A font becomes a new Text.
         void dropAsset(const std::string &root, const std::string &path, double frameX, double frameY);
+
+        // What is wrong with the project's assets for the platform being previewed, and putting one right.
+        std::vector<AssetIssue> issues() const;
+        bool fixIssue(const AssetIssue &issue, std::string *error);
 
         GizmoMode gizmoMode() const { return m_gizmoMode; }
         void setGizmoMode(GizmoMode mode);
