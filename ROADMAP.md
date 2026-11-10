@@ -75,7 +75,7 @@ Known limits: an object that other objects refer to cannot be deleted without fi
 - [x] A scene can be loaded on top of another, and a scene with no camera is screen space
 - [x] The engine opens the window and loads the scene `project.fried` names, with an optional `Game` class for what a game needs once
 - [x] The components of a project are found without a list to maintain
-- [ ] Components no longer reach the renderer or the layers
+- [x] Components no longer receive the renderer or the layers (`DrawQueue.currentRenderTarget` is still public, for the engine's own drawing)
 - [x] The sandbox's sources are in folders by purpose, and it stays the engine's test bed, with WhiteCellSimulator as the project built in the editor's way
 
 ### 10. WhiteCellSimulator as scene files (its own repository)
