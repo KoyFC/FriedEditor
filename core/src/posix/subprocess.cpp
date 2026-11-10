@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <csignal>
+#include <fcntl.h>
 #include <cstring>
 #include <spawn.h>
 #include <sys/wait.h>
@@ -66,9 +67,10 @@ namespace fried::editor
         };
     }
 
-    std::unique_ptr<Subprocess> startSubprocess(const std::vector<std::string> &arguments, const std::map<std::string, std::string> &environment,
-                                                std::string *error)
+    std::unique_ptr<Subprocess> startSubprocess(const SubprocessOptions &options, std::string *error)
     {
+        const std::vector<std::string> &arguments = options.m_arguments;
+        const std::map<std::string, std::string> &environment = options.m_environment;
         if (arguments.empty())
         {
             *error = "There is no program to run.";
@@ -102,8 +104,20 @@ namespace fried::editor
         }
         envp.push_back(nullptr);
 
+        posix_spawn_file_actions_t actions;
+        posix_spawn_file_actions_init(&actions);
+        if (!options.m_workDirectory.empty())
+        {
+            posix_spawn_file_actions_addchdir_np(&actions, options.m_workDirectory.c_str());
+        }
+        posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+        posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, options.m_logFile.empty() ? "/dev/null" : options.m_logFile.c_str(),
+                                         O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
+
         pid_t process = 0;
-        int result = posix_spawnp(&process, arguments[0].c_str(), nullptr, nullptr, argv.data(), envp.data());
+        int result = posix_spawnp(&process, arguments[0].c_str(), &actions, nullptr, argv.data(), envp.data());
+        posix_spawn_file_actions_destroy(&actions);
         if (result != 0)
         {
             *error = "Cannot run " + arguments[0] + ": " + std::strerror(result);

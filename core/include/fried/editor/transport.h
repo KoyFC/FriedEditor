@@ -48,7 +48,17 @@ namespace fried::editor
     // Connects to a loopback port, which is what the player does from the other side.
     std::unique_ptr<Transport> connectToLoopback(int port, std::string *error);
 
-    // Runs a program with the given variables added to the environment.
-    std::unique_ptr<Subprocess> startSubprocess(const std::vector<std::string> &arguments, const std::map<std::string, std::string> &environment,
-                                                std::string *error);
+    struct SubprocessOptions
+    {
+        std::vector<std::string> m_arguments;
+
+        // Added to the environment of the editor, which the program inherits.
+        std::map<std::string, std::string> m_environment;
+        std::string m_workDirectory;
+
+        // Receives what the program prints, standard output and error together. Empty discards it.
+        std::string m_logFile;
+    };
+
+    std::unique_ptr<Subprocess> startSubprocess(const SubprocessOptions &options, std::string *error);
 }

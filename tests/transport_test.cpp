@@ -118,7 +118,7 @@ TEST_CASE("a channel notices that the other end has gone")
 TEST_CASE("a subprocess reports its exit code, with variables added to its environment")
 {
     std::string error;
-    auto process = startSubprocess({"sh", "-c", "exit $FRIED_TEST_CODE"}, {{"FRIED_TEST_CODE", "3"}}, &error);
+    auto process = startSubprocess({{"sh", "-c", "exit $FRIED_TEST_CODE"}, {{"FRIED_TEST_CODE", "3"}}, "", ""}, &error);
     REQUIRE(process);
     for (int attempt = 0; attempt < 200 && process->isRunning(); ++attempt)
     {
@@ -127,7 +127,7 @@ TEST_CASE("a subprocess reports its exit code, with variables added to its envir
     CHECK_FALSE(process->isRunning());
     CHECK(process->exitCode() == 3);
 
-    CHECK_FALSE(startSubprocess({"/nonexistent/program"}, {}, &error));
+    CHECK_FALSE(startSubprocess({{"/nonexistent/program"}, {}, "", ""}, &error));
 }
 
 TEST_CASE("connecting to a port nobody listens on fails with a reason")
