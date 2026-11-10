@@ -1,6 +1,7 @@
 add_library(fried_editor_core STATIC
     src/command_stack.cpp
     src/commands.cpp
+    src/editor.cpp
     src/message_channel.cpp
     src/player_builder.cpp
     src/player_session.cpp
