@@ -5,6 +5,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -108,6 +109,9 @@ namespace fried::editor
                     }
                     return nullptr;
                 }
+                // A small message is sent at once instead of waiting to be joined by the next, which would cost a delayed acknowledgement, about 40 ms.
+                int enabled = 1;
+                setsockopt(accepted, IPPROTO_TCP, TCP_NODELAY, &enabled, sizeof(enabled));
                 return std::make_unique<SocketTransport>(accepted);
             }
 

@@ -147,6 +147,7 @@ namespace imgui_backend
         }
 
         ImVec2 region = ImGui::GetContentRegionAvail();
+        m_editor.setViewSize((int)region.x, (int)region.y);
         ImVec2 origin = ImGui::GetCursorScreenPos();
         ImGui::InvisibleButton("##view", region, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
         bool isHovered = ImGui::IsItemHovered();

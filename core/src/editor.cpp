@@ -156,6 +156,18 @@ namespace fried::editor
         changed();
     }
 
+    void Editor::setViewSize(int width, int height)
+    {
+        width = std::clamp(width / 2 * 2, 160, 4096);
+        height = std::clamp(height / 2 * 2, 120, 4096);
+        if (width != m_wantedWidth || height != m_wantedHeight)
+        {
+            m_wantedWidth = width;
+            m_wantedHeight = height;
+            m_wantedSince = std::chrono::steady_clock::now();
+        }
+    }
+
     void Editor::pump()
     {
         GameRunner::State before = m_game.state();
@@ -199,6 +211,19 @@ namespace fried::editor
         if (m_status != Status::Ready)
         {
             return;
+        }
+        if (m_wantedWidth > 0 && (m_wantedWidth != m_requestedWidth || m_wantedHeight != m_requestedHeight)
+            && std::chrono::steady_clock::now() - m_wantedSince > std::chrono::milliseconds(150))
+        {
+            bool isFirst = m_requestedWidth == 0;
+            m_requestedWidth = m_wantedWidth;
+            m_requestedHeight = m_wantedHeight;
+            // The player starts at the size the editor first launched it with, so only a different size is worth asking for.
+            if (!isFirst || m_wantedWidth != s_frameWidth || m_wantedHeight != s_frameHeight)
+            {
+                m_session.resize(m_wantedWidth, m_wantedHeight);
+                m_needsRender = true;
+            }
         }
         if (m_needsLoad)
         {
@@ -638,6 +663,40 @@ namespace fried::editor
         return {};
     }
 
+    double Editor::gameCameraZoom() const
+    {
+        auto id = m_document.cameraId();
+        if (!id)
+        {
+            return 1.0;
+        }
+        if (m_platform != Platform::Pc)
+        {
+            if (auto overridden = m_document.overrideField(platformKey(m_platform), *id, "Camera", "zoom"))
+            {
+                if (overridden->is_number() && overridden->get<double>() > 0)
+                {
+                    return overridden->get<double>();
+                }
+            }
+        }
+        for (const Json &object : m_document.data()["objects"])
+        {
+            if (object.value("id", "") != *id)
+            {
+                continue;
+            }
+            for (const Json &component : object["components"])
+            {
+                if (component.value("type", "") == "Camera" && component.contains("zoom") && component["zoom"].is_number() && component["zoom"].get<double>() > 0)
+                {
+                    return component["zoom"].get<double>();
+                }
+            }
+        }
+        return 1.0;
+    }
+
     DrawList Editor::overlay() const
     {
         std::optional<std::pair<double, double>> gameCamera;
@@ -651,8 +710,11 @@ namespace fried::editor
                 }
             }
         }
+        // The game shows its display's size divided by the camera's zoom of the platform being previewed.
         DisplaySettings display = m_project.display(m_platform);
-        DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, display.m_width, display.m_height);
+        double zoom = gameCameraZoom();
+        DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, (int)std::lround(display.m_width / zoom),
+                                            (int)std::lround(display.m_height / zoom));
         DrawList handles = Gizmo::draw(handlesFor(m_frameView));
         list.insert(list.end(), handles.begin(), handles.end());
         return list;

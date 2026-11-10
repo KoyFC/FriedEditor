@@ -74,6 +74,7 @@ namespace fried::editor
         void load(const nlohmann::json &scene, const std::string &platform);
         void setField(const std::string &objectId, const std::string &component, const std::string &field, const nlohmann::json &value);
         void setEditorCamera(double x, double y, double zoom);
+        void resize(int width, int height);
         void render();
 
         std::function<void()> m_onReady;

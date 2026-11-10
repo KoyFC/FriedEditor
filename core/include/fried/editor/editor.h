@@ -12,6 +12,7 @@
 #include "fried/editor/scene_document.h"
 #include "fried/editor/viewport.h"
 
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -137,6 +138,9 @@ namespace fried::editor
         GizmoMode gizmoMode() const { return m_gizmoMode; }
         void setGizmoMode(GizmoMode mode);
 
+        // The size in pixels of the area the backend shows the frame in. The player draws frames of that size, so nothing is scaled and no pixel is drawn that is not seen. A change is sent once it has held still for a moment, so dragging a panel's edge does not resize the player on every step.
+        void setViewSize(int width, int height);
+
         const Viewport &viewport() const { return m_viewport; }
         const Frame &frame() const { return m_frame; }
 
@@ -160,6 +164,7 @@ namespace fried::editor
         TransformValues transformOf(const std::string &id) const;
         std::vector<GizmoHandle> currentHandles() const;
         std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
+        double gameCameraZoom() const;
         void execute(std::unique_ptr<Command> command, bool merge);
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
         nlohmann::json newComponent(const std::string &type) const;
@@ -187,6 +192,12 @@ namespace fried::editor
         Frame m_frame;
         unsigned long m_frameSerial = 0;
         GizmoMode m_gizmoMode = GizmoMode::Move;
+
+        int m_wantedWidth = 0;
+        int m_wantedHeight = 0;
+        int m_requestedWidth = 0;
+        int m_requestedHeight = 0;
+        std::chrono::steady_clock::time_point m_wantedSince;
 
         bool m_needsLoad = false;
         bool m_needsCamera = false;

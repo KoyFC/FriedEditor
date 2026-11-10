@@ -180,6 +180,14 @@ namespace fried::editor
         }
     }
 
+    void PlayerSession::resize(int width, int height)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "resize"}, {"width", width}, {"height", height}});
+        }
+    }
+
     void PlayerSession::render()
     {
         if (m_channel)

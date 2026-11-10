@@ -88,6 +88,12 @@ Known limits: an object that other objects refer to cannot be deleted without fi
 
 Known limit: a position that depends on the screen's size, such as the right edge, is set by a component, and the editor shows it unplaced because its player never updates.
 
+### 11. Viewport and speed (FriedEngine and FriedEditor)
+
+- [x] The player renders at the size of the panel, so a frame is not scaled
+- [x] The display frame is the display's size divided by the zoom of the game camera on that platform
+- [x] A pan step takes 4 ms instead of 43 (Nagle and a player that never slept), and the player is nearly idle when nothing is asked of it
+
 ## Later
 
 A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants, a shared library with the Project Manager.

@@ -226,3 +226,70 @@ TEST_CASE("the picture and the overlay agree on where the wall is, at any pan an
         CHECK(std::abs(maxX - expectedRight) <= 3);
     }
 }
+
+TEST_CASE("how long a camera move takes to come back as a frame" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+
+    editor.setViewSize(864, 490);
+    pumpUntil(editor, [&] { return editor.frame().m_width == 864; });
+    REQUIRE(editor.frame().m_width == 864);
+    REQUIRE(editor.frame().m_height == 490);
+
+    using Clock = std::chrono::steady_clock;
+    double total = 0, worst = 0;
+    const int moves = 40;
+    for (int index = 0; index < moves; ++index)
+    {
+        unsigned long serial = editor.frameSerial();
+        auto start = Clock::now();
+        editor.pointerDown(100, 100, Editor::Pointer::Pan);
+        editor.pointerMove(100 + 7, 100 + 3);
+        editor.pointerUp();
+        while (editor.frameSerial() == serial)
+        {
+            editor.pump();
+            std::this_thread::sleep_for(std::chrono::microseconds(200));
+        }
+        double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        total += elapsed;
+        worst = std::max(worst, elapsed);
+    }
+    MESSAGE("frame ", editor.frame().m_width, "x", editor.frame().m_height, ": a pan step takes ", total / moves, " ms on average and ", worst, " ms at worst");
+}
+
+TEST_CASE("the display frame is the display's size divided by the camera's zoom" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+
+    auto frameWidth = [&] {
+        for (const DrawCommand &command : editor.overlay())
+        {
+            if (command.m_kind == DrawCommand::Kind::Rect && command.m_rgba == 0xa0ffffff)
+            {
+                return command.m_width;
+            }
+        }
+        return -1.0;
+    };
+    double zoom = editor.viewport().zoom();
+    CHECK(frameWidth() == doctest::Approx(640 * zoom));
+
+    editor.select(std::string("camera"));
+    editor.setField("Camera", "zoom", nlohmann::json(2.0));
+    unsigned long serial = editor.frameSerial();
+    pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
+    CHECK(frameWidth() == doctest::Approx(320 * zoom));
+}
