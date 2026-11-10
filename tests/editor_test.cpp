@@ -142,3 +142,31 @@ TEST_CASE("the editor shows the sandbox's scene with the components of the game"
     }
     CHECK(hasReference);
 }
+
+TEST_CASE("the overlay stays with the picture it was drawn for while the view is panned" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
+    REQUIRE(editor.status() == Editor::Status::Ready);
+
+    auto before = editor.overlay();
+    unsigned long serial = editor.frameSerial();
+    editor.pointerDown(100, 100, Editor::Pointer::Pan);
+    editor.pointerMove(160, 130);
+    editor.pointerUp();
+
+    auto during = editor.overlay();
+    REQUIRE(before.size() == during.size());
+    for (size_t index = 0; index < before.size(); ++index)
+    {
+        CHECK(before[index].m_x == during[index].m_x);
+        CHECK(before[index].m_y == during[index].m_y);
+    }
+
+    pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
+    auto after = editor.overlay();
+    CHECK(after[0].m_x != before[0].m_x);
+}

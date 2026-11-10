@@ -159,6 +159,7 @@ namespace fried::editor
         void changed();
         TransformValues transformOf(const std::string &id) const;
         std::vector<GizmoHandle> currentHandles() const;
+        std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
         void execute(std::unique_ptr<Command> command, bool merge);
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
         nlohmann::json newComponent(const std::string &type) const;
@@ -178,6 +179,11 @@ namespace fried::editor
         Platform m_platform = Platform::Pc;
         std::optional<std::string> m_selected;
         Viewport m_viewport;
+
+        // The view the player drew the frame on screen with. The overlay is drawn with it, not with the view the user has moved on to since, so the two stay together while panning.
+        Viewport m_frameView;
+        Viewport m_sentView;
+        Viewport m_inFlightView;
         Frame m_frame;
         unsigned long m_frameSerial = 0;
         GizmoMode m_gizmoMode = GizmoMode::Move;

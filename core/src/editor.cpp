@@ -93,6 +93,8 @@ namespace fried::editor
         };
         m_session.m_onFrame = [this](const Frame &frame) {
             m_frame = frame;
+            m_frameView = m_inFlightView;
+            m_frameView.setFrameSize(frame.m_width, frame.m_height);
             ++m_frameSerial;
             m_viewport.setFrameSize(frame.m_width, frame.m_height);
             m_isRenderInFlight = false;
@@ -208,12 +210,14 @@ namespace fried::editor
         {
             m_needsCamera = false;
             m_session.setEditorCamera(m_viewport.cameraX(), m_viewport.cameraY(), m_viewport.zoom());
+            m_sentView = m_viewport;
             m_needsRender = true;
         }
         if (m_needsRender && !m_isRenderInFlight)
         {
             m_needsRender = false;
             m_isRenderInFlight = true;
+            m_inFlightView = m_sentView;
             m_session.render();
         }
     }
@@ -616,13 +620,18 @@ namespace fried::editor
 
     std::vector<GizmoHandle> Editor::currentHandles() const
     {
+        return handlesFor(m_viewport);
+    }
+
+    std::vector<GizmoHandle> Editor::handlesFor(const Viewport &view) const
+    {
         if (m_selected)
         {
             for (const ObjectBounds &box : m_frame.m_bounds)
             {
                 if (box.m_id == *m_selected)
                 {
-                    return Gizmo::handles(m_gizmoMode, m_viewport, box, transformOf(box.m_id));
+                    return Gizmo::handles(m_gizmoMode, view, box, transformOf(box.m_id));
                 }
             }
         }
@@ -643,8 +652,8 @@ namespace fried::editor
             }
         }
         DisplaySettings display = m_project.display(m_platform);
-        DrawList list = m_viewport.overlay(m_frame.m_bounds, m_selected, gameCamera, display.m_width, display.m_height);
-        DrawList handles = Gizmo::draw(currentHandles());
+        DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, display.m_width, display.m_height);
+        DrawList handles = Gizmo::draw(handlesFor(m_frameView));
         list.insert(list.end(), handles.begin(), handles.end());
         return list;
     }
