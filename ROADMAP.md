@@ -42,7 +42,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 ### 5. Scene editing
 
 - [x] Scene document with load and save
-- [ ] Undo and redo commands
+- [x] Undo and redo commands
 - [ ] Viewport with pan, zoom and selection
 - [ ] Hierarchy panel
 - [ ] Inspector generated from the schema

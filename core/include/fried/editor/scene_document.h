@@ -76,6 +76,11 @@ namespace fried::editor
         bool setOverrideField(const std::string &platform, const std::string &id, const std::string &type, const std::string &field,
                               const std::optional<nlohmann::json> &value);
 
+        // Takes out every platform override of an object, or only those of one of its components, so removing it leaves none that name what is gone.
+        // What it returns is shaped as the "platforms" block is, and restoreOverrides() puts it back.
+        nlohmann::json takeOverrides(const std::string &id, const std::string &type);
+        void restoreOverrides(const nlohmann::json &overrides);
+
         bool isModified() const { return m_isModified; }
         void markSaved() { m_isModified = false; }
 

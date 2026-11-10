@@ -398,6 +398,70 @@ namespace fried::editor
         return true;
     }
 
+    Json SceneDocument::takeOverrides(const std::string &id, const std::string &type)
+    {
+        Json taken = Json::object();
+        auto platforms = m_data.find("platforms");
+        if (platforms == m_data.end())
+        {
+            return taken;
+        }
+
+        std::vector<std::string> emptied;
+        for (auto &[platform, objects] : platforms->items())
+        {
+            auto object = objects.find(id);
+            if (object == objects.end())
+            {
+                continue;
+            }
+            std::vector<std::string> types;
+            for (auto &[name, fields] : object->items())
+            {
+                if (type.empty() || name == type)
+                {
+                    taken[platform][id][name] = fields;
+                    types.push_back(name);
+                }
+            }
+            for (const std::string &name : types)
+            {
+                object->erase(name);
+            }
+            if (object->empty())
+            {
+                objects.erase(id);
+            }
+            if (objects.empty())
+            {
+                emptied.push_back(platform);
+            }
+        }
+        for (const std::string &platform : emptied)
+        {
+            platforms->erase(platform);
+        }
+        if (platforms->empty())
+        {
+            m_data.erase("platforms");
+        }
+        if (!taken.empty())
+        {
+            changed({DocumentChange::Kind::Structure, id});
+        }
+        return taken;
+    }
+
+    void SceneDocument::restoreOverrides(const Json &overrides)
+    {
+        if (overrides.empty())
+        {
+            return;
+        }
+        m_data["platforms"].merge_patch(overrides);
+        changed({DocumentChange::Kind::Structure});
+    }
+
     void SceneDocument::changed(const DocumentChange &change)
     {
         m_isModified = true;
