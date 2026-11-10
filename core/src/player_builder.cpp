@@ -105,7 +105,7 @@ namespace fried::editor
             for (fs::recursive_directory_iterator it(directory, ignored), end; it != end; it.increment(ignored))
             {
                 std::string extension = it->path().extension().string();
-                if (it->is_regular_file(ignored) && (extension == ".hx" || extension == ".hxml" || extension == ".cpp" || extension == ".h"))
+                if (it->is_regular_file(ignored) && (extension == ".hx" || extension == ".hxml" || extension == ".cpp" || extension == ".h" || extension == ".cmake" || it->path().filename() == "CMakeLists.txt"))
                 {
                     newest = std::max(newest, it->last_write_time(ignored));
                 }
@@ -126,6 +126,8 @@ namespace fried::editor
         fs::file_time_type newest = fs::file_time_type::min();
         newest = newestSource(enginePath + "/src", newest);
         newest = newestSource(enginePath + "/native", newest);
+        newest = newestSource(enginePath + "/cmake", newest);
+        newest = newestSource(enginePath + "/editor", newest);
         if (hasProjectPlayer(projectDirectory))
         {
             newest = newestSource(projectDirectory + "/src", newest);

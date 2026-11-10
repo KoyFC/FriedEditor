@@ -2,6 +2,8 @@
 
 #include "fried/editor/editor.h"
 
+#include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cstdlib>
 #include <thread>
@@ -169,4 +171,58 @@ TEST_CASE("the overlay stays with the picture it was drawn for while the view is
     pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
     auto after = editor.overlay();
     CHECK(after[0].m_x != before[0].m_x);
+}
+
+TEST_CASE("the picture and the overlay agree on where the wall is, at any pan and zoom" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+
+    struct Step
+    {
+        double m_panX, m_panY, m_zoom;
+    };
+    for (Step step : {Step{0, 0, 1}, Step{80, 40, 1}, Step{-120, 10, 1}, Step{0, 0, 3}})
+    {
+        if (step.m_zoom != 1)
+        {
+            editor.wheel(640, 360, 1.0);
+            editor.wheel(640, 360, 1.0);
+        }
+        editor.pointerDown(100, 100, Editor::Pointer::Pan);
+        editor.pointerMove(100 + step.m_panX, 100 + step.m_panY);
+        editor.pointerUp();
+        unsigned long serial = editor.frameSerial();
+        pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
+
+        const Frame &frame = editor.frame();
+        int minX = frame.m_width, maxX = -1, minY = frame.m_height, maxY = -1;
+        for (int y = 0; y < frame.m_height; ++y)
+        {
+            for (int x = 0; x < frame.m_width; ++x)
+            {
+                const unsigned char *pixel = &frame.m_rgba[((size_t)y * frame.m_width + x) * 4];
+                if (pixel[0] == 70 && pixel[1] == 70 && pixel[2] == 90)
+                {
+                    minX = std::min(minX, x);
+                    maxX = std::max(maxX, x);
+                    minY = std::min(minY, y);
+                    maxY = std::max(maxY, y);
+                }
+            }
+        }
+        const Viewport &view = editor.viewport();
+        INFO("frame ", frame.m_width, "x", frame.m_height, " zoom ", view.zoom(), " camera ", view.cameraX(), ",", view.cameraY());
+        double expectedLeft = view.worldToFrameX(-450), expectedTop = view.worldToFrameY(160);
+        double expectedRight = view.worldToFrameX(450), expectedBottom = view.worldToFrameY(208);
+        // The wall's border takes a pixel or two off each side of its fill.
+        CHECK(std::abs(minY - expectedTop) <= 3);
+        CHECK(std::abs(maxY - expectedBottom) <= 3);
+        CHECK(std::abs(maxX - expectedRight) <= 3);
+    }
 }
