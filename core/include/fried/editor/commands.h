@@ -80,6 +80,24 @@ namespace fried::editor
         std::map<std::string, std::optional<nlohmann::json>> m_before;
     };
 
+    // The same as SetTransformFields for what one platform overrides, so a drag on a console's preview changes only that console.
+    class SetOverrideTransformFields : public Command
+    {
+    public:
+        SetOverrideTransformFields(std::string platform, std::string id, std::map<std::string, double> fields);
+
+        std::string label() const override { return "Transform object on " + m_platform; }
+        bool apply(SceneDocument &document) override;
+        void revert(SceneDocument &document) override;
+        bool mergeWith(const Command &later) override;
+
+    private:
+        std::string m_platform;
+        std::string m_id;
+        std::map<std::string, double> m_fields;
+        std::map<std::string, std::optional<nlohmann::json>> m_before;
+    };
+
     class AddObject : public Command
     {
     public:

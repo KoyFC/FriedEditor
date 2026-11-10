@@ -76,7 +76,28 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.addObject("Text");
     CHECK(editor.hierarchy().size() == 4);
     CHECK(editor.inspector().size() == 2);
+    editor.commands().undo();
+
+    // On a console, an edit is an override and the base is left alone.
     editor.setPlatform(Platform::NintendoDs);
+    editor.select(std::string("sprite"));
+    editor.setField("Transform", "scaleX", nlohmann::json(2));
+    CHECK(editor.document().overrideField("nds", "sprite", "Transform", "scaleX") == nlohmann::json(2));
+    CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(8));
+    bool isOverridden = false;
+    for (const auto &component : editor.inspector())
+    {
+        for (const auto &field : component.m_fields)
+        {
+            if (component.m_type == "Transform" && field.m_schema.m_name == "scaleX")
+            {
+                isOverridden = field.m_isOverridden && field.m_value == nlohmann::json(2);
+            }
+        }
+    }
+    CHECK(isOverridden);
+    editor.clearOverride("Transform", "scaleX");
+    CHECK_FALSE(editor.document().overrideField("nds", "sprite", "Transform", "scaleX").has_value());
     pumpUntil(editor, [&] { return false; });
     CHECK(editor.status() == Editor::Status::Ready);
 }

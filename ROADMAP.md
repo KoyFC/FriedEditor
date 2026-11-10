@@ -51,7 +51,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ### 6. Per-platform
 
-- [ ] Platform selector and override editing
+- [x] Platform selector and override editing
 - [ ] Display frame from `project.fried`
 - [ ] Asset validation with fixes (texture sizes, DS audio format, fx-CG50 size)
 

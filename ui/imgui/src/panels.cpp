@@ -42,12 +42,20 @@ namespace
         return "##" + name;
     }
 
-    void caption(const std::string &name)
+    // The name of a field, and the width left for its widget. An overridden field is orange and keeps room for its reset button.
+    void caption(const std::string &name, bool isOverridden = false)
     {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextDisabled("%s", name.c_str());
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.0f + 110.0f);
-        ImGui::SetNextItemWidth(-FLT_MIN);
+        if (isOverridden)
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.56f, 0.18f, 1.0f), "%s", name.c_str());
+        }
+        else
+        {
+            ImGui::TextDisabled("%s", name.c_str());
+        }
+        ImGui::SameLine(110.0f);
+        ImGui::SetNextItemWidth(isOverridden ? -52.0f : -FLT_MIN);
     }
 }
 
@@ -341,7 +349,7 @@ namespace imgui_backend
         const std::string &name = field.m_schema.m_name;
         const std::string &kind = field.m_schema.m_kind;
         ImGui::PushID(name.c_str());
-        caption(name);
+        caption(name, field.m_isOverridden);
 
         if (kind == "int")
         {
@@ -422,6 +430,18 @@ namespace imgui_backend
         {
             referenceField(type, field, kind == "font");
         }
+        if (field.m_isOverridden)
+        {
+            ImGui::SameLine();
+            if (ImGui::SmallButton("reset"))
+            {
+                m_editor.clearOverride(type, name);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Use the value every platform shares");
+            }
+        }
         ImGui::PopID();
     }
 
@@ -431,6 +451,13 @@ namespace imgui_backend
         {
             ImGui::TextDisabled("Nothing selected");
             return;
+        }
+
+        if (m_editor.platform() != fried::editor::Platform::Pc)
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.56f, 0.18f, 1.0f), "Editing %s", fried::editor::platformLabel(m_editor.platform()).c_str());
+            ImGui::TextDisabled("Changes are saved as overrides for this platform.");
+            ImGui::Spacing();
         }
 
         objectFields();

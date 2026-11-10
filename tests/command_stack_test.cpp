@@ -117,3 +117,21 @@ TEST_CASE("a new edit drops what was undone, and the clean position follows save
 
     CHECK_FALSE(stack.execute(std::make_unique<SetObjectField>("missing", "name", Json("x"))));
 }
+
+TEST_CASE("dragging on a platform changes only its overrides, as one step")
+{
+    SceneDocument document = sample();
+    std::string before = document.dump();
+    CommandStack stack(document);
+
+    for (int x = 10; x <= 30; x += 10)
+    {
+        stack.execute(std::make_unique<SetOverrideTransformFields>("nds", "a", std::map<std::string, double>{{"x", (double)x}, {"y", 2.0}}), true);
+    }
+    CHECK(document.overrideField("nds", "a", "Transform", "x") == Json(30.0));
+    CHECK(document.componentField("a", "Transform", "x") == Json(1));
+
+    stack.undo();
+    CHECK(document.dump() == before);
+    CHECK_FALSE(stack.canUndo());
+}

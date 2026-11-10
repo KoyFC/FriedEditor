@@ -350,6 +350,14 @@ namespace fried::editor
                 fieldView.m_schema = field;
                 fieldView.m_isSet = component.contains(field.m_name);
                 fieldView.m_value = fieldView.m_isSet ? component[field.m_name] : field.m_default;
+                if (m_platform != Platform::Pc)
+                {
+                    if (auto overridden = m_document.overrideField(platformKey(m_platform), *m_selected, type, field.m_name))
+                    {
+                        fieldView.m_value = *overridden;
+                        fieldView.m_isOverridden = true;
+                    }
+                }
                 view.m_fields.push_back(std::move(fieldView));
             }
             views.push_back(std::move(view));
@@ -405,9 +413,37 @@ namespace fried::editor
 
     void Editor::setField(const std::string &type, const std::string &field, const std::optional<Json> &value)
     {
-        if (m_selected)
+        if (!m_selected)
+        {
+            return;
+        }
+        if (m_platform == Platform::Pc || field == "enabled")
         {
             m_commands->execute(std::make_unique<SetComponentField>(*m_selected, type, field, value), true);
+        }
+        else
+        {
+            m_commands->execute(std::make_unique<SetOverrideField>(platformKey(m_platform), *m_selected, type, field, value), true);
+        }
+    }
+
+    void Editor::clearOverride(const std::string &type, const std::string &field)
+    {
+        if (m_selected && m_platform != Platform::Pc)
+        {
+            m_commands->execute(std::make_unique<SetOverrideField>(platformKey(m_platform), *m_selected, type, field, std::nullopt));
+        }
+    }
+
+    void Editor::setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge)
+    {
+        if (m_platform == Platform::Pc)
+        {
+            m_commands->execute(std::make_unique<SetTransformFields>(id, fields), merge);
+        }
+        else
+        {
+            m_commands->execute(std::make_unique<SetOverrideTransformFields>(platformKey(m_platform), id, fields), merge);
         }
     }
 
@@ -498,7 +534,11 @@ namespace fried::editor
     TransformValues Editor::transformOf(const std::string &id) const
     {
         auto number = [&](const char *field, double fallback) {
-            std::optional<Json> value = m_document.componentField(id, "Transform", field);
+            std::optional<Json> value = m_platform != Platform::Pc ? m_document.overrideField(platformKey(m_platform), id, "Transform", field) : std::nullopt;
+            if (!value)
+            {
+                value = m_document.componentField(id, "Transform", field);
+            }
             return value && value->is_number() ? value->get<double>() : fallback;
         };
         return {number("x", 0), number("y", 0), number("rotation", 0), number("scaleX", 1), number("scaleY", 1)};
@@ -602,8 +642,9 @@ namespace fried::editor
             m_drag.m_id = *hit;
             m_drag.m_startWorldX = m_viewport.frameToWorldX(frameX);
             m_drag.m_startWorldY = m_viewport.frameToWorldY(frameY);
-            m_drag.m_startX = m_document.componentField(*hit, "Transform", "x").value_or(Json(0)).get<double>();
-            m_drag.m_startY = m_document.componentField(*hit, "Transform", "y").value_or(Json(0)).get<double>();
+            TransformValues values = transformOf(*hit);
+            m_drag.m_startX = values.m_x;
+            m_drag.m_startY = values.m_y;
         }
     }
 
@@ -618,19 +659,15 @@ namespace fried::editor
         }
         else if (m_drag.m_kind == Drag::Kind::Handle)
         {
-            if (m_commands->execute(std::make_unique<SetTransformFields>(m_drag.m_id, m_drag.m_handle->update(m_viewport, frameX, frameY)), m_drag.m_hasMoved))
-            {
-                m_drag.m_hasMoved = true;
-            }
+            setTransformFields(m_drag.m_id, m_drag.m_handle->update(m_viewport, frameX, frameY), m_drag.m_hasMoved);
+            m_drag.m_hasMoved = true;
         }
         else if (m_drag.m_kind == Drag::Kind::Object)
         {
             double x = std::round(m_drag.m_startX + m_viewport.frameToWorldX(frameX) - m_drag.m_startWorldX);
             double y = std::round(m_drag.m_startY + m_viewport.frameToWorldY(frameY) - m_drag.m_startWorldY);
-            if (m_commands->execute(std::make_unique<SetPosition>(m_drag.m_id, x, y), m_drag.m_hasMoved))
-            {
-                m_drag.m_hasMoved = true;
-            }
+            setTransformFields(m_drag.m_id, {{"x", x}, {"y", y}}, m_drag.m_hasMoved);
+            m_drag.m_hasMoved = true;
         }
     }
 

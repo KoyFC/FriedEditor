@@ -135,6 +135,54 @@ namespace fried::editor
         return true;
     }
 
+    SetOverrideTransformFields::SetOverrideTransformFields(std::string platform, std::string id, std::map<std::string, double> fields)
+        : m_platform(std::move(platform)), m_id(std::move(id)), m_fields(std::move(fields))
+    {
+    }
+
+    bool SetOverrideTransformFields::apply(SceneDocument &document)
+    {
+        m_before.clear();
+        for (const auto &[field, value] : m_fields)
+        {
+            m_before[field] = document.overrideField(m_platform, m_id, "Transform", field);
+            if (!document.setOverrideField(m_platform, m_id, "Transform", field, nlohmann::json(value)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void SetOverrideTransformFields::revert(SceneDocument &document)
+    {
+        for (const auto &[field, before] : m_before)
+        {
+            document.setOverrideField(m_platform, m_id, "Transform", field, before);
+        }
+    }
+
+    bool SetOverrideTransformFields::mergeWith(const Command &later)
+    {
+        auto *next = dynamic_cast<const SetOverrideTransformFields *>(&later);
+        if (!next || next->m_platform != m_platform || next->m_id != m_id)
+        {
+            return false;
+        }
+        for (const auto &[field, value] : next->m_fields)
+        {
+            if (m_fields.find(field) == m_fields.end())
+            {
+                return false;
+            }
+        }
+        for (const auto &[field, value] : next->m_fields)
+        {
+            m_fields[field] = value;
+        }
+        return true;
+    }
+
     AddObject::AddObject(int index, nlohmann::json object)
         : m_index(index), m_object(std::move(object))
     {

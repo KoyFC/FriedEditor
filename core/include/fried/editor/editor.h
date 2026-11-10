@@ -32,6 +32,9 @@ namespace fried::editor
         // What the file holds, or the engine's default where it holds nothing.
         nlohmann::json m_value;
         bool m_isSet = false;
+
+        // On a platform other than the PC, the file overrides this field for that platform, and m_value is the override.
+        bool m_isOverridden = false;
     };
 
     struct ComponentView
@@ -108,6 +111,8 @@ namespace fried::editor
         std::optional<nlohmann::json> selectedObjectField(const std::string &field) const;
         void setObjectField(const std::string &field, const std::optional<nlohmann::json> &value);
         void setField(const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
+        // On a platform other than the PC, a field is edited as that platform's override, and this takes the override away again.
+        void clearOverride(const std::string &type, const std::string &field);
         void addComponent(const std::string &type);
         void removeComponent(const std::string &type);
 
@@ -143,6 +148,8 @@ namespace fried::editor
         void changed();
         TransformValues transformOf(const std::string &id) const;
         std::vector<GizmoHandle> currentHandles() const;
+        void execute(std::unique_ptr<Command> command, bool merge);
+        void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
         nlohmann::json newComponent(const std::string &type) const;
         const ComponentSchema *schemaOf(const std::string &type) const;
         std::string playerLogFile() const;
