@@ -183,6 +183,24 @@ namespace imgui_backend
                     {
                         save(editor);
                     }
+                    if (ImGui::BeginMenu("Open scene"))
+                    {
+                        bool isClean = editor.commands().isClean();
+                        for (const std::string &path : editor.scenePaths())
+                        {
+                            std::string label = std::filesystem::path(path).filename().string();
+                            if (ImGui::MenuItem(label.c_str(), nullptr, path == editor.scenePath(), isClean))
+                            {
+                                std::string error;
+                                editor.openScene(path, &error);
+                            }
+                        }
+                        if (!isClean)
+                        {
+                            ImGui::TextDisabled("Save the scene first");
+                        }
+                        ImGui::EndMenu();
+                    }
                     if (ImGui::MenuItem("Play", "F5"))
                     {
                         editor.play();

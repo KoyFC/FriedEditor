@@ -441,6 +441,37 @@ namespace imgui_backend
                 }
             }
         }
+        else if (kind == "object")
+        {
+            std::string current = field.m_value.is_string() ? field.m_value.get<std::string>() : std::string();
+            std::string shown = "(none)";
+            std::vector<fried::editor::HierarchyRow> rows = m_editor.hierarchy();
+            for (const auto &row : rows)
+            {
+                if (row.m_id == current)
+                {
+                    shown = row.m_name;
+                }
+            }
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ImGui::BeginCombo("##v", shown.c_str()))
+            {
+                if (ImGui::Selectable("(none)", current.empty()))
+                {
+                    m_editor.setField(type, name, Json());
+                }
+                for (const auto &row : rows)
+                {
+                    ImGui::PushID(row.m_id.c_str());
+                    if (ImGui::Selectable(row.m_name.c_str(), row.m_id == current))
+                    {
+                        m_editor.setField(type, name, Json(row.m_id));
+                    }
+                    ImGui::PopID();
+                }
+                ImGui::EndCombo();
+            }
+        }
         else
         {
             referenceField(type, field, kind == "font");

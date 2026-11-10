@@ -22,17 +22,23 @@ int main(int argc, char *argv[])
 {
     std::string project;
     std::string engine;
+    std::string scene;
     for (int index = 1; index < argc; ++index)
     {
         if (std::strcmp(argv[index], "--engine") == 0 && index + 1 < argc)
         {
             engine = argv[++index];
         }
+        else if (std::strcmp(argv[index], "--scene") == 0 && index + 1 < argc)
+        {
+            scene = argv[++index];
+        }
         else if (std::strcmp(argv[index], "--help") == 0 || std::strcmp(argv[index], "-h") == 0)
         {
-            std::cout << "Usage: fried_editor <project> [--engine <path>]\n"
+            std::cout << "Usage: fried_editor <project> [--engine <path>] [--scene <file>]\n"
                          "  <project>  the folder with project.fried\n"
-                         "  --engine   the Fried Engine checkout, found next to the project by default\n";
+                         "  --engine   the Fried Engine checkout, found next to the project by default\n"
+                         "  --scene    the scene file to open, named as in assets/scenes, the first one by default\n";
             return 0;
         }
         else
@@ -55,6 +61,10 @@ int main(int argc, char *argv[])
     fried::editor::Editor editor;
     std::string error;
     if (!editor.open(project, engine, &error))
+    {
+        return fail(error);
+    }
+    if (!scene.empty() && !editor.openScene(editor.project().scenesDirectory() + "/" + scene, &error))
     {
         return fail(error);
     }
