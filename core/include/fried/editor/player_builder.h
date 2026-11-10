@@ -30,6 +30,11 @@ namespace fried::editor
         // Advances the build and says where it stands. A step that fails stops it.
         State pump();
 
+        // Which step is running, from 1, how many there are, and what it does in words.
+        std::size_t step() const { return m_next; }
+        std::size_t stepCount() const { return m_steps.size(); }
+        std::string stepLabel() const;
+
         // What the step that failed was, once it has.
         const std::string &failure() const { return m_failure; }
 

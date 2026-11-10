@@ -33,6 +33,27 @@ namespace fried::editor
     {
     }
 
+    std::string PlayerBuilder::stepLabel() const
+    {
+        if (m_next == 0 || m_next > m_steps.size())
+        {
+            return std::string();
+        }
+        const std::vector<std::string> &arguments = m_steps[m_next - 1].m_arguments;
+        if (arguments[0] == "haxe")
+        {
+            return "Generating C++ with Haxe";
+        }
+        for (const std::string &argument : arguments)
+        {
+            if (argument == "--build")
+            {
+                return "Compiling";
+            }
+        }
+        return "Configuring with CMake";
+    }
+
     PlayerBuilder::State PlayerBuilder::pump()
     {
         if (m_state != State::Building)

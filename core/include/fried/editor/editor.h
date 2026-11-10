@@ -3,6 +3,7 @@
 #include "fried/editor/asset_browser.h"
 #include "fried/editor/asset_validation.h"
 #include "fried/editor/command_stack.h"
+#include "fried/editor/editor_state.h"
 #include "fried/editor/gizmo.h"
 #include "fried/editor/game_runner.h"
 #include "fried/editor/platform.h"
@@ -38,6 +39,22 @@ namespace fried::editor
 
         // On a platform other than the PC, the file overrides this field for that platform, and m_value is the override.
         bool m_isOverridden = false;
+    };
+
+    // What the backend shows while something is being built, or after it failed, until it is dismissed.
+    struct BuildProgress
+    {
+        bool m_isVisible = false;
+        bool m_isFailed = false;
+        bool m_canStop = false;
+        std::string m_title;
+        std::string m_stepLabel;
+        int m_step = 0;
+        int m_steps = 0;
+        std::string m_message;
+
+        // The end of the build's log, which keeps growing while it runs.
+        std::string m_log;
     };
 
     struct ComponentView
@@ -93,6 +110,10 @@ namespace fried::editor
         std::vector<std::string> scenePaths() const;
 
         void rebuildPlayer();
+
+        BuildProgress buildProgress() const;
+        // Hides a failed build's window. A build that is going on cannot be dismissed, only stopped.
+        void dismissBuild();
 
         // Saves the scene, builds the project's game for the PC and runs it. Playing again while it runs does nothing.
         void play();
@@ -179,6 +200,10 @@ namespace fried::editor
         PlayerSession m_session;
         std::unique_ptr<PlayerBuilder> m_builder;
         GameRunner m_game;
+        bool m_isFailureShown = false;
+        std::string m_failedTitle;
+        std::string m_failedLog;
+        std::string m_failedMessage;
         Status m_status = Status::Idle;
         std::string m_message;
         Platform m_platform = Platform::Pc;

@@ -39,13 +39,24 @@ namespace fried::editor
             m_scenePath = m_project.scenesDirectory() + "/main.scene.json";
             m_document = SceneDocument::empty("Main");
         }
-        else if (!m_document.load(scenes.front(), error))
-        {
-            return false;
-        }
         else
         {
-            m_scenePath = scenes.front();
+            // The scene that was open last time, when it is still there.
+            std::string chosen = scenes.front();
+            std::string remembered = EditorState::lastScene(m_project.directory());
+            for (const std::string &path : scenes)
+            {
+                if (!remembered.empty() && fs::path(path).filename() == remembered)
+                {
+                    chosen = path;
+                }
+            }
+            if (!m_document.load(chosen, error))
+            {
+                return false;
+            }
+            m_scenePath = chosen;
+            EditorState::setLastScene(m_project.directory(), fs::path(chosen).filename().string());
         }
 
         m_commands = std::make_unique<CommandStack>(m_document);
@@ -70,8 +81,48 @@ namespace fried::editor
         return (fs::temp_directory_path() / "fried-editor-player-build.log").string();
     }
 
+    BuildProgress Editor::buildProgress() const
+    {
+        BuildProgress progress;
+        if (m_builder)
+        {
+            progress.m_isVisible = true;
+            progress.m_title = "Building the editor player";
+            progress.m_step = (int)m_builder->step();
+            progress.m_steps = (int)m_builder->stepCount();
+            progress.m_stepLabel = m_builder->stepLabel();
+            progress.m_log = tailOfFile(playerLogFile(), 40);
+        }
+        else if (m_game.state() == GameRunner::State::Building)
+        {
+            progress.m_isVisible = true;
+            progress.m_canStop = true;
+            progress.m_title = "Building the game";
+            progress.m_step = (int)m_game.step();
+            progress.m_steps = (int)m_game.stepCount();
+            progress.m_stepLabel = m_game.stepLabel();
+            progress.m_log = tailOfFile(m_game.logFile(), 40);
+        }
+        else if (m_isFailureShown)
+        {
+            progress.m_isVisible = true;
+            progress.m_isFailed = true;
+            progress.m_title = m_failedTitle;
+            progress.m_message = m_failedMessage;
+            progress.m_log = tailOfFile(m_failedLog, 40);
+        }
+        return progress;
+    }
+
+    void Editor::dismissBuild()
+    {
+        m_isFailureShown = false;
+        changed();
+    }
+
     void Editor::rebuildPlayer()
     {
+        m_isFailureShown = false;
         m_builder = std::make_unique<PlayerBuilder>(hasProjectPlayer(m_project.directory())
             ? PlayerBuilder::projectSteps(m_enginePath, m_project.directory(), playerLogFile())
             : PlayerBuilder::engineSteps(m_enginePath, playerLogFile()));
@@ -130,6 +181,7 @@ namespace fried::editor
         {
             return;
         }
+        m_isFailureShown = false;
         std::string error;
         if (!m_commands->isClean() && !save(&error))
         {
@@ -145,6 +197,10 @@ namespace fried::editor
         else
         {
             m_message = error;
+            m_isFailureShown = true;
+            m_failedTitle = "The game cannot be built";
+            m_failedLog.clear();
+            m_failedMessage = error;
         }
         changed();
     }
@@ -181,6 +237,10 @@ namespace fried::editor
             else if (after == GameRunner::State::Failed)
             {
                 m_message = m_game.failure();
+                m_isFailureShown = true;
+                m_failedTitle = "Building the game failed";
+                m_failedLog = m_game.logFile();
+                m_failedMessage = m_game.failure();
             }
             else if (after == GameRunner::State::Idle)
             {
@@ -196,6 +256,10 @@ namespace fried::editor
             {
                 m_status = Status::Failed;
                 m_message = m_builder->failure() + " The log is " + playerLogFile();
+                m_isFailureShown = true;
+                m_failedTitle = "Building the editor player failed";
+                m_failedLog = playerLogFile();
+                m_failedMessage = m_builder->failure();
                 m_builder.reset();
                 changed();
             }
@@ -276,6 +340,7 @@ namespace fried::editor
         m_commands = std::make_unique<CommandStack>(m_document);
         m_commands->m_onChange = [this] { changed(); };
         m_scenePath = path;
+        EditorState::setLastScene(m_project.directory(), fs::path(path).filename().string());
         m_selected.reset();
         m_needsLoad = true;
         changed();

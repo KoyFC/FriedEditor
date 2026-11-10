@@ -127,6 +127,61 @@ namespace imgui_backend
         }
     }
 
+    void Panels::buildWindow()
+    {
+        fried::editor::BuildProgress progress = m_editor.buildProgress();
+        if (!progress.m_isVisible)
+        {
+            return;
+        }
+
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_Appearing);
+        bool isOpen = true;
+        if (ImGui::Begin((progress.m_title + "###build").c_str(), progress.m_isFailed ? &isOpen : nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
+        {
+            if (progress.m_isFailed)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.35f, 1.0f));
+                ImGui::TextWrapped("%s", progress.m_message.c_str());
+                ImGui::PopStyleColor();
+            }
+            else
+            {
+                std::string step = progress.m_steps > 0 ? "Step " + std::to_string(progress.m_step) + " of " + std::to_string(progress.m_steps) + ": " + progress.m_stepLabel : "Starting";
+                ImGui::TextUnformatted(step.c_str());
+                // The steps have no length of their own to report, so the bar shows how far through them it is and keeps moving inside a step.
+                float done = progress.m_steps > 0 ? (float)(progress.m_step - 1) / progress.m_steps : 0.0f;
+                float inside = progress.m_steps > 0 ? 0.9f / progress.m_steps * (0.5f + 0.5f * std::sin((float)ImGui::GetTime() * 3.0f)) : 0.0f;
+                ImGui::ProgressBar(done + inside, ImVec2(-FLT_MIN, 0), "");
+            }
+
+            float footer = ImGui::GetFrameHeightWithSpacing() + 4;
+            ImGui::BeginChild("##buildlog", ImVec2(0, -footer), ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::TextUnformatted(progress.m_log.empty() ? "Waiting for the first line of output" : progress.m_log.c_str());
+            if (!progress.m_isFailed || ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1)
+            {
+                ImGui::SetScrollHereY(1.0f);
+            }
+            ImGui::EndChild();
+
+            if (progress.m_canStop && ImGui::Button("Stop"))
+            {
+                m_editor.stopGame();
+            }
+            if (progress.m_isFailed && ImGui::Button("Close"))
+            {
+                isOpen = false;
+            }
+        }
+        ImGui::End();
+        if (!isOpen)
+        {
+            m_editor.dismissBuild();
+        }
+    }
+
     void Panels::statusBar()
     {
         auto &commands = m_editor.commands();

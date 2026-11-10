@@ -285,6 +285,8 @@ namespace imgui_backend
             }
             ImGui::End();
 
+            panels.buildWindow();
+
             if (isCloseAsked)
             {
                 ImGui::OpenPopup("Unsaved changes");

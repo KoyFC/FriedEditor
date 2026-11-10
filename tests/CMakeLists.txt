@@ -3,6 +3,7 @@ add_executable(core_tests
     asset_browser_test.cpp
     asset_validation_test.cpp
     command_stack_test.cpp
+    editor_state_test.cpp
     editor_test.cpp
     game_runner_test.cpp
     gizmo_test.cpp

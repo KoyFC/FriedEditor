@@ -24,6 +24,9 @@ namespace imgui_backend
         int issueCount() const { return (int)m_issues.size(); }
         void statusBar();
 
+        // The window that shows a build going on, or one that failed, with the end of its log.
+        void buildWindow();
+
     private:
         void objectFields();
         void fieldEditor(const std::string &type, const fried::editor::FieldView &field);

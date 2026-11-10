@@ -94,6 +94,11 @@ Known limit: a position that depends on the screen's size, such as the right edg
 - [x] The display frame is the display's size divided by the zoom of the game camera on that platform
 - [x] A pan step takes 4 ms instead of 43 (Nagle and a player that never slept), and the player is nearly idle when nothing is asked of it
 
+### 12. Feedback while building and opening where it was left (FriedEditor)
+
+- [x] A window with the step, a bar and the end of the log while the player or the game builds, and the error when it fails
+- [x] The scene that was open is opened again the next time
+
 ## Later
 
 A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants, a shared library with the Project Manager.

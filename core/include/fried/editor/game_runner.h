@@ -39,6 +39,12 @@ namespace fried::editor
         // Ends the game, or the build, whichever is going on.
         void stop();
 
+        // While the game is being built: which step it is on, out of how many, and what it does.
+        std::size_t step() const { return m_builder ? m_builder->step() : 0; }
+        std::size_t stepCount() const { return m_builder ? m_builder->stepCount() : 0; }
+        std::string stepLabel() const { return m_builder ? m_builder->stepLabel() : std::string(); }
+        const std::string &logFile() const { return m_logFile; }
+
         State state() const { return m_state; }
         const std::string &failure() const { return m_failure; }
 
