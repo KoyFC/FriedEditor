@@ -153,6 +153,10 @@ namespace imgui_backend
                 {
                     save(editor);
                 }
+                else if (ImGui::IsKeyPressed(ImGuiKey_F5, false))
+                {
+                    editor.play();
+                }
                 else if (!isControl && ImGui::IsKeyPressed(ImGuiKey_W, false))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Move);
@@ -178,6 +182,14 @@ namespace imgui_backend
                     if (ImGui::MenuItem("Save", "Ctrl+S"))
                     {
                         save(editor);
+                    }
+                    if (ImGui::MenuItem("Play", "F5"))
+                    {
+                        editor.play();
+                    }
+                    if (ImGui::MenuItem("Stop game", nullptr, false, editor.gameState() != fried::editor::GameRunner::State::Idle))
+                    {
+                        editor.stopGame();
                     }
                     if (ImGui::MenuItem("Rebuild player"))
                     {

@@ -4,6 +4,7 @@
 #include "fried/editor/asset_validation.h"
 #include "fried/editor/command_stack.h"
 #include "fried/editor/gizmo.h"
+#include "fried/editor/game_runner.h"
 #include "fried/editor/platform.h"
 #include "fried/editor/player_builder.h"
 #include "fried/editor/player_session.h"
@@ -92,6 +93,11 @@ namespace fried::editor
 
         void rebuildPlayer();
 
+        // Saves the scene, builds the project's game for the PC and runs it. Playing again while it runs does nothing.
+        void play();
+        void stopGame();
+        GameRunner::State gameState() const { return m_game.state(); }
+
         Platform platform() const { return m_platform; }
         void setPlatform(Platform platform);
 
@@ -166,6 +172,7 @@ namespace fried::editor
         std::unique_ptr<CommandStack> m_commands;
         PlayerSession m_session;
         std::unique_ptr<PlayerBuilder> m_builder;
+        GameRunner m_game;
         Status m_status = Status::Idle;
         std::string m_message;
         Platform m_platform = Platform::Pc;

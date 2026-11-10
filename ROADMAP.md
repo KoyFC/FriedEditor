@@ -57,7 +57,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ### 7. Play mode
 
-- [ ] Build and run the game for PC from the editor
+- [x] Build and run the game for PC from the editor
 
 ## Later
 

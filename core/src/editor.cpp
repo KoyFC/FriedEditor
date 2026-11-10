@@ -120,8 +120,59 @@ namespace fried::editor
         changed();
     }
 
+    void Editor::play()
+    {
+        if (m_game.state() == GameRunner::State::Building || m_game.state() == GameRunner::State::Running)
+        {
+            return;
+        }
+        std::string error;
+        if (!m_commands->isClean() && !save(&error))
+        {
+            m_message = error;
+            changed();
+            return;
+        }
+        std::string log = (fs::temp_directory_path() / "fried-editor-game.log").string();
+        if (m_game.start(m_project.directory(), log, &error))
+        {
+            m_message = "Building the game, the log is " + log;
+        }
+        else
+        {
+            m_message = error;
+        }
+        changed();
+    }
+
+    void Editor::stopGame()
+    {
+        m_game.stop();
+        m_message = "Stopped the game";
+        changed();
+    }
+
     void Editor::pump()
     {
+        GameRunner::State before = m_game.state();
+        GameRunner::State after = m_game.pump();
+        if (after != before)
+        {
+            if (after == GameRunner::State::Running)
+            {
+                m_message = "Playing the game";
+            }
+            else if (after == GameRunner::State::Failed)
+            {
+                m_message = m_game.failure();
+            }
+            else if (after == GameRunner::State::Idle)
+            {
+                m_message = "The game closed";
+            }
+            changed();
+        }
+
         if (m_builder)
         {
             PlayerBuilder::State state = m_builder->pump();

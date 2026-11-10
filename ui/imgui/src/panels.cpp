@@ -68,6 +68,21 @@ namespace imgui_backend
 
     void Panels::toolbar()
     {
+        using fried::editor::GameRunner;
+        GameRunner::State game = m_editor.gameState();
+        bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
+        ImGui::PushStyleColor(ImGuiCol_Button, isGoing ? ImVec4(0.75f, 0.25f, 0.2f, 1.0f) : ImVec4(0.2f, 0.6f, 0.3f, 1.0f));
+        if (ImGui::Button(isGoing ? "Stop" : "Play  F5", ImVec2(76, 0)))
+        {
+            isGoing ? m_editor.stopGame() : m_editor.play();
+        }
+        ImGui::PopStyleColor();
+        if (game == GameRunner::State::Building)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("building...");
+        }
+        ImGui::SameLine(0, 24);
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("Tool");
         ImGui::SameLine();
