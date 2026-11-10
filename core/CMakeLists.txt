@@ -1,7 +1,15 @@
 add_library(fried_editor_core STATIC
+    src/message_channel.cpp
     src/project.cpp
     src/version.cpp
 )
+
+if(UNIX)
+    target_sources(fried_editor_core PRIVATE
+        src/posix/sockets.cpp
+        src/posix/subprocess.cpp
+    )
+endif()
 
 target_include_directories(fried_editor_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
