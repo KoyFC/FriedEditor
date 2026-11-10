@@ -5,10 +5,11 @@ The scene editor for [Fried Engine](https://github.com/KoyFC/FriedEngine). See [
 ## Layout
 
 - `core/` is all of the editor's logic, with no UI toolkit in it: the standard library and the vendored `nlohmann/json` only. Nothing under it may include a UI header, and configuring fails if something does.
-- `ui/qt/` is the Qt 6 backend, the only code that includes Qt. A backend draws, forwards input and holds no editor state beyond its widgets, so replacing the toolkit means writing another backend next to it.
-- `app/` is the executable that starts a backend.
+- `ui/imgui/` is the Dear ImGui backend (SDL2 and OpenGL 3), with a dark theme and the engine's own font. It is the editor that `fried_editor` starts.
+- `ui/qt/` is the Qt 6 backend, kept as `fried_editor_qt`. A backend draws, forwards input and holds no editor state beyond its widgets, so replacing the toolkit means writing another backend next to these. The Qt one is no longer extended: it has everything up to the asset browser and gizmos.
+- `app_imgui/` and `app/` are the executables that start each backend.
 - `tests/` runs the core with doctest, and builds without any toolkit installed.
-- `third_party/` holds `nlohmann/json` and `doctest`, unchanged.
+- `third_party/` holds `nlohmann/json`, `doctest`, Dear ImGui 1.91.9 (docking) and `stb_image`, unchanged.
 
 ## Building
 
@@ -18,19 +19,19 @@ cmake --build build
 ctest --test-dir build
 ```
 
-Without Qt 6 Widgets installed, only the core and its tests are built. `-DFRIED_EDITOR_QT=OFF` does the same on purpose.
+Each backend is built when its libraries are found (SDL2 and OpenGL for ImGui, Qt 6 Widgets for Qt) and the core and its tests are always built. `-DFRIED_EDITOR_QT=OFF` and `-DFRIED_EDITOR_IMGUI=OFF` leave one out on purpose.
 
 ## Running
 
 The editor opens a project's folder, the one with `project.fried`, and finds the engine in its `engine/` folder or next to it (the engine's own `sandbox/` works as is). Otherwise pass `--engine <path>`.
 
 ```
-build/app/fried_editor ~/Documentos/GitHub/FriedEngine/sandbox
-build/app/fried_editor <project> --engine <engine>
+build/app_imgui/fried_editor ~/Documentos/GitHub/FriedEngine/sandbox
+build/app_imgui/fried_editor <project> --engine <engine>
 ```
 
 The first run builds the editor player from the engine, which needs Haxe, hxcpp and CMake as building a game does, and takes a minute. The log goes to `fried-editor-player-build.log` in the temporary directory. File, Rebuild player does it again after the engine changes.
 
-The viewport shows the scene without running it. Left click selects and drags an object, the wheel zooms, and the right or middle button pans. The hierarchy adds, deletes and reorders objects and picks the scene's camera, the inspector edits every field of the selected object, and Ctrl+Z and Ctrl+Y undo and redo. The toolbar's Move, Rotate and Scale (W, E and R) put handles on the selected object, and dragging one is a single undo step. The Assets dock lists the images, fonts, sounds and scenes of the project and of the engine: drag an image onto the view for a new Sprite, onto a Sprite to change its texture, or a font for a new Text; a double click drops it in the middle. Ctrl+S saves the scene to `assets/scenes/` in the project. The platform selector previews that platform's overrides.
+The viewport shows the scene without running it. Left click selects and drags an object, the wheel zooms, and the right or middle button pans. The hierarchy adds, deletes and reorders objects and picks the scene's camera, the inspector edits every field of the selected object, and Ctrl+Z and Ctrl+Y undo and redo. The layout of the panels is docked and is remembered in `~/.config/fried-editor/layout.ini`. The toolbar's Move, Rotate and Scale (W, E and R) put handles on the selected object, and dragging one is a single undo step. The Assets dock lists the images, fonts, sounds and scenes of the project and of the engine: drag an image onto the view for a new Sprite, onto a Sprite to change its texture, or a font for a new Text; a double click drops it in the middle. Ctrl+S saves the scene to `assets/scenes/` in the project. The platform selector previews that platform's overrides.
 
 `FRIED_ENGINE=<engine> build/tests/core_tests` also runs the tests that start the real player.

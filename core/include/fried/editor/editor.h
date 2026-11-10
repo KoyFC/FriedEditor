@@ -63,6 +63,9 @@ namespace fried::editor
         static constexpr int s_frameWidth = 1280;
         static constexpr int s_frameHeight = 720;
 
+        // The engine checkout a project builds against: its engine/ folder, or the folder that holds it (the engine's own sandbox). Empty when neither has an editor player.
+        static std::string findEngine(const std::string &projectDirectory);
+
         // Reads the project and its first scene, builds the player if it is not built, and starts it.
         bool open(const std::string &projectDirectory, const std::string &enginePath, std::string *error);
 
@@ -73,6 +76,7 @@ namespace fried::editor
         const std::string &message() const { return m_message; }
 
         const Project &project() const { return m_project; }
+        const std::string &enginePath() const { return m_enginePath; }
         SceneDocument &document() { return m_document; }
         const SceneDocument &document() const { return m_document; }
         CommandStack &commands() { return *m_commands; }
@@ -119,6 +123,9 @@ namespace fried::editor
 
         const Viewport &viewport() const { return m_viewport; }
         const Frame &frame() const { return m_frame; }
+
+        // Counts the frames received, so a backend uploads a picture only when there is a new one.
+        unsigned long frameSerial() const { return m_frameSerial; }
         DrawList overlay() const;
 
         void pointerDown(double frameX, double frameY, Pointer pointer);
@@ -153,6 +160,7 @@ namespace fried::editor
         std::optional<std::string> m_selected;
         Viewport m_viewport;
         Frame m_frame;
+        unsigned long m_frameSerial = 0;
         GizmoMode m_gizmoMode = GizmoMode::Move;
 
         bool m_needsLoad = false;

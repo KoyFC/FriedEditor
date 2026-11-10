@@ -69,3 +69,52 @@ namespace fried::editor
         return true;
     }
 }
+
+namespace fried::editor
+{
+    std::string assetReferenceText(const nlohmann::json &reference, bool isFont)
+    {
+        if (!reference.is_object())
+        {
+            return std::string();
+        }
+        std::string text = reference.value("root", "") + "/" + reference.value("path", "");
+        return isFont ? text + "@" + std::to_string(reference.value("size", 16)) : text;
+    }
+
+    std::optional<nlohmann::json> assetReferenceFromText(const std::string &text, bool isFont)
+    {
+        std::size_t first = text.find_first_not_of(" \t");
+        if (first == std::string::npos)
+        {
+            return nlohmann::json();
+        }
+        std::string trimmed = text.substr(first, text.find_last_not_of(" \t") - first + 1);
+
+        int size = 16;
+        std::size_t at = trimmed.rfind('@');
+        if (isFont && at != std::string::npos)
+        {
+            try
+            {
+                size = std::stoi(trimmed.substr(at + 1));
+                trimmed = trimmed.substr(0, at);
+            }
+            catch (const std::exception &)
+            {
+            }
+        }
+
+        std::string root, path;
+        if (!parseAssetReference(trimmed, &root, &path))
+        {
+            return std::nullopt;
+        }
+        nlohmann::json reference = {{"root", root}, {"path", path}};
+        if (isFont)
+        {
+            reference["size"] = size;
+        }
+        return reference;
+    }
+}

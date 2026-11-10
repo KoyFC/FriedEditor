@@ -11,6 +11,20 @@ namespace fried::editor
     using Json = nlohmann::json;
     namespace fs = std::filesystem;
 
+    std::string Editor::findEngine(const std::string &projectDirectory)
+    {
+        for (const fs::path &candidate : {fs::path(projectDirectory) / "engine", fs::path(projectDirectory) / ".."})
+        {
+            std::error_code ignored;
+            fs::path normal = fs::weakly_canonical(candidate, ignored);
+            if (fs::exists(normal / "editor" / "player" / "build.hxml", ignored))
+            {
+                return normal.string();
+            }
+        }
+        return std::string();
+    }
+
     bool Editor::open(const std::string &projectDirectory, const std::string &enginePath, std::string *error)
     {
         if (!m_project.load(projectDirectory, error))
@@ -77,6 +91,7 @@ namespace fried::editor
         };
         m_session.m_onFrame = [this](const Frame &frame) {
             m_frame = frame;
+            ++m_frameSerial;
             m_viewport.setFrameSize(frame.m_width, frame.m_height);
             m_isRenderInFlight = false;
             changed();

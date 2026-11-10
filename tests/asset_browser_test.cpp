@@ -47,3 +47,19 @@ TEST_CASE("a reference is read back into a root and a path, and anything else is
     CHECK_FALSE(parseAssetReference("game/", &root, &path));
     CHECK_FALSE(parseAssetReference("a.png", &root, &path));
 }
+
+TEST_CASE("an asset reference is written for the inspector and read back from what is typed")
+{
+    nlohmann::json texture = {{"root", "game"}, {"path", "sprite.png"}};
+    CHECK(assetReferenceText(texture, false) == "game/sprite.png");
+    CHECK(assetReferenceFromText("game/sprite.png", false) == std::optional<nlohmann::json>(texture));
+
+    nlohmann::json font = {{"root", "engine"}, {"path", "NunitoSans.ttf"}, {"size", 24}};
+    CHECK(assetReferenceText(font, true) == "engine/NunitoSans.ttf@24");
+    CHECK(assetReferenceFromText(" engine/NunitoSans.ttf@24 ", true) == std::optional<nlohmann::json>(font));
+    CHECK((*assetReferenceFromText("engine/NunitoSans.ttf", true))["size"] == 16);
+
+    CHECK(assetReferenceFromText("", false) == std::optional<nlohmann::json>(nlohmann::json()));
+    CHECK_FALSE(assetReferenceFromText("somewhere/else.png", false).has_value());
+    CHECK(assetReferenceText(nlohmann::json(), false).empty());
+}
