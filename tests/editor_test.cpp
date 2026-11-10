@@ -101,3 +101,44 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     pumpUntil(editor, [&] { return false; });
     CHECK(editor.status() == Editor::Status::Ready);
 }
+
+TEST_CASE("the editor shows the sandbox's scene with the components of the game" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    for (int attempt = 0; attempt < 120000 && editor.status() != Editor::Status::Ready && editor.status() != Editor::Status::Failed; ++attempt)
+    {
+        editor.pump();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE(editor.status() == Editor::Status::Ready);
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    pumpUntil(editor, [&] { return !editor.frame().m_bounds.empty() && editor.frame().m_bounds.size() == 8; });
+    REQUIRE(editor.frame().m_bounds.size() == 8);
+
+    // A box is as big as it says, so the wall can be picked anywhere along it.
+    for (const auto &bound : editor.frame().m_bounds)
+    {
+        if (bound.m_id == "wall")
+        {
+            CHECK(bound.m_width == 900);
+            CHECK(bound.m_height == 48);
+        }
+    }
+
+    editor.select(std::string("camera"));
+    bool hasReference = false;
+    for (const ComponentView &component : editor.inspector())
+    {
+        for (const FieldView &field : component.m_fields)
+        {
+            if (component.m_type == "CameraFollow" && field.m_schema.m_name == "target")
+            {
+                hasReference = field.m_schema.m_kind == "object" && field.m_value == "player";
+            }
+        }
+    }
+    CHECK(hasReference);
+}

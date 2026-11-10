@@ -54,7 +54,7 @@ namespace fried::editor
         m_viewport.setFrameSize(s_frameWidth, s_frameHeight);
         m_viewport.setCamera(s_frameWidth / 2.0, s_frameHeight / 2.0, 1.0);
 
-        if (!fs::exists(playerExecutablePath(m_enginePath)))
+        if (isPlayerStale(m_enginePath, m_project.directory()))
         {
             rebuildPlayer();
         }
@@ -72,7 +72,9 @@ namespace fried::editor
 
     void Editor::rebuildPlayer()
     {
-        m_builder = std::make_unique<PlayerBuilder>(PlayerBuilder::engineSteps(m_enginePath, playerLogFile()));
+        m_builder = std::make_unique<PlayerBuilder>(hasProjectPlayer(m_project.directory())
+            ? PlayerBuilder::projectSteps(m_enginePath, m_project.directory(), playerLogFile())
+            : PlayerBuilder::engineSteps(m_enginePath, playerLogFile()));
         m_status = Status::BuildingPlayer;
         m_message = "Building the editor player, the log is " + playerLogFile();
         changed();
@@ -107,7 +109,7 @@ namespace fried::editor
         };
 
         std::string error;
-        if (!m_session.launch(playerExecutablePath(m_enginePath), m_enginePath, m_project.directory(), s_frameWidth, s_frameHeight, &error))
+        if (!m_session.launch(playerExecutablePath(m_enginePath, m_project.directory()), m_enginePath, m_project.directory(), s_frameWidth, s_frameHeight, &error))
         {
             m_status = Status::Failed;
             m_message = error;

@@ -3,6 +3,7 @@
 #include "fried/editor/scene_document.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -138,4 +139,41 @@ TEST_CASE("a file that is not a scene is refused with a reason")
     CHECK(error.find("version 2") != std::string::npos);
     CHECK_FALSE(document.parse(R"({"version": 1, "objects": [{"name": "no id"}]})", &error));
     CHECK_FALSE(document.load("/nonexistent/scene.json", &error));
+}
+
+TEST_CASE("a component of a type the player does not know is kept as it is")
+{
+    SceneDocument document = SceneDocument::empty("Main");
+    Json custom = {{"id", "a"},
+                   {"name", "A"},
+                   {"components", Json::array({Json{{"type", "Transform"}, {"x", 1}}, Json{{"type", "Mystery"}, {"target", "b"}, {"depth", 3}}})}};
+    REQUIRE(document.insertObject(0, custom));
+
+    std::string path = (std::filesystem::temp_directory_path() / "fried-unknown-type.scene.json").string();
+    std::string error;
+    REQUIRE(document.save(path, &error));
+    SceneDocument reloaded = SceneDocument::empty("Other");
+    REQUIRE(reloaded.load(path, &error));
+    CHECK(reloaded.data()["objects"][0] == custom);
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("the sandbox's scene files are in the form the editor writes" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    for (const char *name : {"sandbox", "sandbox_ui"})
+    {
+        std::string path = std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/" + name + ".scene.json";
+        std::string error;
+        SceneDocument document = SceneDocument::empty("x");
+        REQUIRE(document.load(path, &error));
+        std::string again = (std::filesystem::temp_directory_path() / (std::string(name) + "-again.scene.json")).string();
+        REQUIRE(document.save(again, &error));
+
+        std::ifstream first(path), second(again);
+        std::stringstream a, b;
+        a << first.rdbuf();
+        b << second.rdbuf();
+        CHECK(a.str() == b.str());
+        std::filesystem::remove(again);
+    }
 }

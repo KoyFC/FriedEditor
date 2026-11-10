@@ -22,6 +22,9 @@ namespace fried::editor
         // The steps the engine's own build uses: haxe, then CMake to configure and to compile.
         static std::vector<SubprocessOptions> engineSteps(const std::string &enginePath, const std::string &logFile);
 
+        // The same for a project that has its own editor.hxml, which puts the project's components in the player.
+        static std::vector<SubprocessOptions> projectSteps(const std::string &enginePath, const std::string &projectDirectory, const std::string &logFile);
+
         PlayerBuilder(std::vector<SubprocessOptions> steps);
 
         // Advances the build and says where it stands. A step that fails stops it.
@@ -40,4 +43,11 @@ namespace fried::editor
 
     // Where the player's executable is once built, inside an engine checkout.
     std::string playerExecutablePath(const std::string &enginePath);
+
+    // A project with an editor.hxml has a player of its own, and any other uses the engine's.
+    bool hasProjectPlayer(const std::string &projectDirectory);
+    std::string playerExecutablePath(const std::string &enginePath, const std::string &projectDirectory);
+
+    // True when the player is missing or older than the engine's or the project's sources, which would leave it describing components that have since changed.
+    bool isPlayerStale(const std::string &enginePath, const std::string &projectDirectory);
 }

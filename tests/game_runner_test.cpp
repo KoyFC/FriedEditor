@@ -58,3 +58,36 @@ TEST_CASE("the game runner builds and runs the sandbox")
     runner.stop();
     CHECK(runner.state() == GameRunner::State::Idle);
 }
+
+TEST_CASE("a player is stale when a source is newer than it, and a project with an editor.hxml has its own")
+{
+    fs::path root = fs::temp_directory_path() / "fried-stale-test";
+    fs::remove_all(root);
+    fs::create_directories(root / "engine" / "src");
+    fs::create_directories(root / "engine" / "native");
+    fs::create_directories(root / "engine" / "editor" / "player" / "build");
+    fs::create_directories(root / "project" / "src");
+    std::string engine = (root / "engine").string(), project = (root / "project").string();
+
+    using fried::editor::hasProjectPlayer;
+    using fried::editor::isPlayerStale;
+    using fried::editor::playerExecutablePath;
+
+    CHECK(isPlayerStale(engine, project));
+
+    std::ofstream(root / "engine" / "src" / "a.hx") << "x";
+    std::ofstream(root / "engine" / "editor" / "player" / "build" / "fried_editor_player") << "x";
+    auto built = fs::last_write_time(root / "engine" / "src" / "a.hx") + std::chrono::seconds(10);
+    fs::last_write_time(root / "engine" / "editor" / "player" / "build" / "fried_editor_player", built);
+    CHECK_FALSE(isPlayerStale(engine, project));
+
+    fs::last_write_time(root / "engine" / "src" / "a.hx", built + std::chrono::seconds(10));
+    CHECK(isPlayerStale(engine, project));
+
+    CHECK_FALSE(hasProjectPlayer(project));
+    std::ofstream(root / "project" / "editor.hxml") << "x";
+    CHECK(hasProjectPlayer(project));
+    CHECK(playerExecutablePath(engine, project) == project + "/build/editor-player/fried_project_editor_player");
+    CHECK(isPlayerStale(engine, project));
+    fs::remove_all(root);
+}
