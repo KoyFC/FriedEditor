@@ -1,5 +1,6 @@
 #include "main_window.h"
 
+#include "asset_panel.h"
 #include "hierarchy_panel.h"
 #include "inspector_panel.h"
 #include "viewport_widget.h"
@@ -24,6 +25,7 @@ MainWindow::MainWindow(Editor &editor, QWidget *parent)
     , m_editor(editor)
     , m_viewport(new ViewportWidget(editor, this))
     , m_hierarchy(new HierarchyPanel(editor, this))
+    , m_assets(new AssetPanel(editor, this))
     , m_inspector(new InspectorPanel(editor, this))
 {
     resize(1400, 800);
@@ -35,6 +37,10 @@ MainWindow::MainWindow(Editor &editor, QWidget *parent)
     auto *inspectorDock = new QDockWidget(tr("Inspector"), this);
     inspectorDock->setWidget(m_inspector);
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock);
+
+    auto *assetDock = new QDockWidget(tr("Assets"), this);
+    assetDock->setWidget(m_assets);
+    addDockWidget(Qt::BottomDockWidgetArea, assetDock);
 
     QMenu *file = menuBar()->addMenu(tr("&File"));
     QAction *save = file->addAction(tr("&Save"), QKeySequence::Save, [this] { this->save(); });
@@ -87,6 +93,7 @@ void MainWindow::refresh()
     m_viewport->refresh();
     m_hierarchy->refresh();
     m_inspector->refresh();
+    m_assets->refresh();
 
     auto &commands = m_editor.commands();
     m_undo->setEnabled(commands.canUndo());

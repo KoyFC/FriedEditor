@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fried/editor/asset_browser.h"
 #include "fried/editor/command_stack.h"
 #include "fried/editor/gizmo.h"
 #include "fried/editor/platform.h"
@@ -105,6 +106,13 @@ namespace fried::editor
         void setField(const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
         void addComponent(const std::string &type);
         void removeComponent(const std::string &type);
+
+        // The files of both asset roots, and where one is on disk.
+        std::vector<AssetEntry> assets() const;
+        std::string assetFile(const std::string &root, const std::string &path) const;
+
+        // An image dropped on an object with a Sprite becomes its texture, and anywhere else a new Sprite. A font becomes a new Text.
+        void dropAsset(const std::string &root, const std::string &path, double frameX, double frameY);
 
         GizmoMode gizmoMode() const { return m_gizmoMode; }
         void setGizmoMode(GizmoMode mode);

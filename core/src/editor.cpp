@@ -413,6 +413,67 @@ namespace fried::editor
         }
     }
 
+    std::vector<AssetEntry> Editor::assets() const
+    {
+        std::vector<AssetEntry> entries = listAssets("game", m_project.assetsDirectory());
+        std::vector<AssetEntry> engine = listAssets("engine", m_enginePath + "/assets");
+        entries.insert(entries.end(), engine.begin(), engine.end());
+        return entries;
+    }
+
+    std::string Editor::assetFile(const std::string &root, const std::string &path) const
+    {
+        return (root == "engine" ? m_enginePath + "/assets/" : m_project.assetsDirectory() + "/") + path;
+    }
+
+    void Editor::dropAsset(const std::string &root, const std::string &path, double frameX, double frameY)
+    {
+        AssetKind kind = assetKindOf(path);
+        if (kind != AssetKind::Image && kind != AssetKind::Font)
+        {
+            return;
+        }
+
+        Json reference = {{"root", root}, {"path", path}};
+        if (kind == AssetKind::Image)
+        {
+            if (auto target = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
+            {
+                bool hasSprite = false;
+                for (const Json &component : (*m_document.object(*target))["components"])
+                {
+                    hasSprite = hasSprite || component.value("type", "") == "Sprite";
+                }
+                if (hasSprite)
+                {
+                    select(target);
+                    m_commands->execute(std::make_unique<SetComponentField>(*target, "Sprite", "texture", reference));
+                    return;
+                }
+            }
+        }
+        else
+        {
+            reference["size"] = 16;
+        }
+
+        std::string stem = fs::path(path).stem().stem().string();
+        std::string id = m_document.uniqueId(stem.empty() ? "asset" : stem);
+        Json transform = newComponent("Transform");
+        transform["x"] = std::round(m_viewport.frameToWorldX(frameX));
+        transform["y"] = std::round(m_viewport.frameToWorldY(frameY));
+        Json component = newComponent(kind == AssetKind::Image ? "Sprite" : "Text");
+        component[kind == AssetKind::Image ? "texture" : "font"] = reference;
+        if (kind == AssetKind::Font)
+        {
+            component["text"] = "Text";
+            component["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
+        }
+        m_commands->execute(std::make_unique<AddObject>((int)m_document.objectIds().size(),
+                                                        Json{{"id", id}, {"name", stem}, {"components", Json::array({transform, component})}}));
+        select(id);
+    }
+
     void Editor::setGizmoMode(GizmoMode mode)
     {
         m_gizmoMode = mode;

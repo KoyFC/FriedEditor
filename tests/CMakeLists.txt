@@ -1,5 +1,6 @@
 add_executable(core_tests
     main.cpp
+    asset_browser_test.cpp
     command_stack_test.cpp
     editor_test.cpp
     gizmo_test.cpp

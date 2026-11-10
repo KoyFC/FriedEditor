@@ -1,6 +1,8 @@
 set(CMAKE_AUTOMOC ON)
 
 add_library(fried_editor_qt STATIC
+    src/asset_panel.cpp
+    src/asset_panel.h
     src/hierarchy_panel.cpp
     src/hierarchy_panel.h
     src/inspector_panel.cpp

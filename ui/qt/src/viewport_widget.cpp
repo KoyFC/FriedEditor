@@ -1,5 +1,10 @@
 #include "viewport_widget.h"
 
+#include "asset_panel.h"
+
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QWheelEvent>
@@ -13,6 +18,7 @@ ViewportWidget::ViewportWidget(Editor &editor, QWidget *parent)
 {
     setMouseTracking(true);
     setMinimumSize(320, 180);
+    setAcceptDrops(true);
 }
 
 void ViewportWidget::refresh()
@@ -108,4 +114,28 @@ void ViewportWidget::wheelEvent(QWheelEvent *event)
 {
     QPointF frame = toFrame(event->position());
     m_editor.wheel(frame.x(), frame.y(), event->angleDelta().y() / 120.0);
+}
+
+void ViewportWidget::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasFormat(assetMimeType()))
+    {
+        event->acceptProposedAction();
+    }
+}
+
+void ViewportWidget::dragMoveEvent(QDragMoveEvent *event)
+{
+    event->acceptProposedAction();
+}
+
+void ViewportWidget::dropEvent(QDropEvent *event)
+{
+    std::string root, path;
+    if (fried::editor::parseAssetReference(QString::fromUtf8(event->mimeData()->data(assetMimeType())).toStdString(), &root, &path))
+    {
+        QPointF frame = toFrame(event->position());
+        m_editor.dropAsset(root, path, frame.x(), frame.y());
+        event->acceptProposedAction();
+    }
 }

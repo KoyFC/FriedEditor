@@ -62,6 +62,17 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.commands().undo();
     CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(8));
 
+    // An image dropped on the sprite swaps its texture, and dropped on empty space makes a new sprite there.
+    editor.dropAsset("game", "icon.png", view.worldToFrameX(320), view.worldToFrameY(200));
+    CHECK(editor.document().componentField("sprite", "Sprite", "texture") == nlohmann::json({{"root", "game"}, {"path", "icon.png"}}));
+    editor.dropAsset("game", "sprite.png", 10, 10);
+    CHECK(editor.hierarchy().size() == 4);
+    CHECK(editor.selected() == std::optional<std::string>("sprite-2"));
+    CHECK(editor.assets().size() > 4);
+    editor.commands().undo();
+    editor.commands().undo();
+    CHECK(editor.hierarchy().size() == 3);
+
     editor.addObject("Text");
     CHECK(editor.hierarchy().size() == 4);
     CHECK(editor.inspector().size() == 2);

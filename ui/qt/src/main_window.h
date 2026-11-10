@@ -6,6 +6,7 @@
 #include <QMainWindow>
 #include <QTimer>
 
+class AssetPanel;
 class HierarchyPanel;
 class InspectorPanel;
 class ViewportWidget;
@@ -28,6 +29,7 @@ private:
     fried::editor::Editor &m_editor;
     ViewportWidget *m_viewport;
     HierarchyPanel *m_hierarchy;
+    AssetPanel *m_assets;
     InspectorPanel *m_inspector;
     QAction *m_undo;
     QAction *m_redo;

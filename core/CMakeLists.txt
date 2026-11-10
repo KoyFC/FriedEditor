@@ -1,4 +1,5 @@
 add_library(fried_editor_core STATIC
+    src/asset_browser.cpp
     src/command_stack.cpp
     src/commands.cpp
     src/editor.cpp
