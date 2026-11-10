@@ -1,4 +1,5 @@
 add_library(fried_editor_core STATIC
+    src/project.cpp
     src/version.cpp
 )
 

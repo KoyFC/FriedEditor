@@ -1,5 +1,6 @@
 add_executable(core_tests
     main.cpp
+    project_test.cpp
     version_test.cpp
 )
 target_link_libraries(core_tests PRIVATE fried_editor_core)
