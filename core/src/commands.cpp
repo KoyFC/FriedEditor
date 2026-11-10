@@ -56,6 +56,37 @@ namespace fried::editor
         return true;
     }
 
+    SetPosition::SetPosition(std::string id, double x, double y)
+        : m_id(std::move(id)), m_x(x), m_y(y)
+    {
+    }
+
+    bool SetPosition::apply(SceneDocument &document)
+    {
+        m_beforeX = document.componentField(m_id, "Transform", "x");
+        m_beforeY = document.componentField(m_id, "Transform", "y");
+        return document.setComponentField(m_id, "Transform", "x", nlohmann::json(m_x))
+            && document.setComponentField(m_id, "Transform", "y", nlohmann::json(m_y));
+    }
+
+    void SetPosition::revert(SceneDocument &document)
+    {
+        document.setComponentField(m_id, "Transform", "x", m_beforeX);
+        document.setComponentField(m_id, "Transform", "y", m_beforeY);
+    }
+
+    bool SetPosition::mergeWith(const Command &later)
+    {
+        auto *next = dynamic_cast<const SetPosition *>(&later);
+        if (!next || next->m_id != m_id)
+        {
+            return false;
+        }
+        m_x = next->m_x;
+        m_y = next->m_y;
+        return true;
+    }
+
     AddObject::AddObject(int index, nlohmann::json object)
         : m_index(index), m_object(std::move(object))
     {

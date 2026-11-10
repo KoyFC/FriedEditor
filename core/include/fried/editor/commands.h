@@ -43,6 +43,25 @@ namespace fried::editor
         std::optional<nlohmann::json> m_before;
     };
 
+    // Moves an object by setting its Transform's x and y together, so dragging it is one step.
+    class SetPosition : public Command
+    {
+    public:
+        SetPosition(std::string id, double x, double y);
+
+        std::string label() const override { return "Move object"; }
+        bool apply(SceneDocument &document) override;
+        void revert(SceneDocument &document) override;
+        bool mergeWith(const Command &later) override;
+
+    private:
+        std::string m_id;
+        double m_x;
+        double m_y;
+        std::optional<nlohmann::json> m_beforeX;
+        std::optional<nlohmann::json> m_beforeY;
+    };
+
     class AddObject : public Command
     {
     public:

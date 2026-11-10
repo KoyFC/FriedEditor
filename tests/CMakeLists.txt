@@ -5,6 +5,7 @@ add_executable(core_tests
     project_test.cpp
     scene_document_test.cpp
     transport_test.cpp
+    viewport_test.cpp
     version_test.cpp
 )
 target_link_libraries(core_tests PRIVATE fried_editor_core)
