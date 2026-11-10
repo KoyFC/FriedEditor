@@ -34,7 +34,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ### 4. Editor skeleton
 
-- [ ] CMake with `core/`, `core_tests` and `ui/qt/`
+- [x] CMake with `core/`, `core_tests` and `ui/qt/`
 - [ ] Project, platform and build target model in core
 - [ ] Subprocess, TCP listener and message framing
 - [ ] Player session: build, launch, handshake, schema

@@ -1,0 +1,2 @@
+add_executable(fried_editor qt_main.cpp)
+target_link_libraries(fried_editor PRIVATE fried_editor_qt)

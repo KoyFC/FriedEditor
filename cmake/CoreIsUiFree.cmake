@@ -1,0 +1,12 @@
+# The core and its tests may not include a UI toolkit's headers, so replacing the toolkit means writing a backend and nothing else.
+function(fried_editor_check_core_is_ui_free)
+    foreach(_directory ${ARGN})
+        file(GLOB_RECURSE _sources ${_directory}/*.h ${_directory}/*.hpp ${_directory}/*.cpp)
+        foreach(_source ${_sources})
+            file(STRINGS ${_source} _includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"](Q[A-Za-z]|imgui|SDL|GLFW)")
+            if(_includes)
+                message(FATAL_ERROR "${_source} includes a UI or windowing header, which nothing under core/ or tests/ may do:\n${_includes}")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
