@@ -87,6 +87,54 @@ namespace fried::editor
         return true;
     }
 
+    SetTransformFields::SetTransformFields(std::string id, std::map<std::string, double> fields)
+        : m_id(std::move(id)), m_fields(std::move(fields))
+    {
+    }
+
+    bool SetTransformFields::apply(SceneDocument &document)
+    {
+        m_before.clear();
+        for (const auto &[field, value] : m_fields)
+        {
+            m_before[field] = document.componentField(m_id, "Transform", field);
+            if (!document.setComponentField(m_id, "Transform", field, nlohmann::json(value)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void SetTransformFields::revert(SceneDocument &document)
+    {
+        for (const auto &[field, before] : m_before)
+        {
+            document.setComponentField(m_id, "Transform", field, before);
+        }
+    }
+
+    bool SetTransformFields::mergeWith(const Command &later)
+    {
+        auto *next = dynamic_cast<const SetTransformFields *>(&later);
+        if (!next || next->m_id != m_id)
+        {
+            return false;
+        }
+        for (const auto &[field, value] : next->m_fields)
+        {
+            if (m_fields.find(field) == m_fields.end())
+            {
+                return false;
+            }
+        }
+        for (const auto &[field, value] : next->m_fields)
+        {
+            m_fields[field] = value;
+        }
+        return true;
+    }
+
     AddObject::AddObject(int index, nlohmann::json object)
         : m_index(index), m_object(std::move(object))
     {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fried/editor/command_stack.h"
+#include "fried/editor/gizmo.h"
 #include "fried/editor/platform.h"
 #include "fried/editor/player_builder.h"
 #include "fried/editor/player_session.h"
@@ -105,6 +106,9 @@ namespace fried::editor
         void addComponent(const std::string &type);
         void removeComponent(const std::string &type);
 
+        GizmoMode gizmoMode() const { return m_gizmoMode; }
+        void setGizmoMode(GizmoMode mode);
+
         const Viewport &viewport() const { return m_viewport; }
         const Frame &frame() const { return m_frame; }
         DrawList overlay() const;
@@ -122,6 +126,8 @@ namespace fried::editor
         void documentChanged(const DocumentChange &change);
         void cameraChanged();
         void changed();
+        TransformValues transformOf(const std::string &id) const;
+        std::vector<GizmoHandle> currentHandles() const;
         nlohmann::json newComponent(const std::string &type) const;
         const ComponentSchema *schemaOf(const std::string &type) const;
         std::string playerLogFile() const;
@@ -139,6 +145,7 @@ namespace fried::editor
         std::optional<std::string> m_selected;
         Viewport m_viewport;
         Frame m_frame;
+        GizmoMode m_gizmoMode = GizmoMode::Move;
 
         bool m_needsLoad = false;
         bool m_needsCamera = false;
@@ -151,6 +158,7 @@ namespace fried::editor
             {
                 None,
                 Object,
+                Handle,
                 Pan
             };
             Kind m_kind = Kind::None;
@@ -162,6 +170,7 @@ namespace fried::editor
             double m_lastFrameX = 0;
             double m_lastFrameY = 0;
             bool m_hasMoved = false;
+            std::optional<GizmoDrag> m_handle;
         } m_drag;
     };
 }

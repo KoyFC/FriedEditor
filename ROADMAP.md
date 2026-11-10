@@ -47,7 +47,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 - [x] Hierarchy panel
 - [x] Inspector generated from the schema
 - [ ] Asset browser, drag a texture to create a sprite
-- [ ] Move, scale and rotate gizmos
+- [x] Move, scale and rotate gizmos
 
 ### 6. Per-platform
 

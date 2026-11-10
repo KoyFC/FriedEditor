@@ -7,6 +7,7 @@
 #include "fried/editor/version.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QCloseEvent>
 #include <QLabel>
 #include <QDockWidget>
@@ -57,6 +58,20 @@ MainWindow::MainWindow(Editor &editor, QWidget *parent)
         m_editor.setPlatform((Platform)platforms->itemData(index).toInt());
     });
     toolbar->addWidget(platforms);
+
+    QToolBar *tools = addToolBar(tr("Tools"));
+    auto *modes = new QActionGroup(this);
+    auto addMode = [&](const QString &label, const QKeySequence &key, fried::editor::GizmoMode mode) {
+        QAction *action = tools->addAction(label);
+        action->setCheckable(true);
+        action->setShortcut(key);
+        action->setChecked(m_editor.gizmoMode() == mode);
+        modes->addAction(action);
+        connect(action, &QAction::triggered, this, [this, mode] { m_editor.setGizmoMode(mode); });
+    };
+    addMode(tr("Move (W)"), Qt::Key_W, fried::editor::GizmoMode::Move);
+    addMode(tr("Rotate (E)"), Qt::Key_E, fried::editor::GizmoMode::Rotate);
+    addMode(tr("Scale (R)"), Qt::Key_R, fried::editor::GizmoMode::Scale);
 
     m_editor.m_onChanged = [this] { m_refresh.start(); };
     m_refresh.setSingleShot(true);

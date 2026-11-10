@@ -49,6 +49,19 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.commands().undo();
     CHECK(editor.document().componentField("sprite", "Transform", "x") == nlohmann::json(288));
 
+    // Scale mode puts a handle on the sprite's right edge, which is 128 world pixels wide.
+    editor.setGizmoMode(GizmoMode::Scale);
+    pumpUntil(editor, [&] { return false; });
+    double handleX = view.worldToFrameX(288 + 128);
+    double handleY = view.worldToFrameY(160 + 64);
+    editor.pointerDown(handleX, handleY, Editor::Pointer::Primary);
+    editor.pointerMove(handleX + 64 * view.zoom(), handleY);
+    editor.pointerUp();
+    CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(12.0));
+    CHECK(editor.document().componentField("sprite", "Transform", "scaleY") == nlohmann::json(8));
+    editor.commands().undo();
+    CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(8));
+
     editor.addObject("Text");
     CHECK(editor.hierarchy().size() == 4);
     CHECK(editor.inspector().size() == 2);

@@ -413,6 +413,36 @@ namespace fried::editor
         }
     }
 
+    void Editor::setGizmoMode(GizmoMode mode)
+    {
+        m_gizmoMode = mode;
+        changed();
+    }
+
+    TransformValues Editor::transformOf(const std::string &id) const
+    {
+        auto number = [&](const char *field, double fallback) {
+            std::optional<Json> value = m_document.componentField(id, "Transform", field);
+            return value && value->is_number() ? value->get<double>() : fallback;
+        };
+        return {number("x", 0), number("y", 0), number("rotation", 0), number("scaleX", 1), number("scaleY", 1)};
+    }
+
+    std::vector<GizmoHandle> Editor::currentHandles() const
+    {
+        if (m_selected)
+        {
+            for (const ObjectBounds &box : m_frame.m_bounds)
+            {
+                if (box.m_id == *m_selected)
+                {
+                    return Gizmo::handles(m_gizmoMode, m_viewport, box, transformOf(box.m_id));
+                }
+            }
+        }
+        return {};
+    }
+
     DrawList Editor::overlay() const
     {
         std::optional<std::pair<double, double>> gameCamera;
@@ -427,7 +457,10 @@ namespace fried::editor
             }
         }
         DisplaySettings display = m_project.display(m_platform);
-        return m_viewport.overlay(m_frame.m_bounds, m_selected, gameCamera, display.m_width, display.m_height);
+        DrawList list = m_viewport.overlay(m_frame.m_bounds, m_selected, gameCamera, display.m_width, display.m_height);
+        DrawList handles = Gizmo::draw(currentHandles());
+        list.insert(list.end(), handles.begin(), handles.end());
+        return list;
     }
 
     void Editor::documentChanged(const DocumentChange &change)
@@ -471,6 +504,20 @@ namespace fried::editor
             return;
         }
 
+        if (auto handle = Gizmo::hit(currentHandles(), frameX, frameY))
+        {
+            for (const ObjectBounds &box : m_frame.m_bounds)
+            {
+                if (box.m_id == *m_selected)
+                {
+                    m_drag.m_kind = Drag::Kind::Handle;
+                    m_drag.m_id = box.m_id;
+                    m_drag.m_handle.emplace(*handle, m_viewport, box, transformOf(box.m_id), frameX, frameY);
+                    return;
+                }
+            }
+        }
+
         std::optional<std::string> hit = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY);
         select(hit);
         if (hit)
@@ -492,6 +539,13 @@ namespace fried::editor
             m_drag.m_lastFrameX = frameX;
             m_drag.m_lastFrameY = frameY;
             cameraChanged();
+        }
+        else if (m_drag.m_kind == Drag::Kind::Handle)
+        {
+            if (m_commands->execute(std::make_unique<SetTransformFields>(m_drag.m_id, m_drag.m_handle->update(m_viewport, frameX, frameY)), m_drag.m_hasMoved))
+            {
+                m_drag.m_hasMoved = true;
+            }
         }
         else if (m_drag.m_kind == Drag::Kind::Object)
         {

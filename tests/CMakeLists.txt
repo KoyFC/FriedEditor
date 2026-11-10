@@ -2,6 +2,7 @@ add_executable(core_tests
     main.cpp
     command_stack_test.cpp
     editor_test.cpp
+    gizmo_test.cpp
     player_session_test.cpp
     project_test.cpp
     scene_document_test.cpp

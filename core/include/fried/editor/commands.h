@@ -2,6 +2,7 @@
 
 #include "fried/editor/command_stack.h"
 
+#include <map>
 #include <optional>
 
 namespace fried::editor
@@ -60,6 +61,23 @@ namespace fried::editor
         double m_y;
         std::optional<nlohmann::json> m_beforeX;
         std::optional<nlohmann::json> m_beforeY;
+    };
+
+    // Sets several Transform fields at once, so a drag of a handle is one step.
+    class SetTransformFields : public Command
+    {
+    public:
+        SetTransformFields(std::string id, std::map<std::string, double> fields);
+
+        std::string label() const override { return "Transform object"; }
+        bool apply(SceneDocument &document) override;
+        void revert(SceneDocument &document) override;
+        bool mergeWith(const Command &later) override;
+
+    private:
+        std::string m_id;
+        std::map<std::string, double> m_fields;
+        std::map<std::string, std::optional<nlohmann::json>> m_before;
     };
 
     class AddObject : public Command
