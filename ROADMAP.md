@@ -68,6 +68,26 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 Known limits: an object that other objects refer to cannot be deleted without fixing those references first, or the scene fails to load, and a game component is selected by its `width` and `height` or a fixed 16 pixel marker.
 
+### 9. Projects driven by the editor (FriedEngine and FriedEditor)
+
+- [ ] Components start after a scene file is fully loaded, and never in the editor player
+- [ ] A component can read the size of the view it is drawn to without holding the renderer
+- [ ] Several scene files load as one named scene, and a scene with no camera is screen space
+- [ ] The engine opens the window and loads the scene `project.fried` names, with an optional `Game` class for what a game needs once
+- [ ] The components of a project are found without a list to maintain
+- [ ] Components no longer reach the renderer or the layers
+- [ ] The sandbox is split in two: one project in the editor's way, one test bed for the low level API
+
+### 10. WhiteCellSimulator as scene files (its own repository)
+
+- [ ] Menu, game and game over as scenes, with the flow in a controller component
+- [ ] Enemies and projectiles as components with a texture field, still spawned from code
+- [ ] The second window of the 3DS stays in the `Game` hook
+- [ ] Small screens through a `cg50` override block instead of `Screen.scale`
+- [ ] Built and checked for the PC and the fx-CG50 (the .g3a against its 2 MB)
+
+Known limit: a position that depends on the screen's size, such as the right edge, is set by a component, and the editor shows it unplaced because its player never updates.
+
 ## Later
 
 A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants, a shared library with the Project Manager.
