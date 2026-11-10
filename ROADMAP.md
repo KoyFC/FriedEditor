@@ -19,7 +19,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 ### 1. Spikes (FriedEngine and here)
 
 - [ ] A: loader round trip on PC and a console
-- [ ] B: offscreen frames into a Qt widget on a Wayland session
+- [x] B: offscreen frames into a Qt widget on a Wayland session (works, the player runs with the dummy video driver)
 
 ### 2. Engine core (FriedEngine)
 
@@ -43,9 +43,9 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 - [x] Scene document with load and save
 - [x] Undo and redo commands
-- [ ] Viewport with pan, zoom and selection
-- [ ] Hierarchy panel
-- [ ] Inspector generated from the schema
+- [x] Viewport with pan, zoom and selection
+- [x] Hierarchy panel
+- [x] Inspector generated from the schema
 - [ ] Asset browser, drag a texture to create a sprite
 - [ ] Move, scale and rotate gizmos
 

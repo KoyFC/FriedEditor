@@ -365,6 +365,29 @@ namespace fried::editor
         return types;
     }
 
+    std::vector<std::string> Editor::componentTypes() const
+    {
+        std::vector<std::string> types;
+        for (const ComponentSchema &schema : m_session.schema())
+        {
+            types.push_back(schema.m_name);
+        }
+        return types;
+    }
+
+    std::optional<Json> Editor::selectedObjectField(const std::string &field) const
+    {
+        return m_selected ? m_document.objectField(*m_selected, field) : std::nullopt;
+    }
+
+    void Editor::setObjectField(const std::string &field, const std::optional<Json> &value)
+    {
+        if (m_selected)
+        {
+            m_commands->execute(std::make_unique<SetObjectField>(*m_selected, field, value), true);
+        }
+    }
+
     void Editor::setField(const std::string &type, const std::string &field, const std::optional<Json> &value)
     {
         if (m_selected)

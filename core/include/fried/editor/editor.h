@@ -98,6 +98,9 @@ namespace fried::editor
 
         std::vector<ComponentView> inspector() const;
         std::vector<std::string> addableComponents() const;
+        std::vector<std::string> componentTypes() const;
+        std::optional<nlohmann::json> selectedObjectField(const std::string &field) const;
+        void setObjectField(const std::string &field, const std::optional<nlohmann::json> &value);
         void setField(const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
         void addComponent(const std::string &type);
         void removeComponent(const std::string &type);
