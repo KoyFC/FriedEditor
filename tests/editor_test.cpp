@@ -293,3 +293,27 @@ TEST_CASE("the display frame is the display's size divided by the camera's zoom"
     pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
     CHECK(frameWidth() == doctest::Approx(320 * zoom));
 }
+
+TEST_CASE("the empty part of a frame has the editor's background colour, before and after a resize" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+
+    auto corner = [&](int x, int y) {
+        const Frame &frame = editor.frame();
+        const unsigned char *pixel = &frame.m_rgba[((size_t)y * frame.m_width + x) * 4];
+        return std::to_string(pixel[0]) + "," + std::to_string(pixel[1]) + "," + std::to_string(pixel[2]);
+    };
+    auto empty = [&] { return corner(editor.frame().m_width - 3, editor.frame().m_height - 3); };
+    CHECK(empty() == "40,40,48");
+
+    editor.setViewSize(864, 490);
+    pumpUntil(editor, [&] { return editor.frame().m_width == 864; });
+    REQUIRE(editor.frame().m_width == 864);
+    CHECK(empty() == "40,40,48");
+}
