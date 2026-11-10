@@ -3,6 +3,7 @@ add_library(fried_editor_core STATIC
     src/player_builder.cpp
     src/player_session.cpp
     src/project.cpp
+    src/scene_document.cpp
     src/version.cpp
 )
 
