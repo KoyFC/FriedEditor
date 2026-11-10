@@ -80,11 +80,11 @@ Known limits: an object that other objects refer to cannot be deleted without fi
 
 ### 10. WhiteCellSimulator as scene files (its own repository)
 
-- [ ] Menu, game and game over as scenes, with the flow in a controller component
-- [ ] Enemies and projectiles as components with a texture field, still spawned from code
-- [ ] The second window of the 3DS stays in the `Game` hook
-- [ ] Small screens through a `cg50` override block instead of `Screen.scale`
-- [ ] Built and checked for the PC and the fx-CG50 (the .g3a against its 2 MB)
+- [x] Menu, game and game over as scenes, with the flow in a controller component
+- [x] Enemies and projectiles as components with a texture field, still spawned from code
+- [x] The second window of the 3DS stays in the `Game` hook
+- [x] Small screens through a `cg50` override block instead of `Screen.scale`
+- [x] Built for the PC and the fx-CG50 (the .g3a is 1.9 MB of 2 MB). Not run on a calculator, and the start screen was compared with the old one on the PC only
 
 Known limit: a position that depends on the screen's size, such as the right edge, is set by a component, and the editor shows it unplaced because its player never updates.
 
