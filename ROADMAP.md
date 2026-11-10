@@ -23,14 +23,14 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ### 2. Engine core (FriedEngine)
 
-- [ ] Object ids and lookup, runtime asset paths
-- [ ] Component serialization and registry
-- [ ] Scene loader with per-platform overrides
+- [x] Object ids and lookup, runtime asset paths
+- [x] Component serialization and registry
+- [x] Scene loader with per-platform overrides
 
 ### 3. Editor player (FriedEngine)
 
-- [ ] Offscreen rendering and `readPixels`
-- [ ] Protocol, bounds and schema reply
+- [x] Offscreen rendering and `readPixels`
+- [x] Protocol, bounds and schema reply
 
 ### 4. Editor skeleton
 
