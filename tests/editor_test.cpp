@@ -58,6 +58,10 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     pumpUntil(editor, [&] { return false; });
     double handleX = view.worldToFrameX(288 + 128);
     double handleY = view.worldToFrameY(160 + 64);
+    CHECK(editor.pointerTarget(handleX, handleY).m_kind == Editor::PointerTarget::Kind::Handle);
+    CHECK(editor.pointerTarget(handleX, handleY).m_handle == GizmoHandle::Kind::ScaleX);
+    CHECK(editor.pointerTarget(view.worldToFrameX(288 + 64), view.worldToFrameY(160 + 64)).m_kind == Editor::PointerTarget::Kind::Object);
+    CHECK(editor.pointerTarget(5, 5).m_kind == Editor::PointerTarget::Kind::None);
     editor.pointerDown(handleX, handleY, Editor::Pointer::Primary);
     editor.pointerMove(handleX + 64 * view.zoom(), handleY);
     editor.pointerUp();

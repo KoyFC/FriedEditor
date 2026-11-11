@@ -71,6 +71,8 @@ namespace fried::editor
         // The Transform fields that change, for the pointer where it is now.
         std::map<std::string, double> update(const Viewport &viewport, double frameX, double frameY) const;
 
+        GizmoHandle::Kind kind() const { return m_handle.m_kind; }
+
     private:
         GizmoHandle m_handle;
         ObjectBounds m_bounds;

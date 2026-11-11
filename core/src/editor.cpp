@@ -1064,6 +1064,36 @@ namespace fried::editor
         }
     }
 
+    Editor::PointerTarget Editor::pointerTarget(double frameX, double frameY) const
+    {
+        PointerTarget target;
+        switch (m_drag.m_kind)
+        {
+        case Drag::Kind::Pan:
+            target.m_kind = PointerTarget::Kind::Pan;
+            return target;
+        case Drag::Kind::Object:
+            target.m_kind = PointerTarget::Kind::Object;
+            return target;
+        case Drag::Kind::Handle:
+            target.m_kind = PointerTarget::Kind::Handle;
+            target.m_handle = m_drag.m_handle->kind();
+            return target;
+        case Drag::Kind::None:
+            break;
+        }
+        if (auto handle = Gizmo::hit(currentHandles(), frameX, frameY))
+        {
+            target.m_kind = PointerTarget::Kind::Handle;
+            target.m_handle = handle->m_kind;
+        }
+        else if (Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
+        {
+            target.m_kind = PointerTarget::Kind::Object;
+        }
+        return target;
+    }
+
     void Editor::pointerMove(double frameX, double frameY)
     {
         if (m_drag.m_kind == Drag::Kind::Pan)

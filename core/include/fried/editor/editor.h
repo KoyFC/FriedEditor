@@ -209,6 +209,21 @@ namespace fried::editor
         void pointerUp();
         void wheel(double frameX, double frameY, double steps);
 
+        // What a press at a point would grab, or what the drag in progress holds, so a backend can show it with the pointer.
+        struct PointerTarget
+        {
+            enum class Kind
+            {
+                None,
+                Object,
+                Handle,
+                Pan
+            };
+            Kind m_kind = Kind::None;
+            GizmoHandle::Kind m_handle = GizmoHandle::Kind::MoveX;
+        };
+        PointerTarget pointerTarget(double frameX, double frameY) const;
+
         // Something the backend shows has changed: a frame, the selection, the document or the status.
         std::function<void()> m_onChanged;
 
