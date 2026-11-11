@@ -21,6 +21,8 @@ namespace imgui_backend
         void issues();
 
         // How many problems the assets have for the platform being previewed, for the tab and the status bar.
+        // Looks for the problems now if the list is old, whether or not the tab that shows them is the one open.
+        void refreshIssues(bool isForced = false);
         int issueCount() const { return (int)m_issues.size(); }
         void statusBar();
 

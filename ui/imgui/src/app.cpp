@@ -121,6 +121,7 @@ namespace imgui_backend
         bool isRunning = true;
         bool isCloseAsked = false;
         bool isLayoutBuilt = false;
+        int startupFrame = 0;
 
         while (isRunning)
         {
@@ -293,6 +294,20 @@ namespace imgui_backend
                 panels.issues();
             }
             ImGui::End();
+
+            // The editor opens on the assets, unless the project has problems on the platform being previewed, which are what to see first.
+            if (startupFrame < 3)
+            {
+                if (startupFrame == 0)
+                {
+                    panels.refreshIssues();
+                }
+                else if (startupFrame == 2)
+                {
+                    ImGui::SetWindowFocus(panels.issueCount() > 0 ? "Issues###Issues" : "Assets");
+                }
+                ++startupFrame;
+            }
 
             panels.buildWindow();
 

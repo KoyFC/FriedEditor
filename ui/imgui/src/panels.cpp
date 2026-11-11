@@ -1057,17 +1057,22 @@ namespace imgui_backend
 
 namespace imgui_backend
 {
-    void Panels::issues()
+    // Reading every asset is not free, so the list is made again when the platform changes, after a fix, and every few seconds.
+    void Panels::refreshIssues(bool isForced)
     {
-        // Reading every asset is not free, so the list is made again when the platform changes, after a fix, and every few seconds.
         double now = ImGui::GetTime();
         bool isStale = now - m_issuesCheckedAt > 3.0 || m_issuesPlatform != m_editor.platform();
-        if (ImGui::Button("Check again") || isStale)
+        if (isForced || isStale)
         {
             m_issues = m_editor.issues();
             m_issuesCheckedAt = now;
             m_issuesPlatform = m_editor.platform();
         }
+    }
+
+    void Panels::issues()
+    {
+        refreshIssues(ImGui::Button("Check again"));
         ImGui::SameLine();
         ImGui::TextDisabled("for %s", fried::editor::platformLabel(m_editor.platform()).c_str());
 
