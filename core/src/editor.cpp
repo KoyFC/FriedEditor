@@ -581,6 +581,8 @@ namespace fried::editor
             if (type == "RectTransform")
             {
                 m_commands->execute(std::make_unique<ChangeTransformType>(*m_selected, "RectTransform"));
+                // As in Unity's interface, it starts anchored to the center of the screen, where the object is.
+                setAnchorPreset(AnchorAxis::Center, AnchorAxis::Center);
                 return;
             }
             m_commands->execute(std::make_unique<AddComponent>(*m_selected, (int)(*object)["components"].size(), newComponent(type)));
