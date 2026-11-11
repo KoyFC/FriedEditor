@@ -421,9 +421,23 @@ namespace imgui_backend
         {
             edit = *value;
         }
-        int lines = 1 + (int)std::count(edit.begin(), edit.end(), '\n');
+        // The height follows the lines as they are wrapped, which is how many fit in the width the area has.
+        float wrapWidth = std::max(40.0f, ImGui::GetContentRegionAvail().x - ImGui::GetStyle().FramePadding.x * 2 - ImGui::GetStyle().ScrollbarSize);
+        int lines = 0;
+        for (size_t start = 0; start <= edit.size();)
+        {
+            size_t end = edit.find('\n', start);
+            std::string paragraph = edit.substr(start, end == std::string::npos ? std::string::npos : end - start);
+            float width = ImGui::CalcTextSize(paragraph.c_str()).x;
+            lines += std::max(1, (int)std::ceil(width / wrapWidth));
+            if (end == std::string::npos)
+            {
+                break;
+            }
+            start = end + 1;
+        }
         float height = ImGui::GetTextLineHeight() * (float)std::clamp(lines + 1, 3, 12) + ImGui::GetStyle().FramePadding.y * 2;
-        ImGui::InputTextMultiline(name, &edit, ImVec2(-FLT_MIN, height));
+        ImGui::InputTextMultiline(name, &edit, ImVec2(-FLT_MIN, height), ImGuiInputTextFlags_WordWrap);
         if (ImGui::IsItemDeactivatedAfterEdit() && edit != *value)
         {
             *value = edit;
