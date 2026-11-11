@@ -156,11 +156,11 @@ namespace fried::editor
         }
     }
 
-    void PlayerSession::load(const nlohmann::json &scene)
+    void PlayerSession::load(const nlohmann::json &scene, int viewWidth, int viewHeight)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "load"}, {"scene", scene}});
+            m_channel->send({{"type", "load"}, {"scene", scene}, {"viewWidth", viewWidth}, {"viewHeight", viewHeight}});
         }
     }
 

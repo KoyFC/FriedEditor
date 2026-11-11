@@ -292,7 +292,9 @@ namespace fried::editor
         if (m_needsLoad)
         {
             m_needsLoad = false;
-            m_session.load(m_document.data());
+            // The scene is laid out against the size the game's screen has on the platform being previewed.
+            std::pair<int, int> logicalView = m_project.logicalSize(m_platform);
+            m_session.load(m_document.data(), logicalView.first, logicalView.second);
             m_needsRender = true;
         }
         if (m_needsCamera)
@@ -733,6 +735,11 @@ namespace fried::editor
         }
         // The game shows its display's size divided by the camera's zoom of the platform being previewed.
         std::pair<int, int> logical = m_project.logicalSize(m_platform);
+        if (!gameCamera)
+        {
+            // Without a camera the game's view starts at the world's origin.
+            gameCamera = std::make_pair(logical.first / 2.0, logical.second / 2.0);
+        }
         double zoom = gameCameraZoom();
         DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, (int)std::lround(logical.first / zoom),
                                             (int)std::lround(logical.second / zoom));
