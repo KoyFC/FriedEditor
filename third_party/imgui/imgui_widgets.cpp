@@ -2287,6 +2287,8 @@ void ImGui::DataTypeApplyOp(ImGuiDataType data_type, int op, void* output, const
 
 // User can input math operators (e.g. +100) to edit a numerical values.
 // NB: This is _not_ a full expression evaluator. We should probably add one and replace this dumb mess..
+bool (*ImGuiEvaluateNumberHook)(const char* text, double* out_value) = NULL;
+
 bool ImGui::DataTypeApplyFromText(const char* buf, ImGuiDataType data_type, void* p_data, const char* format, void* p_data_when_empty)
 {
     // Copy the value in an opaque buffer so we can compare at the end of the function if it changed at all.
@@ -2304,6 +2306,21 @@ bool ImGui::DataTypeApplyFromText(const char* buf, ImGuiDataType data_type, void
             return memcmp(&data_backup, p_data, type_info->Size) != 0;
         }
         return false;
+    }
+
+    // Local change: numbers typed into a field go through the application's expression evaluator when it installs one.
+    if (ImGuiEvaluateNumberHook != NULL && (data_type == ImGuiDataType_Float || data_type == ImGuiDataType_Double || data_type == ImGuiDataType_S32))
+    {
+        double evaluated = 0.0;
+        if (!ImGuiEvaluateNumberHook(buf, &evaluated))
+            return false;
+        if (data_type == ImGuiDataType_Float)
+            *(float*)p_data = (float)evaluated;
+        else if (data_type == ImGuiDataType_Double)
+            *(double*)p_data = evaluated;
+        else
+            *(ImS32*)p_data = (ImS32)ImClamp(ImFloor((float)evaluated + 0.5f), -2147483648.0f, 2147483520.0f);
+        return memcmp(&data_backup, p_data, type_info->Size) != 0;
     }
 
     // Sanitize format

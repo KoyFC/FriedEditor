@@ -139,3 +139,6 @@ namespace ImGui
     void MyFunction(const char* name, MyMatrix44* mtx);
 }
 */
+
+// Local change: an application can install a hook to evaluate what is typed into a numeric field.
+extern bool (*ImGuiEvaluateNumberHook)(const char* text, double* out_value);

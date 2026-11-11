@@ -3,6 +3,7 @@
 #include "panels.h"
 #include "style.h"
 
+#include "fried/editor/expression.h"
 #include "fried/editor/version.h"
 
 #include <backends/imgui_impl_opengl3.h>
@@ -100,6 +101,14 @@ namespace imgui_backend
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
+        ImGuiEvaluateNumberHook = [](const char *text, double *value) {
+            std::optional<double> result = fried::editor::evaluateExpression(text);
+            if (result)
+            {
+                *value = *result;
+            }
+            return result.has_value();
+        };
         ImGuiIO &io = ImGui::GetIO();
         static const std::string s_layout = layoutFile();
         io.IniFilename = s_layout.c_str();
