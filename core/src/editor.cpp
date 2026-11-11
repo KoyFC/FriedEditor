@@ -738,6 +738,146 @@ namespace fried::editor
         return list;
     }
 
+    std::optional<RectPreview> Editor::rectPreview() const
+    {
+        if (!m_selected || m_document.transformType(*m_selected) != "RectTransform")
+        {
+            return std::nullopt;
+        }
+        const ObjectBounds *box = nullptr;
+        for (const ObjectBounds &candidate : m_frame.m_bounds)
+        {
+            if (candidate.m_id == *m_selected)
+            {
+                box = &candidate;
+            }
+        }
+        if (!box)
+        {
+            return std::nullopt;
+        }
+        auto number = [&](const char *field) {
+            std::optional<Json> value = m_document.componentField(*m_selected, "RectTransform", field);
+            return value && value->is_number() ? value->get<double>() : 0.0;
+        };
+        auto axisOf = [](double minimum, double maximum) {
+            if (minimum != maximum)
+            {
+                return minimum == 0 && maximum == 1 ? AnchorAxis::Stretch : AnchorAxis::Custom;
+            }
+            return minimum == 0 ? AnchorAxis::Start : minimum == 0.5 ? AnchorAxis::Center : minimum == 1 ? AnchorAxis::End : AnchorAxis::Custom;
+        };
+        std::pair<int, int> logical = m_project.logicalSize(m_platform);
+        RectPreview preview;
+        preview.m_viewWidth = logical.first;
+        preview.m_viewHeight = logical.second;
+        preview.m_x = box->m_x;
+        preview.m_y = box->m_y;
+        preview.m_width = box->m_width;
+        preview.m_height = box->m_height;
+        preview.m_anchorMinX = number("anchorMinX");
+        preview.m_anchorMinY = number("anchorMinY");
+        preview.m_anchorMaxX = number("anchorMaxX");
+        preview.m_anchorMaxY = number("anchorMaxY");
+        preview.m_pivotX = number("pivotX");
+        preview.m_pivotY = number("pivotY");
+        preview.m_horizontal = axisOf(preview.m_anchorMinX, preview.m_anchorMaxX);
+        preview.m_vertical = axisOf(preview.m_anchorMinY, preview.m_anchorMaxY);
+        std::optional<Json> below = m_document.componentField(*m_selected, "RectTransform", "below");
+        preview.m_isBelow = below && below->is_string() && !below->get<std::string>().empty();
+        return preview;
+    }
+
+    namespace
+    {
+        // The fields of one axis that keep a box of the given start and size where it is, for the anchors and pivot the axis is given.
+        void keepAxis(std::map<std::string, double> &fields, bool isHorizontal, double anchorMin, double anchorMax, double pivot, double start, double size,
+                      double view)
+        {
+            const char *minimumName = isHorizontal ? "anchorMinX" : "anchorMinY";
+            const char *maximumName = isHorizontal ? "anchorMaxX" : "anchorMaxY";
+            fields[minimumName] = anchorMin;
+            fields[maximumName] = anchorMax;
+            fields[isHorizontal ? "pivotX" : "pivotY"] = pivot;
+            if (anchorMin != anchorMax)
+            {
+                fields[isHorizontal ? "insetLeft" : "insetTop"] = std::round(start - view * anchorMin);
+                fields[isHorizontal ? "insetRight" : "insetBottom"] = std::round(view * anchorMax - (start + size));
+            }
+            else
+            {
+                fields[isHorizontal ? "offsetX" : "offsetY"] = std::round(start - view * anchorMin + size * pivot);
+            }
+        }
+
+        double anchorOf(AnchorAxis axis, bool isMaximum)
+        {
+            switch (axis)
+            {
+            case AnchorAxis::Start:
+                return 0;
+            case AnchorAxis::Center:
+                return 0.5;
+            case AnchorAxis::End:
+                return 1;
+            default:
+                return isMaximum ? 1 : 0;
+            }
+        }
+    }
+
+    void Editor::setAnchorPreset(AnchorAxis horizontal, AnchorAxis vertical)
+    {
+        std::optional<RectPreview> preview = rectPreview();
+        if (!preview)
+        {
+            return;
+        }
+        std::map<std::string, double> fields;
+        if (horizontal != AnchorAxis::Custom)
+        {
+            double pivot = horizontal == AnchorAxis::Stretch ? 0.5 : anchorOf(horizontal, false);
+            keepAxis(fields, true, anchorOf(horizontal, false), anchorOf(horizontal, true), pivot, preview->m_x, preview->m_width, preview->m_viewWidth);
+        }
+        // An object under another is placed by the gap to it, which is not a place on the screen.
+        if (vertical != AnchorAxis::Custom && !preview->m_isBelow)
+        {
+            double pivot = vertical == AnchorAxis::Stretch ? 0.5 : anchorOf(vertical, false);
+            keepAxis(fields, false, anchorOf(vertical, false), anchorOf(vertical, true), pivot, preview->m_y, preview->m_height, preview->m_viewHeight);
+        }
+        if (!fields.empty())
+        {
+            setTransformFields(*m_selected, fields, false);
+        }
+    }
+
+    void Editor::setPivot(double x, double y)
+    {
+        std::optional<RectPreview> preview = rectPreview();
+        if (!preview)
+        {
+            return;
+        }
+        std::map<std::string, double> fields;
+        if (preview->m_horizontal != AnchorAxis::Stretch)
+        {
+            keepAxis(fields, true, preview->m_anchorMinX, preview->m_anchorMaxX, x, preview->m_x, preview->m_width, preview->m_viewWidth);
+        }
+        else
+        {
+            fields["pivotX"] = x;
+        }
+        if (preview->m_vertical != AnchorAxis::Stretch && !preview->m_isBelow)
+        {
+            keepAxis(fields, false, preview->m_anchorMinY, preview->m_anchorMaxY, y, preview->m_y, preview->m_height, preview->m_viewHeight);
+        }
+        else
+        {
+            fields["pivotY"] = y;
+        }
+        setTransformFields(*m_selected, fields, false);
+    }
+
     std::map<std::string, double> Editor::dragFields(const std::string &id, std::map<std::string, double> fields)
     {
         if (m_document.transformType(id) != "RectTransform")

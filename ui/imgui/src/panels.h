@@ -30,6 +30,7 @@ namespace imgui_backend
     private:
         void openSceneFile(const std::string &path);
         void sceneChangeDialog();
+        void rectTransformEditor(const fried::editor::ComponentView &view);
         void objectFields();
         void fieldEditor(const std::string &type, const fried::editor::FieldView &field);
         bool textField(const char *label, std::string *value);

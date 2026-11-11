@@ -29,6 +29,36 @@ namespace fried::editor
         bool m_isCamera = false;
     };
 
+    // Where an anchor sits along one axis of the screen: at its start, middle or end, or spread across all of it.
+    enum class AnchorAxis
+    {
+        Start,
+        Center,
+        End,
+        Stretch,
+        Custom
+    };
+
+    // What the backend draws of the selected object's RectTransform: the screen the layout is made for, the box the object takes in it and where its anchors and pivot are.
+    struct RectPreview
+    {
+        double m_viewWidth = 0;
+        double m_viewHeight = 0;
+        double m_x = 0;
+        double m_y = 0;
+        double m_width = 0;
+        double m_height = 0;
+        double m_anchorMinX = 0;
+        double m_anchorMinY = 0;
+        double m_anchorMaxX = 0;
+        double m_anchorMaxY = 0;
+        double m_pivotX = 0;
+        double m_pivotY = 0;
+        AnchorAxis m_horizontal = AnchorAxis::Start;
+        AnchorAxis m_vertical = AnchorAxis::Start;
+        bool m_isBelow = false;
+    };
+
     struct FieldView
     {
         FieldSchema m_schema;
@@ -138,6 +168,15 @@ namespace fried::editor
         std::optional<nlohmann::json> selectedObjectField(const std::string &field) const;
         void setObjectField(const std::string &field, const std::optional<nlohmann::json> &value);
         void setField(const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
+        // The selected object's RectTransform for the backend to draw, when it has one and the player has shown it.
+        std::optional<RectPreview> rectPreview() const;
+
+        // Anchors the object to a place on the screen, as Unity's presets do, and moves the offsets so that it stays where it is. Custom leaves that axis as it is.
+        void setAnchorPreset(AnchorAxis horizontal, AnchorAxis vertical);
+
+        // Moves the pivot, and the offsets with it so that the object stays where it is.
+        void setPivot(double x, double y);
+
         void addComponent(const std::string &type);
         void removeComponent(const std::string &type);
 

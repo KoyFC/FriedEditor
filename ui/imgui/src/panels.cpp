@@ -58,6 +58,45 @@ namespace
         return "##" + name;
     }
 
+    using fried::editor::AnchorAxis;
+
+    // Where an anchor is along one axis of a small picture of the screen, as a fraction of it.
+    float anchorPlace(AnchorAxis axis, bool isMaximum)
+    {
+        switch (axis)
+        {
+        case AnchorAxis::Start:
+            return 0.0f;
+        case AnchorAxis::Center:
+            return 0.5f;
+        case AnchorAxis::End:
+            return 1.0f;
+        default:
+            return isMaximum ? 1.0f : 0.0f;
+        }
+    }
+
+    // The screen as a frame, and in it the area the anchors span, with a marker at each corner of that area.
+    void drawAnchorIcon(ImDrawList *list, ImVec2 position, float size, AnchorAxis horizontal, AnchorAxis vertical, ImU32 color)
+    {
+        const float margin = size * 0.18f;
+        list->AddRect(position, ImVec2(position.x + size, position.y + size), IM_COL32(150, 150, 160, 255), 2.0f);
+        float inner = size - margin * 2;
+        ImVec2 low(position.x + margin + inner * anchorPlace(horizontal, false), position.y + margin + inner * anchorPlace(vertical, false));
+        ImVec2 high(position.x + margin + inner * anchorPlace(horizontal, true), position.y + margin + inner * anchorPlace(vertical, true));
+        if (low.x != high.x || low.y != high.y)
+        {
+            list->AddRect(low, high, color);
+        }
+        for (float x : {low.x, high.x})
+        {
+            for (float y : {low.y, high.y})
+            {
+                list->AddRectFilled(ImVec2(x - 2, y - 2), ImVec2(x + 2, y + 2), color);
+            }
+        }
+    }
+
     // The name of a field, and the width left for its widget.
     void caption(const std::string &name)
     {
@@ -543,6 +582,203 @@ namespace imgui_backend
         ImGui::PopID();
     }
 
+    // The RectTransform as pictures and the few numbers that matter: a preview of the object on the screen, the place it is anchored to, its pivot, and either its position or its distance to the edges it stretches between.
+    void Panels::rectTransformEditor(const fried::editor::ComponentView &view)
+    {
+        auto find = [&](const char *name) -> const FieldView * {
+            for (const FieldView &field : view.m_fields)
+            {
+                if (field.m_schema.m_name == name)
+                {
+                    return &field;
+                }
+            }
+            return nullptr;
+        };
+        auto numberField = [&](const char *label, const char *name) {
+            const FieldView *field = find(name);
+            if (!field)
+            {
+                return;
+            }
+            ImGui::PushID(name);
+            caption(label);
+            float value = field->m_value.is_number() ? field->m_value.get<float>() : 0.0f;
+            if (ImGui::DragFloat("##v", &value, 1.0f, 0, 0, "%.0f"))
+            {
+                m_editor.setField(view.m_type, name, Json((double)value));
+            }
+            ImGui::PopID();
+        };
+
+        std::optional<fried::editor::RectPreview> preview = m_editor.rectPreview();
+        const ImU32 anchorColor = IM_COL32(64, 192, 255, 255);
+        if (preview)
+        {
+            ImDrawList *list = ImGui::GetWindowDrawList();
+
+            // The anchor presets: the button shows the current one and opens the grid of all of them.
+            ImVec2 buttonPosition = ImGui::GetCursorScreenPos();
+            const float buttonSize = 44;
+            if (ImGui::InvisibleButton("##anchor-preset", ImVec2(buttonSize, buttonSize)))
+            {
+                ImGui::OpenPopup("anchor-presets");
+            }
+            drawAnchorIcon(list, buttonPosition, buttonSize, preview->m_horizontal, preview->m_vertical, anchorColor);
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Anchor presets");
+            }
+            if (ImGui::BeginPopup("anchor-presets"))
+            {
+                static const AnchorAxis axes[] = {AnchorAxis::Start, AnchorAxis::Center, AnchorAxis::End, AnchorAxis::Stretch};
+                static const char *columns[] = {"Left", "Center", "Right", "Stretch"};
+                static const char *rows[] = {"Top", "Middle", "Bottom", "Stretch"};
+                const float cell = 40;
+                ImGui::TextDisabled("Anchor to the screen");
+                for (int row = 0; row < 4; ++row)
+                {
+                    for (int column = 0; column < 4; ++column)
+                    {
+                        if (column > 0)
+                        {
+                            ImGui::SameLine();
+                        }
+                        ImGui::PushID(row * 4 + column);
+                        ImVec2 position = ImGui::GetCursorScreenPos();
+                        bool isCurrent = preview->m_horizontal == axes[column] && preview->m_vertical == axes[row];
+                        if (ImGui::InvisibleButton("##preset", ImVec2(cell, cell)))
+                        {
+                            m_editor.setAnchorPreset(axes[column], axes[row]);
+                            ImGui::CloseCurrentPopup();
+                        }
+                        bool isHovered = ImGui::IsItemHovered();
+                        if (isHovered || isCurrent)
+                        {
+                            ImGui::GetWindowDrawList()->AddRectFilled(position, ImVec2(position.x + cell, position.y + cell), IM_COL32(255, 255, 255, isHovered ? 40 : 20), 2.0f);
+                        }
+                        drawAnchorIcon(ImGui::GetWindowDrawList(), ImVec2(position.x + 3, position.y + 3), cell - 6, axes[column], axes[row],
+                                       isCurrent ? IM_COL32(255, 200, 0, 255) : anchorColor);
+                        if (isHovered)
+                        {
+                            ImGui::SetTooltip("%s, %s", rows[row], columns[column]);
+                        }
+                        ImGui::PopID();
+                    }
+                }
+                ImGui::EndPopup();
+            }
+
+            // The pivot, which is the point of the object that sits on the anchor.
+            ImGui::SameLine();
+            ImVec2 pivotPosition = ImGui::GetCursorScreenPos();
+            const float pivotCell = buttonSize / 3;
+            ImGui::InvisibleButton("##pivot", ImVec2(buttonSize, buttonSize));
+            ImVec2 pointer = ImGui::GetIO().MousePos;
+            bool isPivotHovered = ImGui::IsItemHovered();
+            bool isPivotClicked = ImGui::IsItemClicked();
+            list->AddRect(pivotPosition, ImVec2(pivotPosition.x + buttonSize, pivotPosition.y + buttonSize), IM_COL32(150, 150, 160, 255), 2.0f);
+            for (int row = 0; row < 3; ++row)
+            {
+                for (int column = 0; column < 3; ++column)
+                {
+                    ImVec2 centre(pivotPosition.x + pivotCell * (column + 0.5f), pivotPosition.y + pivotCell * (row + 0.5f));
+                    bool isCurrent = std::abs(preview->m_pivotX - column * 0.5) < 0.001 && std::abs(preview->m_pivotY - row * 0.5) < 0.001;
+                    bool isOver = isPivotHovered && std::abs(pointer.x - centre.x) < pivotCell / 2 && std::abs(pointer.y - centre.y) < pivotCell / 2;
+                    list->AddCircleFilled(centre, isCurrent ? 4.0f : 2.0f, isCurrent ? IM_COL32(255, 200, 0, 255) : IM_COL32(150, 150, 160, isOver ? 255 : 160));
+                    if (isPivotClicked && isOver)
+                    {
+                        m_editor.setPivot(column * 0.5, row * 0.5);
+                    }
+                }
+            }
+            if (isPivotHovered)
+            {
+                ImGui::SetTooltip("Pivot");
+            }
+
+            // The object on the screen it is laid out for, with its anchors.
+            ImGui::SameLine();
+            float previewWidth = std::max(60.0f, ImGui::GetContentRegionAvail().x);
+            float previewHeight = buttonSize;
+            ImVec2 origin = ImGui::GetCursorScreenPos();
+            ImGui::Dummy(ImVec2(previewWidth, previewHeight));
+            float scale = std::min(previewWidth / (float)preview->m_viewWidth, previewHeight / (float)preview->m_viewHeight);
+            ImVec2 screenSize((float)preview->m_viewWidth * scale, (float)preview->m_viewHeight * scale);
+            ImVec2 screenMin(origin.x + (previewWidth - screenSize.x) / 2, origin.y + (previewHeight - screenSize.y) / 2);
+            auto toPreview = [&](double x, double y) { return ImVec2(screenMin.x + (float)x * scale, screenMin.y + (float)y * scale); };
+            list->AddRectFilled(screenMin, ImVec2(screenMin.x + screenSize.x, screenMin.y + screenSize.y), IM_COL32(30, 30, 38, 255));
+            list->AddRect(screenMin, ImVec2(screenMin.x + screenSize.x, screenMin.y + screenSize.y), IM_COL32(150, 150, 160, 255));
+            list->AddRectFilled(toPreview(preview->m_x, preview->m_y), toPreview(preview->m_x + preview->m_width, preview->m_y + preview->m_height),
+                                IM_COL32(255, 200, 0, 90));
+            list->AddRect(toPreview(preview->m_x, preview->m_y), toPreview(preview->m_x + preview->m_width, preview->m_y + preview->m_height),
+                          IM_COL32(255, 200, 0, 255));
+            ImVec2 anchorLow = toPreview(preview->m_viewWidth * preview->m_anchorMinX, preview->m_viewHeight * preview->m_anchorMinY);
+            ImVec2 anchorHigh = toPreview(preview->m_viewWidth * preview->m_anchorMaxX, preview->m_viewHeight * preview->m_anchorMaxY);
+            if (anchorLow.x != anchorHigh.x || anchorLow.y != anchorHigh.y)
+            {
+                list->AddRect(anchorLow, anchorHigh, anchorColor);
+            }
+            for (float x : {anchorLow.x, anchorHigh.x})
+            {
+                for (float y : {anchorLow.y, anchorHigh.y})
+                {
+                    list->AddRectFilled(ImVec2(x - 2, y - 2), ImVec2(x + 2, y + 2), anchorColor);
+                }
+            }
+            ImGui::Spacing();
+
+            bool isStretchedX = preview->m_anchorMinX != preview->m_anchorMaxX;
+            bool isStretchedY = preview->m_anchorMinY != preview->m_anchorMaxY;
+            if (isStretchedX)
+            {
+                numberField("Left", "insetLeft");
+                numberField("Right", "insetRight");
+            }
+            else
+            {
+                numberField("Pos X", "offsetX");
+            }
+            if (preview->m_isBelow)
+            {
+                numberField("Gap", "offsetY");
+            }
+            else if (isStretchedY)
+            {
+                numberField("Top", "insetTop");
+                numberField("Bottom", "insetBottom");
+            }
+            else
+            {
+                numberField("Pos Y", "offsetY");
+            }
+        }
+        else
+        {
+            ImGui::TextDisabled("The preview shows once the scene has been drawn.");
+        }
+
+        for (const FieldView &field : view.m_fields)
+        {
+            if (field.m_schema.m_name == "rotation" || field.m_schema.m_name == "scaleX" || field.m_schema.m_name == "scaleY")
+            {
+                fieldEditor(view.m_type, field);
+            }
+        }
+        if (ImGui::TreeNode("Anchors and offsets as numbers"))
+        {
+            for (const FieldView &field : view.m_fields)
+            {
+                const std::string &name = field.m_schema.m_name;
+                if (name != "rotation" && name != "scaleX" && name != "scaleY" && name != "enabled")
+                {
+                    fieldEditor(view.m_type, field);
+                }
+            }
+            ImGui::TreePop();
+        }
+    }
+
     void Panels::inspector()
     {
         if (!m_editor.selected())
@@ -567,7 +803,11 @@ namespace imgui_backend
                     return;
                 }
             }
-            if (isOpen)
+            if (isOpen && view.m_type == "RectTransform")
+            {
+                rectTransformEditor(view);
+            }
+            else if (isOpen)
             {
                 for (const FieldView &field : view.m_fields)
                 {
