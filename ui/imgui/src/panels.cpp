@@ -1,5 +1,7 @@
 #include "panels.h"
 
+#include "style.h"
+
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
@@ -120,7 +122,7 @@ namespace imgui_backend
         using fried::editor::GameRunner;
         GameRunner::State game = m_editor.gameState();
         bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
-        ImGui::PushStyleColor(ImGuiCol_Button, isGoing ? ImVec4(0.75f, 0.25f, 0.2f, 1.0f) : ImVec4(0.2f, 0.6f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, isGoing ? palette::tomato : palette::leaf);
         if (ImGui::Button(isGoing ? "Stop" : "Play  F5", ImVec2(76, 0)))
         {
             isGoing ? m_editor.stopGame() : m_editor.play();
@@ -192,7 +194,7 @@ namespace imgui_backend
         {
             if (progress.m_isFailed)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.35f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
                 ImGui::TextWrapped("%s", progress.m_message.c_str());
                 ImGui::PopStyleColor();
             }
@@ -237,7 +239,7 @@ namespace imgui_backend
         ImGui::TextUnformatted(m_editor.message().c_str());
         std::string right = (m_issues.empty() ? std::string() : std::to_string(m_issues.size()) + " asset issues   ") + (commands.isClean() ? "Saved" : "Unsaved changes");
         ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - 20);
-        ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : ImVec4(1.0f, 0.56f, 0.18f, 1.0f), "%s", right.c_str());
+        ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : palette::yolk, "%s", right.c_str());
     }
 
     void Panels::viewport()
@@ -1122,7 +1124,7 @@ namespace imgui_backend
         {
             ImGui::PushID(index++);
             bool isError = issue.m_severity == fried::editor::AssetIssue::Severity::Error;
-            ImGui::TextColored(isError ? ImVec4(0.95f, 0.38f, 0.38f, 1.0f) : ImVec4(1.0f, 0.78f, 0.30f, 1.0f), "%s", isError ? "Error" : "Warning");
+            ImGui::TextColored(isError ? palette::tomato : palette::yolk, "%s", isError ? "Error" : "Warning");
             ImGui::SameLine();
             if (!issue.m_asset.empty())
             {
@@ -1148,7 +1150,7 @@ namespace imgui_backend
         if (!m_issuesMessage.empty())
         {
             ImGui::Separator();
-            ImGui::TextColored(ImVec4(0.95f, 0.38f, 0.38f, 1.0f), "%s", m_issuesMessage.c_str());
+            ImGui::TextColored(palette::tomato, "%s", m_issuesMessage.c_str());
         }
     }
 }
