@@ -1,10 +1,12 @@
 #include "doctest/doctest.h"
 
+#include <vector>
+
 #include "fried/editor/project.h"
 
 using namespace fried::editor;
 
-TEST_CASE("a project file gives its identity and a display per platform")
+TEST_CASE("a project file gives its identity and one display for every platform")
 {
     Project project;
     std::string error;
@@ -12,25 +14,16 @@ TEST_CASE("a project file gives its identity and a display per platform")
         "name": "Sample",
         "organization": "Org",
         "version": "01.00",
-        "display": {"mode": "expand", "width": 640, "height": 480},
-        "nds": {"display": {"mode": "default"}},
-        "vita": {"display": {"filter": "linear"}}
+        "display": {"mode": "pixel", "width": 640, "height": 480, "filter": "linear"},
+        "nds": {"display": {"mode": "default"}}
     })", &error));
 
     CHECK(project.name() == "Sample");
     CHECK(project.scenesDirectory() == "/games/sample/assets/scenes");
-
-    DisplaySettings pc = project.display(Platform::Pc);
-    CHECK(pc.m_mode == "expand");
-    CHECK(pc.m_width == 640);
-    CHECK(pc.m_height == 480);
-
-    CHECK(project.display(Platform::NintendoDs).m_mode == "default");
-
-    DisplaySettings vita = project.display(Platform::Vita);
-    CHECK(vita.m_mode == "expand");
-    CHECK(vita.m_filter == "linear");
-    CHECK(vita.m_width == 640);
+    CHECK(project.display().m_mode == "pixel");
+    CHECK(project.display().m_width == 640);
+    CHECK(project.display().m_height == 480);
+    CHECK(project.display().m_filter == "linear");
 }
 
 TEST_CASE("a file that is not a project is refused with a reason")
@@ -44,13 +37,17 @@ TEST_CASE("a file that is not a project is refused with a reason")
 
 TEST_CASE("the camera area follows the platform's screen and the display mode")
 {
-    Project project;
-    std::string error;
-    REQUIRE(project.parse("/p", R"({"display": {"mode": "expand", "width": 640, "height": 480}, "nds": {"display": {"mode": "default"}}, "3ds": {"display": {"mode": "fit"}}, "switch": {"display": {"mode": "pixel"}}, "cg50": {"display": {"mode": "pixel"}}})", &error));
-    CHECK(project.logicalSize(Platform::Pc) == std::make_pair(640, 480));
-    CHECK(project.logicalSize(Platform::NintendoDs) == std::make_pair(256, 192));
-    CHECK(project.logicalSize(Platform::Nintendo3ds) == std::make_pair(640, 480));
-    CHECK(project.logicalSize(Platform::Vita) == std::make_pair(847, 480));
-    CHECK(project.logicalSize(Platform::Switch) == std::make_pair(1280, 720));
-    CHECK(project.logicalSize(Platform::Cg50) == std::make_pair(396, 224));
+    auto sizes = [](const char *mode) {
+        Project project;
+        std::string error;
+        REQUIRE(project.parse("/p", std::string(R"({"display": {"mode": ")") + mode + R"(", "width": 640, "height": 480}})", &error));
+        return std::vector<std::pair<int, int>>{project.logicalSize(Platform::Pc), project.logicalSize(Platform::NintendoDs),
+                                                project.logicalSize(Platform::Nintendo3ds), project.logicalSize(Platform::Vita),
+                                                project.logicalSize(Platform::Switch), project.logicalSize(Platform::Cg50)};
+    };
+    using Size = std::pair<int, int>;
+    CHECK(sizes("default") == std::vector<Size>{{640, 480}, {256, 192}, {400, 240}, {960, 544}, {1280, 720}, {396, 224}});
+    CHECK(sizes("fit") == std::vector<Size>(6, Size{640, 480}));
+    CHECK(sizes("expand") == std::vector<Size>{{640, 480}, {640, 480}, {800, 480}, {847, 480}, {853, 480}, {849, 480}});
+    CHECK(sizes("pixel") == std::vector<Size>{{640, 480}, {256, 192}, {400, 240}, {960, 544}, {1280, 720}, {396, 224}});
 }

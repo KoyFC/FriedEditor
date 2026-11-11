@@ -35,8 +35,8 @@ namespace fried::editor
         const std::string &organization() const { return m_organization; }
         const std::string &version() const { return m_version; }
 
-        // Resolved when the file is read: each key under "<platform>.display" overrides the same key under the top-level "display", as the build does.
-        DisplaySettings display(Platform platform) const;
+        // The top-level "display", which every platform shares.
+        const DisplaySettings &display() const { return m_display; }
 
         // The size the game draws in on the platform's own screen, which is what the camera shows: the screen itself in `default`, the design size in `fit`, `integer` and `stretch`, and the design size widened to cover the screen in `expand`.
         // A PC or web window has no fixed screen, so it opens at the design size.
@@ -47,6 +47,6 @@ namespace fried::editor
         std::string m_name;
         std::string m_organization;
         std::string m_version;
-        std::array<DisplaySettings, s_platforms.size()> m_displays;
+        DisplaySettings m_display;
     };
 }

@@ -75,33 +75,12 @@ namespace fried::editor
         m_organization = stringOf(root, "organization");
         m_version = stringOf(root, "version");
 
-        for (std::size_t index = 0; index < s_platforms.size(); ++index)
+        m_display = DisplaySettings();
+        if (root.contains("display"))
         {
-            DisplaySettings display;
-            if (root.contains("display"))
-            {
-                overlay(root["display"], display);
-            }
-            auto section = root.find(platformKey(s_platforms[index]));
-            if (section != root.end() && section->is_object() && section->contains("display"))
-            {
-                overlay((*section)["display"], display);
-            }
-            m_displays[index] = display;
+            overlay(root["display"], m_display);
         }
         return true;
-    }
-
-    DisplaySettings Project::display(Platform platform) const
-    {
-        for (std::size_t index = 0; index < s_platforms.size(); ++index)
-        {
-            if (s_platforms[index] == platform)
-            {
-                return m_displays[index];
-            }
-        }
-        return DisplaySettings();
     }
 
     namespace
@@ -128,7 +107,7 @@ namespace fried::editor
 
     std::pair<int, int> Project::logicalSize(Platform platform) const
     {
-        DisplaySettings settings = display(platform);
+        const DisplaySettings &settings = m_display;
         std::pair<int, int> screen = nativeScreen(platform);
         bool hasDesign = settings.m_width > 0 && settings.m_height > 0;
         if (screen.first == 0)
