@@ -116,20 +116,6 @@ TEST_CASE("components are added and removed, except the transform")
     CHECK(removed["flip"] == "None");
 }
 
-TEST_CASE("clearing the last override leaves the file as it was before there were any")
-{
-    SceneDocument document = sample();
-    std::string before = document.dump();
-
-    CHECK(document.setOverrideField("nds", "a", "Transform", "x", 5));
-    CHECK(document.overrideField("nds", "a", "Transform", "x") == Json(5));
-    CHECK(document.dump() != before);
-    CHECK_FALSE(document.setOverrideField("nds", "a", "Sprite", "flip", Json("None")));
-
-    CHECK(document.setOverrideField("nds", "a", "Transform", "x", std::nullopt));
-    CHECK(document.dump() == before);
-}
-
 TEST_CASE("a file that is not a scene is refused with a reason")
 {
     SceneDocument document;

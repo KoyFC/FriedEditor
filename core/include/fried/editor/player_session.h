@@ -71,7 +71,7 @@ namespace fried::editor
         const std::string &platform() const { return m_platform; }
         const std::vector<ComponentSchema> &schema() const { return m_schema; }
 
-        void load(const nlohmann::json &scene, const std::string &platform);
+        void load(const nlohmann::json &scene);
         void setField(const std::string &objectId, const std::string &component, const std::string &field, const nlohmann::json &value);
         void setEditorCamera(double x, double y, double zoom);
         void resize(int width, int height);

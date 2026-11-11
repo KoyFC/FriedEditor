@@ -143,7 +143,7 @@ TEST_CASE("the real player answers a scene with a frame" * doctest::skip(std::ge
 
     std::ifstream file(engine + "/sandbox/assets/scenes/sample.scene.json");
     nlohmann::json scene = nlohmann::json::parse(file);
-    session.load(scene, "");
+    session.load(scene);
     session.setEditorCamera(320, 240, 1);
     session.render();
     pumpUntil(session, [&] { return received.m_width != 0 || !reported.empty(); });

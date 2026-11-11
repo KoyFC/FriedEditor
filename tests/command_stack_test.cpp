@@ -39,7 +39,6 @@ namespace
 TEST_CASE("every command undoes to the exact bytes it started from, and redoes to the same result")
 {
     SceneDocument document = sample();
-    document.setOverrideField("nds", "a", "Transform", "x", 5);
     document.setCameraId("b");
     CommandStack stack(document);
 
@@ -52,25 +51,20 @@ TEST_CASE("every command undoes to the exact bytes it started from, and redoes t
     roundTrips(document, stack, [] { return std::make_unique<MoveObject>("a", 1); });
     roundTrips(document, stack, [] { return std::make_unique<AddComponent>("a", 2, Json{{"type", "Camera"}}); });
     roundTrips(document, stack, [] { return std::make_unique<RemoveComponent>("a", "Sprite"); });
-    roundTrips(document, stack, [] { return std::make_unique<SetOverrideField>("nds", "a", "Transform", "x", Json(7)); });
-    roundTrips(document, stack, [] { return std::make_unique<SetOverrideField>("vita", "a", "Transform", "y", Json(7)); });
     roundTrips(document, stack, [] { return std::make_unique<SetCamera>(std::nullopt); });
 }
 
-TEST_CASE("removing an object takes its overrides and camera role, and undo returns them")
+TEST_CASE("removing an object takes its camera role, and undo returns it")
 {
     SceneDocument document = sample();
-    document.setOverrideField("nds", "a", "Transform", "x", 5);
     document.setCameraId("a");
     CommandStack stack(document);
 
     REQUIRE(stack.execute(std::make_unique<RemoveObject>("a")));
     CHECK_FALSE(document.cameraId().has_value());
-    CHECK(document.data().find("platforms") == document.data().end());
 
     stack.undo();
     CHECK(document.cameraId() == std::optional<std::string>("a"));
-    CHECK(document.overrideField("nds", "a", "Transform", "x") == Json(5));
 }
 
 TEST_CASE("a drag is one step to undo when its edits are merged")
@@ -118,20 +112,3 @@ TEST_CASE("a new edit drops what was undone, and the clean position follows save
     CHECK_FALSE(stack.execute(std::make_unique<SetObjectField>("missing", "name", Json("x"))));
 }
 
-TEST_CASE("dragging on a platform changes only its overrides, as one step")
-{
-    SceneDocument document = sample();
-    std::string before = document.dump();
-    CommandStack stack(document);
-
-    for (int x = 10; x <= 30; x += 10)
-    {
-        stack.execute(std::make_unique<SetOverrideTransformFields>("nds", "a", std::map<std::string, double>{{"x", (double)x}, {"y", 2.0}}), true);
-    }
-    CHECK(document.overrideField("nds", "a", "Transform", "x") == Json(30.0));
-    CHECK(document.componentField("a", "Transform", "x") == Json(1));
-
-    stack.undo();
-    CHECK(document.dump() == before);
-    CHECK_FALSE(stack.canUndo());
-}

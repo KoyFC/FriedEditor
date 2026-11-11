@@ -80,24 +80,6 @@ namespace fried::editor
         std::map<std::string, std::optional<nlohmann::json>> m_before;
     };
 
-    // The same as SetTransformFields for what one platform overrides, so a drag on a console's preview changes only that console.
-    class SetOverrideTransformFields : public Command
-    {
-    public:
-        SetOverrideTransformFields(std::string platform, std::string id, std::map<std::string, double> fields);
-
-        std::string label() const override { return "Transform object on " + m_platform; }
-        bool apply(SceneDocument &document) override;
-        void revert(SceneDocument &document) override;
-        bool mergeWith(const Command &later) override;
-
-    private:
-        std::string m_platform;
-        std::string m_id;
-        std::map<std::string, double> m_fields;
-        std::map<std::string, std::optional<nlohmann::json>> m_before;
-    };
-
     class AddObject : public Command
     {
     public:
@@ -112,7 +94,7 @@ namespace fried::editor
         nlohmann::json m_object;
     };
 
-    // Takes the object's platform overrides and its place as the scene's camera with it, and gives them back on undo.
+    // Takes its place as the scene's camera with it, and gives them back on undo.
     class RemoveObject : public Command
     {
     public:
@@ -125,7 +107,6 @@ namespace fried::editor
     private:
         std::string m_id;
         nlohmann::json m_object;
-        nlohmann::json m_overrides;
         int m_index = 0;
         bool m_wasCamera = false;
     };
@@ -173,27 +154,7 @@ namespace fried::editor
         std::string m_id;
         std::string m_type;
         nlohmann::json m_component;
-        nlohmann::json m_overrides;
         int m_index = 0;
-    };
-
-    class SetOverrideField : public Command
-    {
-    public:
-        SetOverrideField(std::string platform, std::string id, std::string type, std::string field, std::optional<nlohmann::json> value);
-
-        std::string label() const override { return "Change " + m_field + " on " + m_platform; }
-        bool apply(SceneDocument &document) override;
-        void revert(SceneDocument &document) override;
-        bool mergeWith(const Command &later) override;
-
-    private:
-        std::string m_platform;
-        std::string m_id;
-        std::string m_type;
-        std::string m_field;
-        std::optional<nlohmann::json> m_value;
-        std::optional<nlohmann::json> m_before;
     };
 
     class SetCamera : public Command

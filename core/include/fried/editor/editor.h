@@ -36,9 +36,6 @@ namespace fried::editor
         // What the file holds, or the engine's default where it holds nothing.
         nlohmann::json m_value;
         bool m_isSet = false;
-
-        // On a platform other than the PC, the file overrides this field for that platform, and m_value is the override.
-        bool m_isOverridden = false;
     };
 
     // What the backend shows while something is being built, or after it failed, until it is dismissed.
@@ -140,8 +137,6 @@ namespace fried::editor
         std::optional<nlohmann::json> selectedObjectField(const std::string &field) const;
         void setObjectField(const std::string &field, const std::optional<nlohmann::json> &value);
         void setField(const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
-        // On a platform other than the PC, a field is edited as that platform's override, and this takes the override away again.
-        void clearOverride(const std::string &type, const std::string &field);
         void addComponent(const std::string &type);
         void removeComponent(const std::string &type);
 

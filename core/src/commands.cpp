@@ -135,54 +135,6 @@ namespace fried::editor
         return true;
     }
 
-    SetOverrideTransformFields::SetOverrideTransformFields(std::string platform, std::string id, std::map<std::string, double> fields)
-        : m_platform(std::move(platform)), m_id(std::move(id)), m_fields(std::move(fields))
-    {
-    }
-
-    bool SetOverrideTransformFields::apply(SceneDocument &document)
-    {
-        m_before.clear();
-        for (const auto &[field, value] : m_fields)
-        {
-            m_before[field] = document.overrideField(m_platform, m_id, "Transform", field);
-            if (!document.setOverrideField(m_platform, m_id, "Transform", field, nlohmann::json(value)))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    void SetOverrideTransformFields::revert(SceneDocument &document)
-    {
-        for (const auto &[field, before] : m_before)
-        {
-            document.setOverrideField(m_platform, m_id, "Transform", field, before);
-        }
-    }
-
-    bool SetOverrideTransformFields::mergeWith(const Command &later)
-    {
-        auto *next = dynamic_cast<const SetOverrideTransformFields *>(&later);
-        if (!next || next->m_platform != m_platform || next->m_id != m_id)
-        {
-            return false;
-        }
-        for (const auto &[field, value] : next->m_fields)
-        {
-            if (m_fields.find(field) == m_fields.end())
-            {
-                return false;
-            }
-        }
-        for (const auto &[field, value] : next->m_fields)
-        {
-            m_fields[field] = value;
-        }
-        return true;
-    }
-
     AddObject::AddObject(int index, nlohmann::json object)
         : m_index(index), m_object(std::move(object))
     {
@@ -212,14 +164,12 @@ namespace fried::editor
         {
             return false;
         }
-        m_overrides = document.takeOverrides(m_id, "");
         return true;
     }
 
     void RemoveObject::revert(SceneDocument &document)
     {
         document.insertObject(m_index, m_object);
-        document.restoreOverrides(m_overrides);
         if (m_wasCamera)
         {
             document.setCameraId(m_id);
@@ -270,41 +220,12 @@ namespace fried::editor
         {
             return false;
         }
-        m_overrides = document.takeOverrides(m_id, m_type);
         return true;
     }
 
     void RemoveComponent::revert(SceneDocument &document)
     {
         document.insertComponent(m_id, m_index, m_component);
-        document.restoreOverrides(m_overrides);
-    }
-
-    SetOverrideField::SetOverrideField(std::string platform, std::string id, std::string type, std::string field, std::optional<nlohmann::json> value)
-        : m_platform(std::move(platform)), m_id(std::move(id)), m_type(std::move(type)), m_field(std::move(field)), m_value(std::move(value))
-    {
-    }
-
-    bool SetOverrideField::apply(SceneDocument &document)
-    {
-        m_before = document.overrideField(m_platform, m_id, m_type, m_field);
-        return document.setOverrideField(m_platform, m_id, m_type, m_field, m_value);
-    }
-
-    void SetOverrideField::revert(SceneDocument &document)
-    {
-        document.setOverrideField(m_platform, m_id, m_type, m_field, m_before);
-    }
-
-    bool SetOverrideField::mergeWith(const Command &later)
-    {
-        auto *next = dynamic_cast<const SetOverrideField *>(&later);
-        if (!next || next->m_platform != m_platform || next->m_id != m_id || next->m_type != m_type || next->m_field != m_field)
-        {
-            return false;
-        }
-        m_value = next->m_value;
-        return true;
     }
 
     SetCamera::SetCamera(std::optional<std::string> id)

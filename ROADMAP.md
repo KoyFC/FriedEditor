@@ -25,7 +25,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 - [x] Object ids and lookup, runtime asset paths
 - [x] Component serialization and registry
-- [x] Scene loader with per-platform overrides
+- [x] Scene loader (per-platform overrides were removed: a component that differs by platform says so in its own code)
 
 ### 3. Editor player (FriedEngine)
 
@@ -51,7 +51,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ### 6. Per-platform
 
-- [x] Platform selector and override editing
+- [x] Platform selector, which sizes the camera preview by the platform's screen
 - [x] Display frame from `project.fried`
 - [x] Asset validation with fixes (texture sizes, DS audio format, fx-CG50 size)
 
@@ -83,7 +83,7 @@ Known limits: an object that other objects refer to cannot be deleted without fi
 - [x] Menu, game and game over as scenes, with the flow in a controller component
 - [x] Enemies and projectiles as components with a texture field, still spawned from code
 - [x] The second window of the 3DS stays in the `Game` hook
-- [x] Small screens through a `cg50` override block instead of `Screen.scale`
+- [x] Small screens through the platform's own screen size in the camera preview
 - [x] Built for the PC and the fx-CG50 (the .g3a is 1.9 MB of 2 MB). Not run on a calculator, and the start screen was compared with the old one on the PC only
 
 Known limit: a position that depends on the screen's size, such as the right edge, is set by a component, and the editor shows it unplaced because its player never updates.
