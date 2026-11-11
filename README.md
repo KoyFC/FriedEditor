@@ -9,7 +9,7 @@ The scene editor for [Fried Engine](https://github.com/KoyFC/FriedEngine). See [
 - `ui/qt/` is the Qt 6 backend, kept as `fried_editor_qt`. It is not used and not kept up to date: every editor feature is built in the Dear ImGui backend only, and the Qt one stops at the asset browser and gizmos. A backend draws, forwards input and holds no editor state beyond its widgets, so replacing the toolkit means writing another backend next to these.
 - `app_imgui/` and `app/` are the executables that start each backend.
 - `tests/` runs the core with doctest, and builds without any toolkit installed.
-- `third_party/` holds `nlohmann/json`, `doctest`, Dear ImGui 1.91.9 (docking) and `stb_image`, unchanged.
+- `third_party/` holds `nlohmann/json`, `doctest`, Dear ImGui 1.92.9 (docking, with one local change for evaluating typed numbers) and `stb_image`, unchanged.
 
 ## Building
 
