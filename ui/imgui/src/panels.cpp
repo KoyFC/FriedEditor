@@ -151,10 +151,9 @@ namespace imgui_backend
             {
                 std::string step = progress.m_steps > 0 ? "Step " + std::to_string(progress.m_step) + " of " + std::to_string(progress.m_steps) + ": " + progress.m_stepLabel : "Starting";
                 ImGui::TextUnformatted(step.c_str());
-                // The steps have no length of their own to report, so the bar shows how far through them it is and keeps moving inside a step.
+                // The steps have no length of their own to report, so the bar only advances when a step finishes.
                 float done = progress.m_steps > 0 ? (float)(progress.m_step - 1) / progress.m_steps : 0.0f;
-                float inside = progress.m_steps > 0 ? 0.9f / progress.m_steps * (0.5f + 0.5f * std::sin((float)ImGui::GetTime() * 3.0f)) : 0.0f;
-                ImGui::ProgressBar(done + inside, ImVec2(-FLT_MIN, 0), "");
+                ImGui::ProgressBar(done, ImVec2(-FLT_MIN, 0), "");
             }
 
             float footer = ImGui::GetFrameHeightWithSpacing() + 4;
