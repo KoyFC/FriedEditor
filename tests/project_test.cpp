@@ -49,5 +49,6 @@ TEST_CASE("the camera area follows the platform's screen and the display mode")
     CHECK(sizes("default") == std::vector<Size>{{640, 480}, {256, 192}, {400, 240}, {960, 544}, {1280, 720}, {396, 224}});
     CHECK(sizes("fit") == std::vector<Size>(6, Size{640, 480}));
     CHECK(sizes("expand") == std::vector<Size>{{640, 480}, {640, 480}, {800, 480}, {847, 480}, {853, 480}, {849, 480}});
+    CHECK(sizes("height") == std::vector<Size>{{640, 480}, {640, 480}, {800, 480}, {847, 480}, {853, 480}, {849, 480}});
     CHECK(sizes("pixel") == std::vector<Size>{{640, 480}, {256, 192}, {400, 240}, {960, 544}, {1280, 720}, {396, 224}});
 }
