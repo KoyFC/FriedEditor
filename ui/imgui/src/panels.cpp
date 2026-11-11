@@ -3,8 +3,12 @@
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
+#include <SDL.h>
+
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <filesystem>
 
 using fried::editor::AssetKind;
 using fried::editor::DrawCommand;
@@ -15,6 +19,18 @@ using Json = nlohmann::json;
 
 namespace
 {
+    bool containsIgnoringCase(const std::string &text, const std::string &part)
+    {
+        auto it = std::search(text.begin(), text.end(), part.begin(), part.end(), [](char a, char b) { return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
+        return it != text.end();
+    }
+
+    bool isOpenScene(const std::string &path, const std::string &openPath)
+    {
+        std::error_code ignored;
+        return std::filesystem::equivalent(path, openPath, ignored);
+    }
+
     constexpr const char *s_assetPayload = "FRIED_ASSET";
 
     ImU32 colorOf(unsigned int argb)
@@ -603,6 +619,9 @@ namespace imgui_backend
                 ImGui::PopStyleColor();
             }
         }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        ImGui::InputTextWithHint("##asset-search", "Search", &m_assetSearch);
         ImGui::Separator();
 
         const float cell = 84;
@@ -611,7 +630,8 @@ namespace imgui_backend
         int index = 0;
         for (const auto &entry : m_editor.assets())
         {
-            if (m_assetFilter != 0 && entry.m_kind != kinds[m_assetFilter])
+            std::string reference = entry.reference();
+            if ((m_assetFilter != 0 && entry.m_kind != kinds[m_assetFilter]) || (!m_assetSearch.empty() && !containsIgnoringCase(reference, m_assetSearch)))
             {
                 continue;
             }
@@ -620,21 +640,20 @@ namespace imgui_backend
                 ImGui::SameLine();
             }
 
-            ImGui::PushID(entry.reference().c_str());
+            ImGui::PushID(reference.c_str());
             ImGui::BeginGroup();
             const Texture *thumbnail = entry.m_kind == AssetKind::Image ? m_images.get(m_editor.assetFile(entry.m_root, entry.m_path)) : nullptr;
-            bool isClicked = false;
             if (thumbnail)
             {
                 float ratio = std::min(64.0f / thumbnail->width(), 64.0f / thumbnail->height());
                 ImVec2 size(thumbnail->width() * ratio, thumbnail->height() * ratio);
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (cell - size.x) / 2);
-                isClicked = ImGui::ImageButton("##thumb", thumbnail->id(), size);
+                ImGui::Image(thumbnail->id(), size);
             }
             else
             {
                 const char *tag = entry.m_kind == AssetKind::Font ? "Aa" : entry.m_kind == AssetKind::Audio ? "wav" : entry.m_kind == AssetKind::Scene ? "scn" : "...";
-                isClicked = ImGui::Button(tag, ImVec2(cell - 10, 64));
+                ImGui::Button(tag, ImVec2(cell - 10, 64));
             }
             std::string name = entry.m_path.substr(entry.m_path.rfind('/') == std::string::npos ? 0 : entry.m_path.rfind('/') + 1);
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + cell);
@@ -642,26 +661,119 @@ namespace imgui_backend
             ImGui::PopTextWrapPos();
             ImGui::EndGroup();
 
-            if (ImGui::IsItemHovered())
+            bool isScene = entry.m_kind == AssetKind::Scene;
+            bool isHovered = ImGui::IsItemHovered();
+            if (isScene && isOpenScene(m_editor.assetFile(entry.m_root, entry.m_path), m_editor.scenePath()))
             {
-                ImGui::SetTooltip("%s", entry.reference().c_str());
+                // The scene that is being edited.
+                ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_CheckMark), 3.0f, 0, 2.0f);
+            }
+            if (isHovered)
+            {
+                ImGui::SetTooltip("%s", reference.c_str());
             }
             if (ImGui::BeginDragDropSource())
             {
-                std::string reference = entry.reference();
                 ImGui::SetDragDropPayload(s_assetPayload, reference.c_str(), reference.size() + 1);
                 ImGui::TextUnformatted(name.c_str());
                 ImGui::EndDragDropSource();
             }
-            if (isClicked || (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)))
+
+            // A double click does what suits the file: a scene opens, and an image or a font is added to the scene.
+            bool isUsable = isScene || entry.m_kind == AssetKind::Image || entry.m_kind == AssetKind::Font;
+            bool isActivated = isUsable && isHovered && ImGui::IsMouseDoubleClicked(0);
+            if (ImGui::BeginPopupContextItem("asset-menu"))
             {
-                isClicked = ImGui::IsMouseDoubleClicked(0);
+                if (isUsable && ImGui::MenuItem(isScene ? "Open scene" : "Add to scene"))
+                {
+                    isActivated = true;
+                }
+                if (ImGui::MenuItem("Copy reference"))
+                {
+                    ImGui::SetClipboardText(reference.c_str());
+                }
+                if (ImGui::MenuItem("Show in folder"))
+                {
+                    std::string folder = std::filesystem::path(m_editor.assetFile(entry.m_root, entry.m_path)).parent_path().string();
+                    SDL_OpenURL(("file://" + folder).c_str());
+                }
+                ImGui::EndPopup();
             }
-            if (isClicked)
+            if (isActivated)
             {
-                m_editor.dropAsset(entry.m_root, entry.m_path, m_editor.viewport().frameWidth() / 2.0, m_editor.viewport().frameHeight() / 2.0);
+                if (isScene)
+                {
+                    openSceneFile(m_editor.assetFile(entry.m_root, entry.m_path));
+                }
+                else
+                {
+                    m_editor.dropAsset(entry.m_root, entry.m_path, m_editor.viewport().frameWidth() / 2.0, m_editor.viewport().frameHeight() / 2.0);
+                }
             }
             ImGui::PopID();
+        }
+        sceneChangeDialog();
+    }
+
+    // Opens the scene at once when the one being edited is saved, and otherwise asks what to do with its changes first.
+    void Panels::openSceneFile(const std::string &path)
+    {
+        if (isOpenScene(path, m_editor.scenePath()))
+        {
+            return;
+        }
+        if (m_editor.commands().isClean())
+        {
+            std::string error;
+            if (!m_editor.openScene(path, &error))
+            {
+                m_editor.setMessage(error);
+            }
+            return;
+        }
+        m_pendingScene = path;
+        m_isSceneChangeAsked = true;
+    }
+
+    void Panels::sceneChangeDialog()
+    {
+        if (m_isSceneChangeAsked)
+        {
+            ImGui::OpenPopup("Unsaved changes##scene");
+            m_isSceneChangeAsked = false;
+        }
+        if (!ImGui::BeginPopupModal("Unsaved changes##scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            return;
+        }
+        ImGui::TextUnformatted("Save the scene before leaving it?");
+        ImGui::Spacing();
+        bool isLeaving = false;
+        std::string error;
+        if (ImGui::Button("Save"))
+        {
+            isLeaving = m_editor.save(&error);
+            if (!isLeaving)
+            {
+                m_editor.setMessage(error);
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Discard"))
+        {
+            isLeaving = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        if (isLeaving && !m_editor.openScene(m_pendingScene, &error))
+        {
+            m_editor.setMessage(error);
         }
     }
 }

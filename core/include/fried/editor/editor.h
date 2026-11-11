@@ -94,6 +94,7 @@ namespace fried::editor
 
         Status status() const { return m_status; }
         const std::string &message() const { return m_message; }
+        void setMessage(const std::string &message) { m_message = message; }
 
         const Project &project() const { return m_project; }
         const std::string &enginePath() const { return m_enginePath; }

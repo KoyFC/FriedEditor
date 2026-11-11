@@ -6,7 +6,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 - v1 is 2D only, with no hierarchy and built-in components only.
 - A scene is a JSON file under the project's `assets/scenes/`, written by this editor and only read by the engine.
-- The editor is split into `core/`, which has no UI or Qt dependency and is tested headless, and `ui/<toolkit>/`, which only draws and forwards input. Qt first, so a later Dear ImGui backend means writing one backend and nothing else. Nothing under `core/` may include a UI header.
+- The editor is split into `core/`, which has no UI or Qt dependency and is tested headless, and `ui/<toolkit>/`, which only draws and forwards input. Qt came first and Dear ImGui replaced it: ImGui is the editor now and the Qt backend is no longer extended. Nothing under `core/` may include a UI header.
 - The viewport is a separate engine process, the editor player, that renders offscreen on request and talks to the editor over loopback TCP.
 - Code shared with the Project Manager is copied minimally and converted to standard types, and extracted into a shared library only if the duplication starts to hurt.
 
@@ -34,7 +34,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ### 4. Editor skeleton
 
-- [x] CMake with `core/`, `core_tests` and `ui/qt/`
+- [x] CMake with `core/`, `core_tests` and `ui/qt/` (new UI work goes in `ui/imgui/` only)
 - [x] Project and platform model in core (build targets come with play mode)
 - [x] Subprocess, TCP listener and message framing (POSIX only so far)
 - [x] Player session: build, launch, handshake, schema
@@ -47,6 +47,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 - [x] Hierarchy panel
 - [x] Inspector generated from the schema
 - [x] Asset browser, drag a texture to create a sprite
+- [x] ImGui asset browser: search, scenes open on a double click (asking about unsaved changes), the open scene outlined, a menu to open or add, copy a reference or show in the folder
 - [x] Move, scale and rotate gizmos
 
 ### 6. Per-platform

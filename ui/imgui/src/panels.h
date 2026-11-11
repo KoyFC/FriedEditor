@@ -28,6 +28,8 @@ namespace imgui_backend
         void buildWindow();
 
     private:
+        void openSceneFile(const std::string &path);
+        void sceneChangeDialog();
         void objectFields();
         void fieldEditor(const std::string &type, const fried::editor::FieldView &field);
         bool textField(const char *label, std::string *value);
@@ -39,6 +41,9 @@ namespace imgui_backend
         ImageCache m_images;
         int m_dragKind = 0;
         int m_assetFilter = 0;
+        std::string m_assetSearch;
+        std::string m_pendingScene;
+        bool m_isSceneChangeAsked = false;
         std::vector<fried::editor::AssetIssue> m_issues;
         double m_issuesCheckedAt = -100;
         fried::editor::Platform m_issuesPlatform = fried::editor::Platform::Pc;
