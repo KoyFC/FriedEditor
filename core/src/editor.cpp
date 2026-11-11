@@ -776,10 +776,10 @@ namespace fried::editor
             }
         }
         // The game shows its display's size divided by the camera's zoom of the platform being previewed.
-        DisplaySettings display = m_project.display(m_platform);
+        std::pair<int, int> logical = m_project.logicalSize(m_platform);
         double zoom = gameCameraZoom();
-        DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, (int)std::lround(display.m_width / zoom),
-                                            (int)std::lround(display.m_height / zoom));
+        DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, (int)std::lround(logical.first / zoom),
+                                            (int)std::lround(logical.second / zoom));
         DrawList handles = Gizmo::draw(handlesFor(m_frameView));
         list.insert(list.end(), handles.begin(), handles.end());
         return list;

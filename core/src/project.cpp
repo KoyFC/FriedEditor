@@ -1,5 +1,8 @@
 #include "fried/editor/project.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <nlohmann/json.hpp>
 
 #include <fstream>
@@ -99,5 +102,48 @@ namespace fried::editor
             }
         }
         return DisplaySettings();
+    }
+
+    namespace
+    {
+        std::pair<int, int> nativeScreen(Platform platform)
+        {
+            switch (platform)
+            {
+            case Platform::Vita:
+                return {960, 544};
+            case Platform::Switch:
+                return {1280, 720};
+            case Platform::Nintendo3ds:
+                return {400, 240};
+            case Platform::NintendoDs:
+                return {256, 192};
+            case Platform::Cg50:
+                return {396, 224};
+            default:
+                return {0, 0};
+            }
+        }
+    }
+
+    std::pair<int, int> Project::logicalSize(Platform platform) const
+    {
+        DisplaySettings settings = display(platform);
+        std::pair<int, int> screen = nativeScreen(platform);
+        bool hasDesign = settings.m_width > 0 && settings.m_height > 0;
+        if (screen.first == 0)
+        {
+            return hasDesign ? std::make_pair(settings.m_width, settings.m_height) : std::make_pair(1280, 720);
+        }
+        if (settings.m_mode == "default" || !hasDesign)
+        {
+            return screen;
+        }
+        if (settings.m_mode == "expand")
+        {
+            double fit = std::min((double)screen.first / settings.m_width, (double)screen.second / settings.m_height);
+            return {std::max(1, (int)std::lround(screen.first / fit)), std::max(1, (int)std::lround(screen.second / fit))};
+        }
+        return {settings.m_width, settings.m_height};
     }
 }

@@ -4,6 +4,7 @@
 
 #include <array>
 #include <string>
+#include <utility>
 
 namespace fried::editor
 {
@@ -36,6 +37,10 @@ namespace fried::editor
 
         // Resolved when the file is read: each key under "<platform>.display" overrides the same key under the top-level "display", as the build does.
         DisplaySettings display(Platform platform) const;
+
+        // The size the game draws in on the platform's own screen, which is what the camera shows: the screen itself in `default`, the design size in `fit`, `integer` and `stretch`, and the design size widened to cover the screen in `expand`.
+        // A PC or web window has no fixed screen, so it opens at the design size.
+        std::pair<int, int> logicalSize(Platform platform) const;
 
     private:
         std::string m_directory;

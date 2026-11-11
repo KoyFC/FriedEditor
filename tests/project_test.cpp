@@ -41,3 +41,14 @@ TEST_CASE("a file that is not a project is refused with a reason")
     CHECK_FALSE(error.empty());
     CHECK_FALSE(project.load("/nonexistent-directory", &error));
 }
+
+TEST_CASE("the camera area follows the platform's screen and the display mode")
+{
+    Project project;
+    std::string error;
+    REQUIRE(project.parse("/p", R"({"display": {"mode": "expand", "width": 640, "height": 480}, "nds": {"display": {"mode": "default"}}, "3ds": {"display": {"mode": "fit"}}})", &error));
+    CHECK(project.logicalSize(Platform::Pc) == std::make_pair(640, 480));
+    CHECK(project.logicalSize(Platform::NintendoDs) == std::make_pair(256, 192));
+    CHECK(project.logicalSize(Platform::Nintendo3ds) == std::make_pair(640, 480));
+    CHECK(project.logicalSize(Platform::Vita) == std::make_pair(847, 480));
+}
