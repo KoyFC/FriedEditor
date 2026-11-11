@@ -57,7 +57,7 @@ namespace fried::editor
         int newWidth = std::max(1, (int)std::lround(width * ratio));
         int newHeight = std::max(1, (int)std::lround(height * ratio));
 
-        // Each new pixel is the average of the area of the old image it covers, weighted by alpha so transparent edges do not bleed their colour.
+        // Each new pixel is the average of the area of the old image it covers, weighted by alpha so transparent edges do not bleed their color.
         std::vector<unsigned char> scaled((size_t)newWidth * newHeight * 4);
         for (int y = 0; y < newHeight; ++y)
         {

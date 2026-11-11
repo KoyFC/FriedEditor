@@ -40,7 +40,7 @@ namespace fried::editor
 
         Kind m_kind = Kind::MoveX;
 
-        // In frame pixels. A ring is centred here and has the radius, anything else is a square of that half size.
+        // In frame pixels. A ring is centered here and has the radius, anything else is a square of that half size.
         double m_x = 0;
         double m_y = 0;
         double m_size = 0;

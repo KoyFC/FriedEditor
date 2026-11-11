@@ -75,7 +75,7 @@ TEST_CASE("dragging the ring turns the object by the angle the pointer sweeps")
     transform.m_rotation = 10;
     GizmoHandle ring = Gizmo::handles(GizmoMode::Rotate, viewport, bounds, transform)[0];
 
-    // From the right of the centre to below it is a quarter turn clockwise.
+    // From the right of the center to below it is a quarter turn clockwise.
     GizmoDrag drag(ring, viewport, bounds, transform, ring.m_x + ring.m_size, ring.m_y);
     CHECK(drag.update(viewport, ring.m_x, ring.m_y + ring.m_size)["rotation"] == doctest::Approx(100));
 }

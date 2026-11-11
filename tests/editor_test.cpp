@@ -282,7 +282,7 @@ TEST_CASE("the display frame is the display's size divided by the camera's zoom"
     CHECK(frameWidth() == doctest::Approx(320 * zoom));
 }
 
-TEST_CASE("the empty part of a frame has the editor's background colour, before and after a resize" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+TEST_CASE("the empty part of a frame has the editor's background color, before and after a resize" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
 {
     std::string engine = std::getenv("FRIED_ENGINE");
     Editor editor;
