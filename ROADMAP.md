@@ -50,6 +50,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 - [x] ImGui asset browser: search, scenes open on a double click (asking about unsaved changes), the open scene outlined, a menu to open or add, copy a reference or show in the folder
 - [x] RectTransform: adding it to an object turns its Transform into one (and removing it turns it back), the anchors are drawn in the viewport, dragging the object edits its offsets or, where it stretches, its insets, and its x and y are not shown because the layout overwrites them
 - [x] The RectTransform inspector is visual: a preview of the object on the screen it is laid out for, an anchor preset grid like Unity's that keeps the object where it is, a pivot picker that does the same, and only the numbers that apply (position, or the distance to the edges where it stretches), with the raw anchors folded away
+- [x] A Text's `text` is edited in a text area that shows all its lines (Enter adds one, and the engine's Text breaks lines at `\n`), grows with them up to twelve and is applied when it loses focus
 - [x] Move, scale and rotate gizmos
 
 ### 6. Per-platform

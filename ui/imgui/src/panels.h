@@ -34,6 +34,7 @@ namespace imgui_backend
         void objectFields();
         void fieldEditor(const std::string &type, const fried::editor::FieldView &field);
         bool textField(const char *label, std::string *value);
+        bool textArea(const char *label, std::string *value);
         bool referenceField(const std::string &type, const fried::editor::FieldView &field, bool isFont);
 
         fried::editor::Editor &m_editor;

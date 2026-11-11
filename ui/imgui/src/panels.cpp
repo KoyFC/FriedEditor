@@ -412,6 +412,26 @@ namespace imgui_backend
         return false;
     }
 
+    // A text area that shows the lines of the string, however many, with its name above it so it has the whole width. It is applied when the area loses focus, as a line is, so typing is one step of undo.
+    bool Panels::textArea(const char *name, std::string *value)
+    {
+        ImGuiID id = ImGui::GetID(name);
+        std::string &edit = m_textEdits[id];
+        if (ImGui::GetCurrentContext()->ActiveId != id)
+        {
+            edit = *value;
+        }
+        int lines = 1 + (int)std::count(edit.begin(), edit.end(), '\n');
+        float height = ImGui::GetTextLineHeight() * (float)std::clamp(lines + 1, 3, 12) + ImGui::GetStyle().FramePadding.y * 2;
+        ImGui::InputTextMultiline(name, &edit, ImVec2(-FLT_MIN, height));
+        if (ImGui::IsItemDeactivatedAfterEdit() && edit != *value)
+        {
+            *value = edit;
+            return true;
+        }
+        return false;
+    }
+
     void Panels::objectFields()
     {
         std::string name = m_editor.selectedObjectField("name").value_or(Json(*m_editor.selected())).get<std::string>();
@@ -468,7 +488,16 @@ namespace imgui_backend
         const std::string &name = field.m_schema.m_name;
         const std::string &kind = field.m_schema.m_kind;
         ImGui::PushID(name.c_str());
-        caption(name);
+        // The text of a Text is written as lines, so its name goes above the area and not beside it.
+        bool isTextArea = kind == "string" && name == "text";
+        if (isTextArea)
+        {
+            ImGui::TextDisabled("%s", name.c_str());
+        }
+        else
+        {
+            caption(name);
+        }
 
         if (kind == "int")
         {
@@ -498,7 +527,7 @@ namespace imgui_backend
         else if (kind == "string")
         {
             std::string value = field.m_value.is_string() ? field.m_value.get<std::string>() : std::string();
-            if (textField("##v", &value))
+            if (isTextArea ? textArea("##v", &value) : textField("##v", &value))
             {
                 m_editor.setField(type, name, Json(value));
             }
