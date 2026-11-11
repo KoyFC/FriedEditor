@@ -139,7 +139,7 @@ TEST_CASE("the real player answers a scene with a frame" * doctest::skip(std::ge
     REQUIRE(reported.empty());
     REQUIRE(session.state() == PlayerSession::State::Ready);
     CHECK(session.platform() == "pc");
-    CHECK(session.schema().size() == 6);
+    CHECK(session.schema().size() == 7);
 
     std::ifstream file(FRIED_EDITOR_TEST_DATA "/sample.scene.json");
     nlohmann::json scene = nlohmann::json::parse(file);
