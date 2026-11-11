@@ -19,6 +19,8 @@ add_library(fried_editor_imgui STATIC
     src/app.h
     src/panels.cpp
     src/panels.h
+    src/pointer.cpp
+    src/pointer.h
     src/style.cpp
     src/style.h
     src/textures.cpp

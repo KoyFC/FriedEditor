@@ -3,6 +3,8 @@
 #include "fried/editor/editor.h"
 #include "textures.h"
 
+#include <imgui.h>
+
 #include <string>
 
 namespace imgui_backend
@@ -15,6 +17,13 @@ namespace imgui_backend
 
         void toolbar();
         void viewport();
+
+        // Panning holds the pointer still, so the viewport pans by the movement it is given instead of by where the pointer is.
+        bool isPanning() const { return m_dragKind == 2; }
+        void setHeldMotion(ImVec2 motion) { m_heldMotion = motion; }
+
+        // Whether a value was being dragged this frame. It is reset by asking.
+        bool takeValueDrag();
         void hierarchy();
         void inspector();
         void assets();
@@ -44,6 +53,8 @@ namespace imgui_backend
         unsigned long m_uploadedSerial = 0;
         ImageCache m_images;
         int m_dragKind = 0;
+        ImVec2 m_heldMotion;
+        ImVec2 m_panPosition;
         int m_assetFilter = 0;
         std::string m_assetSearch;
         std::string m_pendingScene;

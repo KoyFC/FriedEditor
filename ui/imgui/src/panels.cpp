@@ -34,11 +34,17 @@ namespace
     }
 
     // A value that is changed by dragging it shows the horizontal resize pointer while it can be, and while it is.
+    bool s_isValueDragged = false;
+
     void showDragCursor()
     {
         if (ImGui::IsItemHovered() || ImGui::IsItemActive())
         {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+        }
+        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f))
+        {
+            s_isValueDragged = true;
         }
     }
 
@@ -316,6 +322,13 @@ namespace imgui_backend
         ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : palette::yolk, "%s", right.c_str());
     }
 
+    bool Panels::takeValueDrag()
+    {
+        bool isDragged = s_isValueDragged;
+        s_isValueDragged = false;
+        return isDragged;
+    }
+
     void Panels::viewport()
     {
         const fried::editor::Frame &frame = m_editor.frame();
@@ -368,7 +381,15 @@ namespace imgui_backend
         draw->PopClipRect();
 
         // The editor works in the frame's own pixels.
-        ImVec2 mouse = ImGui::GetIO().MousePos;
+        if (m_dragKind == 2)
+        {
+            m_panPosition = ImVec2(m_panPosition.x + m_heldMotion.x, m_panPosition.y + m_heldMotion.y);
+        }
+        else
+        {
+            m_panPosition = ImGui::GetIO().MousePos;
+        }
+        ImVec2 mouse = m_panPosition;
         double frameX = (mouse.x - corner.x) / scale;
         double frameY = (mouse.y - corner.y) / scale;
 

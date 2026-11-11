@@ -1,6 +1,7 @@
 #include "app.h"
 
 #include "panels.h"
+#include "pointer.h"
 #include "style.h"
 
 #include "fried/editor/expression.h"
@@ -112,12 +113,13 @@ namespace imgui_backend
         ImGuiIO &io = ImGui::GetIO();
         static const std::string s_layout = layoutFile();
         io.IniFilename = s_layout.c_str();
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange;
         applyStyle(editor.enginePath() + "/assets/NunitoSans.ttf");
         ImGui_ImplSDL2_InitForOpenGL(window, context);
         ImGui_ImplOpenGL3_Init("#version 330");
 
         Panels panels(editor);
+        Pointer pointer(window);
         bool isRunning = true;
         bool isCloseAsked = false;
         bool isLayoutBuilt = false;
@@ -129,6 +131,7 @@ namespace imgui_backend
             while (SDL_PollEvent(&event))
             {
                 ImGui_ImplSDL2_ProcessEvent(&event);
+                pointer.handleEvent(event);
                 if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
                 {
                     if (editor.commands().isClean())
@@ -147,6 +150,8 @@ namespace imgui_backend
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplSDL2_NewFrame();
             ImGui::NewFrame();
+            pointer.beginFrame();
+            panels.setHeldMotion(pointer.takeHeldMotion());
 
             if (!io.WantTextInput)
             {
@@ -340,6 +345,7 @@ namespace imgui_backend
                 ImGui::EndPopup();
             }
 
+            pointer.endFrame(panels.isPanning(), panels.takeValueDrag());
             ImGui::Render();
             int width = 0, height = 0;
             SDL_GL_GetDrawableSize(window, &width, &height);
