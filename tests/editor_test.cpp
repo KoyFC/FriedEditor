@@ -31,6 +31,8 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
     REQUIRE(editor.status() == Editor::Status::Ready);
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 3; });
     REQUIRE(editor.frame().m_bounds.size() == 3);
 
     // The sprite sits at 288, 160 and the view's camera starts at the middle of the frame.

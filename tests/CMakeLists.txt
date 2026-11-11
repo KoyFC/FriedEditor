@@ -16,5 +16,6 @@ add_executable(core_tests
     version_test.cpp
 )
 target_link_libraries(core_tests PRIVATE fried_editor_core)
+target_compile_definitions(core_tests PRIVATE FRIED_EDITOR_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 add_test(NAME core_tests COMMAND core_tests)

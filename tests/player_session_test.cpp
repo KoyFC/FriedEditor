@@ -141,7 +141,7 @@ TEST_CASE("the real player answers a scene with a frame" * doctest::skip(std::ge
     CHECK(session.platform() == "pc");
     CHECK(session.schema().size() == 6);
 
-    std::ifstream file(engine + "/sandbox/assets/scenes/sample.scene.json");
+    std::ifstream file(FRIED_EDITOR_TEST_DATA "/sample.scene.json");
     nlohmann::json scene = nlohmann::json::parse(file);
     session.load(scene);
     session.setEditorCamera(320, 240, 1);

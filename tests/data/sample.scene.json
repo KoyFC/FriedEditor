@@ -1,0 +1,67 @@
+{
+	"camera": "camera",
+	"name": "Sample",
+	"objects": [
+		{
+			"components": [
+				{
+					"type": "Transform",
+					"x": 320,
+					"y": 240
+				},
+				{
+					"type": "Camera",
+					"zoom": 1
+				}
+			],
+			"id": "camera",
+			"name": "Camera"
+		},
+		{
+			"components": [
+				{
+					"scaleX": 8,
+					"scaleY": 8,
+					"type": "Transform",
+					"x": 288,
+					"y": 160
+				},
+				{
+					"texture": {
+						"path": "sprite.png",
+						"root": "game"
+					},
+					"type": "Sprite"
+				}
+			],
+			"id": "sprite",
+			"name": "Sprite"
+		},
+		{
+			"components": [
+				{
+					"type": "Transform",
+					"x": 220,
+					"y": 400
+				},
+				{
+					"color": {
+						"b": 230,
+						"g": 220,
+						"r": 220
+					},
+					"font": {
+						"path": "NunitoSans.ttf",
+						"root": "engine",
+						"size": 16
+					},
+					"text": "This scene is a JSON file",
+					"type": "Text"
+				}
+			],
+			"id": "label",
+			"name": "Label"
+		}
+	],
+	"version": 1
+}

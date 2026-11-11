@@ -43,7 +43,7 @@ TEST_CASE("the file text is stable, so a scene read and written is the same byte
 
 TEST_CASE("the scene file the engine's sandbox ships round-trips byte for byte" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
 {
-    std::ifstream file(std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/sample.scene.json");
+    std::ifstream file(std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/sandbox.scene.json");
     std::stringstream text;
     text << file.rdbuf();
 

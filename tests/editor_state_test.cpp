@@ -79,7 +79,7 @@ TEST_CASE("the editor reopens the scene it had open, and shows the build while i
     {
         Editor first;
         REQUIRE(first.open(engine + "/sandbox", engine, &error));
-        CHECK(fs::path(first.scenePath()).filename() == "sample.scene.json");
+        CHECK(fs::path(first.scenePath()).filename() == "sandbox.scene.json");
         REQUIRE(first.openScene(engine + "/sandbox/assets/scenes/sandbox_ui.scene.json", &error));
     }
     Editor second;
