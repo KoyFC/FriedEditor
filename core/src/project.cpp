@@ -144,6 +144,12 @@ namespace fried::editor
             double fit = std::min((double)screen.first / settings.m_width, (double)screen.second / settings.m_height);
             return {std::max(1, (int)std::lround(screen.first / fit)), std::max(1, (int)std::lround(screen.second / fit))};
         }
+        if (settings.m_mode == "pixel")
+        {
+            double fit = std::min((double)screen.first / settings.m_width, (double)screen.second / settings.m_height);
+            int scale = std::max(1, (int)std::floor(fit));
+            return {std::max(1, screen.first / scale), std::max(1, screen.second / scale)};
+        }
         return {settings.m_width, settings.m_height};
     }
 }
