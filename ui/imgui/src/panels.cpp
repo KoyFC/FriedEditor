@@ -148,6 +148,7 @@ namespace imgui_backend
             if (isActive)
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
             }
             if (ImGui::Button(mode.m_label))
             {
@@ -155,7 +156,7 @@ namespace imgui_backend
             }
             if (isActive)
             {
-                ImGui::PopStyleColor();
+                ImGui::PopStyleColor(2);
             }
             ImGui::SameLine();
         }
@@ -902,6 +903,7 @@ namespace imgui_backend
             if (isActive)
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
             }
             if (ImGui::Button(filters[index]))
             {
@@ -909,7 +911,7 @@ namespace imgui_backend
             }
             if (isActive)
             {
-                ImGui::PopStyleColor();
+                ImGui::PopStyleColor(2);
             }
         }
         ImGui::SameLine();
