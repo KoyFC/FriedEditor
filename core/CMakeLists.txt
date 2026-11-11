@@ -6,6 +6,7 @@ add_library(fried_editor_core STATIC
     src/commands.cpp
     src/editor.cpp
     src/editor_state.cpp
+    src/expression.cpp
     src/game_runner.cpp
     src/gizmo.cpp
     src/message_channel.cpp

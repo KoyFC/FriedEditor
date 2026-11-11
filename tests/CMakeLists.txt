@@ -5,6 +5,7 @@ add_executable(core_tests
     command_stack_test.cpp
     editor_state_test.cpp
     editor_test.cpp
+    expression_test.cpp
     game_runner_test.cpp
     gizmo_test.cpp
     player_session_test.cpp
