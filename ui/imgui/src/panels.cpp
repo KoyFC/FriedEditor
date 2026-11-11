@@ -33,6 +33,79 @@ namespace
         return std::filesystem::equivalent(path, openPath, ignored);
     }
 
+    // A value that is changed by dragging it shows the horizontal resize pointer while it can be, and while it is.
+    void showDragCursor()
+    {
+        if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+        }
+    }
+
+    // A button without a look of its own, so the pointer is what says it can be pressed.
+    bool pickerButton(const char *label, ImVec2 size)
+    {
+        bool isPressed = ImGui::InvisibleButton(label, size);
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
+        return isPressed;
+    }
+
+    bool dragInt(const char *label, int *value)
+    {
+        bool isChanged = ImGui::DragInt(label, value);
+        showDragCursor();
+        return isChanged;
+    }
+
+    bool dragInt4(const char *label, int *values)
+    {
+        bool isChanged = ImGui::DragInt4(label, values);
+        showDragCursor();
+        return isChanged;
+    }
+
+    bool dragFloat(const char *label, float *value, float speed, float low, float high, const char *format)
+    {
+        bool isChanged = ImGui::DragFloat(label, value, speed, low, high, format);
+        showDragCursor();
+        return isChanged;
+    }
+
+    // The pointer over the viewport says what a press there would do.
+    ImGuiMouseCursor viewportCursor(const fried::editor::Editor::PointerTarget &target)
+    {
+        using Kind = fried::editor::Editor::PointerTarget::Kind;
+        using Handle = fried::editor::GizmoHandle::Kind;
+        switch (target.m_kind)
+        {
+        case Kind::Pan:
+            return ImGuiMouseCursor_Hand;
+        case Kind::Object:
+            return ImGuiMouseCursor_ResizeAll;
+        case Kind::Handle:
+            switch (target.m_handle)
+            {
+            case Handle::MoveX:
+            case Handle::ScaleX:
+                return ImGuiMouseCursor_ResizeEW;
+            case Handle::MoveY:
+            case Handle::ScaleY:
+                return ImGuiMouseCursor_ResizeNS;
+            case Handle::ScaleBoth:
+                return ImGuiMouseCursor_ResizeNWSE;
+            case Handle::Rotate:
+                return ImGuiMouseCursor_Hand;
+            }
+            break;
+        case Kind::None:
+            break;
+        }
+        return ImGuiMouseCursor_Arrow;
+    }
+
     constexpr const char *s_assetPayload = "FRIED_ASSET";
 
     ImU32 colorOf(unsigned int argb)
@@ -328,6 +401,11 @@ namespace imgui_backend
             }
         }
 
+        if (isHovered || m_dragKind != 0)
+        {
+            ImGui::SetMouseCursor(viewportCursor(m_editor.pointerTarget(frameX, frameY)));
+        }
+
         if (ImGui::BeginDragDropTarget())
         {
             if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_assetPayload))
@@ -460,7 +538,7 @@ namespace imgui_backend
 
         int priority = m_editor.selectedObjectField("priority").value_or(Json(0)).get<int>();
         caption("Priority");
-        if (ImGui::DragInt("##priority", &priority))
+        if (dragInt("##priority", &priority))
         {
             m_editor.setObjectField("priority", Json(priority));
         }
@@ -519,7 +597,7 @@ namespace imgui_backend
         if (kind == "int")
         {
             int value = field.m_value.is_number() ? field.m_value.get<int>() : 0;
-            if (ImGui::DragInt("##v", &value))
+            if (dragInt("##v", &value))
             {
                 m_editor.setField(type, name, Json(value));
             }
@@ -528,7 +606,7 @@ namespace imgui_backend
         {
             float value = field.m_value.is_number() ? field.m_value.get<float>() : 0.0f;
             float speed = name == "rotation" ? 0.5f : (name.find("scale") == 0 || name == "zoom" ? 0.01f : 1.0f);
-            if (ImGui::DragFloat("##v", &value, speed, 0, 0, "%.3f"))
+            if (dragFloat("##v", &value, speed, 0, 0, "%.3f"))
             {
                 m_editor.setField(type, name, Json((double)value));
             }
@@ -585,7 +663,7 @@ namespace imgui_backend
             {
                 int values[4] = {field.m_value.value("x", 0), field.m_value.value("y", 0), field.m_value.value("width", 0), field.m_value.value("height", 0)};
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::DragInt4("##region", values))
+                if (dragInt4("##region", values))
                 {
                     m_editor.setField(type, name, Json{{"x", values[0]}, {"y", values[1]}, {"width", values[2]}, {"height", values[3]}});
                 }
@@ -651,7 +729,7 @@ namespace imgui_backend
             ImGui::PushID(name);
             caption(label);
             float value = field->m_value.is_number() ? field->m_value.get<float>() : 0.0f;
-            if (ImGui::DragFloat("##v", &value, 1.0f, 0, 0, "%.0f"))
+            if (dragFloat("##v", &value, 1.0f, 0, 0, "%.0f"))
             {
                 m_editor.setField(view.m_type, name, Json((double)value));
             }
@@ -667,7 +745,7 @@ namespace imgui_backend
             // The anchor presets: the button shows the current one and opens the grid of all of them.
             ImVec2 buttonPosition = ImGui::GetCursorScreenPos();
             const float buttonSize = 44;
-            if (ImGui::InvisibleButton("##anchor-preset", ImVec2(buttonSize, buttonSize)))
+            if (pickerButton("##anchor-preset", ImVec2(buttonSize, buttonSize)))
             {
                 ImGui::OpenPopup("anchor-presets");
             }
@@ -696,7 +774,7 @@ namespace imgui_backend
                         ImGui::PushID(row * 4 + column);
                         ImVec2 position = ImGui::GetCursorScreenPos();
                         bool isCurrent = preview->m_horizontal == axes[column] && preview->m_vertical == axes[row];
-                        if (ImGui::InvisibleButton("##preset", ImVec2(cell, cell)))
+                        if (pickerButton("##preset", ImVec2(cell, cell)))
                         {
                             // Choosing the preset the object already has changes nothing.
                             if (!isCurrent)
@@ -727,7 +805,7 @@ namespace imgui_backend
             ImGui::SameLine();
             ImVec2 pivotPosition = ImGui::GetCursorScreenPos();
             const float pivotCell = buttonSize / 3;
-            ImGui::InvisibleButton("##pivot", ImVec2(buttonSize, buttonSize));
+            pickerButton("##pivot", ImVec2(buttonSize, buttonSize));
             ImVec2 pointer = ImGui::GetIO().MousePos;
             bool isPivotHovered = ImGui::IsItemHovered();
             bool isPivotClicked = ImGui::IsItemClicked();
