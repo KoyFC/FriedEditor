@@ -77,13 +77,14 @@ namespace
     }
 
     // The screen as a frame, and in it the area the anchors span, with a marker at each corner of that area.
-    void drawAnchorIcon(ImDrawList *list, ImVec2 position, float size, AnchorAxis horizontal, AnchorAxis vertical, ImU32 color)
+    void drawAnchorIcon(ImDrawList *list, ImVec2 position, float size, float minX, float maxX, float minY, float maxY, ImU32 color)
     {
         const float margin = size * 0.18f;
         list->AddRect(position, ImVec2(position.x + size, position.y + size), IM_COL32(150, 150, 160, 255), 2.0f);
         float inner = size - margin * 2;
-        ImVec2 low(position.x + margin + inner * anchorPlace(horizontal, false), position.y + margin + inner * anchorPlace(vertical, false));
-        ImVec2 high(position.x + margin + inner * anchorPlace(horizontal, true), position.y + margin + inner * anchorPlace(vertical, true));
+        auto place = [](float fraction) { return std::clamp(fraction, 0.0f, 1.0f); };
+        ImVec2 low(position.x + margin + inner * place(minX), position.y + margin + inner * place(minY));
+        ImVec2 high(position.x + margin + inner * place(maxX), position.y + margin + inner * place(maxY));
         if (low.x != high.x || low.y != high.y)
         {
             list->AddRect(low, high, color);
@@ -624,10 +625,11 @@ namespace imgui_backend
             {
                 ImGui::OpenPopup("anchor-presets");
             }
-            drawAnchorIcon(list, buttonPosition, buttonSize, preview->m_horizontal, preview->m_vertical, anchorColor);
+            drawAnchorIcon(list, buttonPosition, buttonSize, (float)preview->m_anchorMinX, (float)preview->m_anchorMaxX, (float)preview->m_anchorMinY,
+                           (float)preview->m_anchorMaxY, anchorColor);
             if (ImGui::IsItemHovered())
             {
-                ImGui::SetTooltip("Anchor presets");
+                ImGui::SetTooltip(preview->m_horizontal == AnchorAxis::Custom || preview->m_vertical == AnchorAxis::Custom ? "Anchor presets (custom anchors)" : "Anchor presets");
             }
             if (ImGui::BeginPopup("anchor-presets"))
             {
@@ -635,7 +637,8 @@ namespace imgui_backend
                 static const char *columns[] = {"Left", "Center", "Right", "Stretch"};
                 static const char *rows[] = {"Top", "Middle", "Bottom", "Stretch"};
                 const float cell = 40;
-                ImGui::TextDisabled("Anchor to the screen");
+                bool isCustom = preview->m_horizontal == AnchorAxis::Custom || preview->m_vertical == AnchorAxis::Custom;
+                ImGui::TextDisabled(isCustom ? "Anchor to the screen (now custom)" : "Anchor to the screen");
                 for (int row = 0; row < 4; ++row)
                 {
                     for (int column = 0; column < 4; ++column)
@@ -649,7 +652,11 @@ namespace imgui_backend
                         bool isCurrent = preview->m_horizontal == axes[column] && preview->m_vertical == axes[row];
                         if (ImGui::InvisibleButton("##preset", ImVec2(cell, cell)))
                         {
-                            m_editor.setAnchorPreset(axes[column], axes[row]);
+                            // Choosing the preset the object already has changes nothing.
+                            if (!isCurrent)
+                            {
+                                m_editor.setAnchorPreset(axes[column], axes[row]);
+                            }
                             ImGui::CloseCurrentPopup();
                         }
                         bool isHovered = ImGui::IsItemHovered();
@@ -657,7 +664,8 @@ namespace imgui_backend
                         {
                             ImGui::GetWindowDrawList()->AddRectFilled(position, ImVec2(position.x + cell, position.y + cell), IM_COL32(255, 255, 255, isHovered ? 40 : 20), 2.0f);
                         }
-                        drawAnchorIcon(ImGui::GetWindowDrawList(), ImVec2(position.x + 3, position.y + 3), cell - 6, axes[column], axes[row],
+                        drawAnchorIcon(ImGui::GetWindowDrawList(), ImVec2(position.x + 3, position.y + 3), cell - 6, anchorPlace(axes[column], false),
+                                       anchorPlace(axes[column], true), anchorPlace(axes[row], false), anchorPlace(axes[row], true),
                                        isCurrent ? IM_COL32(255, 200, 0, 255) : anchorColor);
                         if (isHovered)
                         {
