@@ -493,8 +493,14 @@ namespace fried::editor
             ComponentView view;
             view.m_type = type;
             view.m_isRemovable = type != "Transform";
+            bool isRect = type == "RectTransform";
             for (const FieldSchema &field : schema->m_fields)
             {
+                // A RectTransform lays out the position, so the offsets are what is edited.
+                if (isRect && (field.m_name == "x" || field.m_name == "y"))
+                {
+                    continue;
+                }
                 FieldView fieldView;
                 fieldView.m_schema = field;
                 fieldView.m_isSet = component.contains(field.m_name);
@@ -521,7 +527,8 @@ namespace fried::editor
             {
                 has = has || component.value("type", "") == schema.m_name;
             }
-            if (!has)
+            // A transform is replaced, never added next to another.
+            if (!has && schema.m_name != "Transform")
             {
                 types.push_back(schema.m_name);
             }
@@ -571,6 +578,11 @@ namespace fried::editor
         if (m_selected)
         {
             const Json *object = m_document.object(*m_selected);
+            if (type == "RectTransform")
+            {
+                m_commands->execute(std::make_unique<ChangeTransformType>(*m_selected, "RectTransform"));
+                return;
+            }
             m_commands->execute(std::make_unique<AddComponent>(*m_selected, (int)(*object)["components"].size(), newComponent(type)));
         }
     }
@@ -579,6 +591,11 @@ namespace fried::editor
     {
         if (m_selected)
         {
+            if (type == "RectTransform")
+            {
+                m_commands->execute(std::make_unique<ChangeTransformType>(*m_selected, "Transform"));
+                return;
+            }
             m_commands->execute(std::make_unique<RemoveComponent>(*m_selected, type));
         }
     }
@@ -670,10 +687,96 @@ namespace fried::editor
     TransformValues Editor::transformOf(const std::string &id) const
     {
         auto number = [&](const char *field, double fallback) {
-            std::optional<Json> value = m_document.componentField(id, "Transform", field);
+            std::optional<Json> value = m_document.componentField(id, m_document.transformType(id), field);
             return value && value->is_number() ? value->get<double>() : fallback;
         };
-        return {number("x", 0), number("y", 0), number("rotation", 0), number("scaleX", 1), number("scaleY", 1)};
+        TransformValues values = {number("x", 0), number("y", 0), number("rotation", 0), number("scaleX", 1), number("scaleY", 1)};
+        if (m_document.transformType(id) == "RectTransform")
+        {
+            // Where the layout put it, which the last frame shows.
+            for (const ObjectBounds &box : m_frame.m_bounds)
+            {
+                if (box.m_id == id)
+                {
+                    values.m_x = box.m_x;
+                    values.m_y = box.m_y;
+                }
+            }
+        }
+        return values;
+    }
+
+    // The anchors of the selected object's RectTransform, as fractions of the screen the layout is made for: a marker at each corner of the area they span, and that area itself when the object stretches.
+    DrawList Editor::anchorOverlay(int viewWidth, int viewHeight) const
+    {
+        DrawList list;
+        if (!m_selected || m_document.transformType(*m_selected) != "RectTransform")
+        {
+            return list;
+        }
+        auto number = [&](const char *field) {
+            std::optional<Json> value = m_document.componentField(*m_selected, "RectTransform", field);
+            return value && value->is_number() ? value->get<double>() : 0.0;
+        };
+        constexpr unsigned int anchorColor = 0xff40c0ff;
+        double left = m_frameView.worldToFrameX(viewWidth * number("anchorMinX"));
+        double right = m_frameView.worldToFrameX(viewWidth * number("anchorMaxX"));
+        double top = m_frameView.worldToFrameY(viewHeight * number("anchorMinY"));
+        double bottom = m_frameView.worldToFrameY(viewHeight * number("anchorMaxY"));
+        if (left != right || top != bottom)
+        {
+            list.push_back({DrawCommand::Kind::Rect, left, top, right - left, bottom - top, anchorColor});
+        }
+        constexpr double marker = 5;
+        for (double x : {left, right})
+        {
+            for (double y : {top, bottom})
+            {
+                list.push_back({DrawCommand::Kind::FilledRect, x - marker, y - marker, marker * 2, marker * 2, anchorColor});
+            }
+        }
+        return list;
+    }
+
+    std::map<std::string, double> Editor::dragFields(const std::string &id, std::map<std::string, double> fields)
+    {
+        if (m_document.transformType(id) != "RectTransform")
+        {
+            return fields;
+        }
+        if (!m_drag.m_hasMoved)
+        {
+            TransformValues start = transformOf(id);
+            m_drag.m_appliedX = start.m_x;
+            m_drag.m_appliedY = start.m_y;
+        }
+        auto number = [&](const char *field) {
+            std::optional<Json> value = m_document.componentField(id, "RectTransform", field);
+            return value && value->is_number() ? value->get<double>() : 0.0;
+        };
+        auto moveAxis = [&](const char *position, double &applied, const char *anchorMin, const char *anchorMax, const char *insetStart, const char *insetEnd,
+                            const char *offset) {
+            auto found = fields.find(position);
+            if (found == fields.end())
+            {
+                return;
+            }
+            double delta = found->second - applied;
+            applied = found->second;
+            fields.erase(found);
+            if (number(anchorMin) != number(anchorMax))
+            {
+                fields[insetStart] = number(insetStart) + delta;
+                fields[insetEnd] = number(insetEnd) - delta;
+            }
+            else
+            {
+                fields[offset] = number(offset) + delta;
+            }
+        };
+        moveAxis("x", m_drag.m_appliedX, "anchorMinX", "anchorMaxX", "insetLeft", "insetRight", "offsetX");
+        moveAxis("y", m_drag.m_appliedY, "anchorMinY", "anchorMaxY", "insetTop", "insetBottom", "offsetY");
+        return fields;
     }
 
     std::vector<GizmoHandle> Editor::currentHandles() const
@@ -745,6 +848,8 @@ namespace fried::editor
                                             (int)std::lround(logical.second / zoom));
         DrawList handles = Gizmo::draw(handlesFor(m_frameView));
         list.insert(list.end(), handles.begin(), handles.end());
+        DrawList anchors = anchorOverlay(logical.first, logical.second);
+        list.insert(list.end(), anchors.begin(), anchors.end());
         return list;
     }
 
@@ -828,14 +933,14 @@ namespace fried::editor
         }
         else if (m_drag.m_kind == Drag::Kind::Handle)
         {
-            setTransformFields(m_drag.m_id, m_drag.m_handle->update(m_viewport, frameX, frameY), m_drag.m_hasMoved);
+            setTransformFields(m_drag.m_id, dragFields(m_drag.m_id, m_drag.m_handle->update(m_viewport, frameX, frameY)), m_drag.m_hasMoved);
             m_drag.m_hasMoved = true;
         }
         else if (m_drag.m_kind == Drag::Kind::Object)
         {
             double x = std::round(m_drag.m_startX + m_viewport.frameToWorldX(frameX) - m_drag.m_startWorldX);
             double y = std::round(m_drag.m_startY + m_viewport.frameToWorldY(frameY) - m_drag.m_startWorldY);
-            setTransformFields(m_drag.m_id, {{"x", x}, {"y", y}}, m_drag.m_hasMoved);
+            setTransformFields(m_drag.m_id, dragFields(m_drag.m_id, {{"x", x}, {"y", y}}), m_drag.m_hasMoved);
             m_drag.m_hasMoved = true;
         }
     }

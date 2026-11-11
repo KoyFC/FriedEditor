@@ -63,16 +63,17 @@ namespace fried::editor
 
     bool SetPosition::apply(SceneDocument &document)
     {
-        m_beforeX = document.componentField(m_id, "Transform", "x");
-        m_beforeY = document.componentField(m_id, "Transform", "y");
-        return document.setComponentField(m_id, "Transform", "x", nlohmann::json(m_x))
-            && document.setComponentField(m_id, "Transform", "y", nlohmann::json(m_y));
+        m_type = document.transformType(m_id);
+        m_beforeX = document.componentField(m_id, m_type, "x");
+        m_beforeY = document.componentField(m_id, m_type, "y");
+        return document.setComponentField(m_id, m_type, "x", nlohmann::json(m_x))
+            && document.setComponentField(m_id, m_type, "y", nlohmann::json(m_y));
     }
 
     void SetPosition::revert(SceneDocument &document)
     {
-        document.setComponentField(m_id, "Transform", "x", m_beforeX);
-        document.setComponentField(m_id, "Transform", "y", m_beforeY);
+        document.setComponentField(m_id, m_type, "x", m_beforeX);
+        document.setComponentField(m_id, m_type, "y", m_beforeY);
     }
 
     bool SetPosition::mergeWith(const Command &later)
@@ -95,10 +96,11 @@ namespace fried::editor
     bool SetTransformFields::apply(SceneDocument &document)
     {
         m_before.clear();
+        m_type = document.transformType(m_id);
         for (const auto &[field, value] : m_fields)
         {
-            m_before[field] = document.componentField(m_id, "Transform", field);
-            if (!document.setComponentField(m_id, "Transform", field, nlohmann::json(value)))
+            m_before[field] = document.componentField(m_id, m_type, field);
+            if (!document.setComponentField(m_id, m_type, field, nlohmann::json(value)))
             {
                 return false;
             }
@@ -110,7 +112,7 @@ namespace fried::editor
     {
         for (const auto &[field, before] : m_before)
         {
-            document.setComponentField(m_id, "Transform", field, before);
+            document.setComponentField(m_id, m_type, field, before);
         }
     }
 
@@ -247,5 +249,51 @@ namespace fried::editor
     void SetCamera::revert(SceneDocument &document)
     {
         document.setCameraId(m_before);
+    }
+}
+
+namespace fried::editor
+{
+    ChangeTransformType::ChangeTransformType(std::string id, std::string type)
+        : m_id(std::move(id)), m_type(std::move(type))
+    {
+    }
+
+    bool ChangeTransformType::apply(SceneDocument &document)
+    {
+        const nlohmann::json *object = document.object(m_id);
+        if (!object || (*object)["components"].empty())
+        {
+            return false;
+        }
+        nlohmann::json current = (*object)["components"][0];
+        auto number = [&](const char *field, double fallback) { return current.contains(field) && current[field].is_number() ? current[field].get<double>() : fallback; };
+
+        // The object stays where it is: the position it had is the offset from the top left of the view, and back.
+        nlohmann::json next = {{"type", m_type}};
+        for (const char *field : {"rotation", "scaleX", "scaleY"})
+        {
+            if (current.contains(field))
+            {
+                next[field] = current[field];
+            }
+        }
+        if (m_type == "RectTransform")
+        {
+            next["offsetX"] = number("x", 0);
+            next["offsetY"] = number("y", 0);
+        }
+        else
+        {
+            next["x"] = number("offsetX", 0);
+            next["y"] = number("offsetY", 0);
+        }
+        return document.replaceTransform(m_id, next, &m_before);
+    }
+
+    void ChangeTransformType::revert(SceneDocument &document)
+    {
+        nlohmann::json ignored;
+        document.replaceTransform(m_id, m_before, &ignored);
     }
 }

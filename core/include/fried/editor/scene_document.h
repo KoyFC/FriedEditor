@@ -71,6 +71,12 @@ namespace fried::editor
         std::optional<nlohmann::json> componentField(const std::string &id, const std::string &type, const std::string &field) const;
         bool setComponentField(const std::string &id, const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
 
+        // "RectTransform" when the object has one, which takes the place of its Transform, and otherwise "Transform".
+        std::string transformType(const std::string &id) const;
+
+        // Gives the object's first component, its transform, another form, and says what it was.
+        bool replaceTransform(const std::string &id, const nlohmann::json &component, nlohmann::json *before);
+
         bool isModified() const { return m_isModified; }
         void markSaved() { m_isModified = false; }
 

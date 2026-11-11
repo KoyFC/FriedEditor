@@ -179,6 +179,10 @@ namespace fried::editor
         void cameraChanged();
         void changed();
         TransformValues transformOf(const std::string &id) const;
+        DrawList anchorOverlay(int viewWidth, int viewHeight) const;
+
+        // What a drag asks of an object's position, as the fields to write. A RectTransform's position is a result of its layout, so moving it changes its offsets, or its insets where it stretches.
+        std::map<std::string, double> dragFields(const std::string &id, std::map<std::string, double> fields);
         std::vector<GizmoHandle> currentHandles() const;
         std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
         double gameCameraZoom() const;
@@ -240,6 +244,8 @@ namespace fried::editor
             double m_startWorldY = 0;
             double m_startX = 0;
             double m_startY = 0;
+            double m_appliedX = 0;
+            double m_appliedY = 0;
             double m_lastFrameX = 0;
             double m_lastFrameY = 0;
             bool m_hasMoved = false;

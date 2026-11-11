@@ -48,6 +48,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 - [x] Inspector generated from the schema
 - [x] Asset browser, drag a texture to create a sprite
 - [x] ImGui asset browser: search, scenes open on a double click (asking about unsaved changes), the open scene outlined, a menu to open or add, copy a reference or show in the folder
+- [x] RectTransform: adding it to an object turns its Transform into one (and removing it turns it back), the anchors are drawn in the viewport, dragging the object edits its offsets or, where it stretches, its insets, and its x and y are not shown because the layout overwrites them
 - [x] Move, scale and rotate gizmos
 
 ### 6. Per-platform

@@ -57,6 +57,7 @@ namespace fried::editor
 
     private:
         std::string m_id;
+        std::string m_type;
         double m_x;
         double m_y;
         std::optional<nlohmann::json> m_beforeX;
@@ -76,6 +77,7 @@ namespace fried::editor
 
     private:
         std::string m_id;
+        std::string m_type;
         std::map<std::string, double> m_fields;
         std::map<std::string, std::optional<nlohmann::json>> m_before;
     };
@@ -169,5 +171,21 @@ namespace fried::editor
     private:
         std::optional<std::string> m_id;
         std::optional<std::string> m_before;
+    };
+
+    // Turns an object's Transform into a RectTransform, which takes its place, or back, so the object keeps where it is.
+    class ChangeTransformType : public Command
+    {
+    public:
+        ChangeTransformType(std::string id, std::string type);
+
+        std::string label() const override { return m_type == "RectTransform" ? "Add RectTransform" : "Remove RectTransform"; }
+        bool apply(SceneDocument &document) override;
+        void revert(SceneDocument &document) override;
+
+    private:
+        std::string m_id;
+        std::string m_type;
+        nlohmann::json m_before;
     };
 }

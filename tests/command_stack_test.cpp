@@ -45,6 +45,7 @@ TEST_CASE("every command undoes to the exact bytes it started from, and redoes t
     roundTrips(document, stack, [] { return std::make_unique<SetComponentField>("a", "Transform", "x", Json(9)); });
     roundTrips(document, stack, [] { return std::make_unique<SetComponentField>("a", "Transform", "x", std::nullopt); });
     roundTrips(document, stack, [] { return std::make_unique<SetObjectField>("a", "priority", Json(2)); });
+    roundTrips(document, stack, [] { return std::make_unique<ChangeTransformType>("a", "RectTransform"); });
     roundTrips(document, stack, [] { return std::make_unique<AddObject>(1, object("c")); });
     roundTrips(document, stack, [] { return std::make_unique<RemoveObject>("a"); });
     roundTrips(document, stack, [] { return std::make_unique<RemoveObject>("b"); });
@@ -112,3 +113,22 @@ TEST_CASE("a new edit drops what was undone, and the clean position follows save
     CHECK_FALSE(stack.execute(std::make_unique<SetObjectField>("missing", "name", Json("x"))));
 }
 
+
+TEST_CASE("a RectTransform takes the place of the Transform and keeps where the object is")
+{
+    SceneDocument document = sample();
+    CommandStack stack(document);
+    CHECK(document.transformType("a") == "Transform");
+
+    REQUIRE(stack.execute(std::make_unique<ChangeTransformType>("a", "RectTransform")));
+    CHECK(document.transformType("a") == "RectTransform");
+    CHECK(document.componentField("a", "RectTransform", "offsetX") == Json(1));
+    CHECK((*document.object("a"))["components"][0]["type"] == "RectTransform");
+
+    REQUIRE(stack.execute(std::make_unique<SetTransformFields>("a", std::map<std::string, double>{{"offsetX", 5}})));
+    CHECK(document.componentField("a", "RectTransform", "offsetX") == Json(5));
+
+    Json removed;
+    int index = 0;
+    CHECK_FALSE(document.removeComponent("a", "RectTransform", &removed, &index));
+}

@@ -297,10 +297,45 @@ namespace fried::editor
         return true;
     }
 
+    std::string SceneDocument::transformType(const std::string &id) const
+    {
+        const Json *found = object(id);
+        if (found && found->contains("components"))
+        {
+            for (const Json &component : (*found)["components"])
+            {
+                if (component.value("type", "") == "RectTransform")
+                {
+                    return "RectTransform";
+                }
+            }
+        }
+        return "Transform";
+    }
+
+    bool SceneDocument::replaceTransform(const std::string &id, const Json &component, Json *before)
+    {
+        Json *found = findObject(id);
+        if (!found || !found->contains("components") || (*found)["components"].empty())
+        {
+            return false;
+        }
+        Json &first = (*found)["components"][0];
+        std::string type = first.value("type", "");
+        if (type != "Transform" && type != "RectTransform")
+        {
+            return false;
+        }
+        *before = first;
+        first = component;
+        changed({DocumentChange::Kind::Structure, id});
+        return true;
+    }
+
     bool SceneDocument::removeComponent(const std::string &id, const std::string &type, Json *removed, int *index)
     {
         Json *found = findObject(id);
-        if (!found || type == "Transform")
+        if (!found || type == "Transform" || type == "RectTransform")
         {
             return false;
         }
