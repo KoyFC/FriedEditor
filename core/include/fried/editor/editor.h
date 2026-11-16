@@ -1,7 +1,7 @@
 #pragma once
 
 #include "fried/editor/asset_browser.h"
-#include "fried/editor/asset_validation.h"
+#include "fried/editor/core_types.h"
 #include "fried/editor/command_stack.h"
 #include "fried/editor/editor_state.h"
 #include "fried/editor/gizmo.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fried/editor/asset_validation.h"
+#include "fried/editor/core_types.h"
 #include "fried/editor/core_types.h"
 
 #include "fried/core/build.h"
