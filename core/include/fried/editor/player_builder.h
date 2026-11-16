@@ -37,6 +37,9 @@ namespace fried::editor
         std::size_t stepCount() const { return m_runner.stepCount(); }
         std::string stepLabel() const { return m_runner.stepLabel(); }
 
+        // What the steps have printed so far, a line at a time.
+        const std::vector<fried::core::OutputLine> &lines() const { return m_runner.lines(); }
+
         // What the step that failed was, once it has.
         const std::string &failure() const { return m_failure; }
 

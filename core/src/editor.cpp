@@ -28,6 +28,7 @@ namespace fried::editor
             return false;
         }
         m_enginePath = enginePath;
+        m_settings.m_onSaved = [this] { projectChanged(); };
 
         std::vector<std::string> scenes = scenePaths();
         if (scenes.empty())
@@ -87,7 +88,7 @@ namespace fried::editor
             progress.m_step = (int)m_builder->step();
             progress.m_steps = (int)m_builder->stepCount();
             progress.m_stepLabel = m_builder->stepLabel();
-            progress.m_log = tailOfFile(playerLogFile(), 40);
+            progress.m_lines = &m_builder->lines();
         }
         else if (m_game.state() == GameRunner::State::Building)
         {
@@ -97,15 +98,31 @@ namespace fried::editor
             progress.m_step = (int)m_game.step();
             progress.m_steps = (int)m_game.stepCount();
             progress.m_stepLabel = m_game.stepLabel();
-            progress.m_log = tailOfFile(m_game.logFile(), 40);
+            progress.m_lines = m_game.lines();
+        }
+        else if (m_projectBuild.state() != ProjectBuild::State::Idle)
+        {
+            const fried::core::StepRunner &runner = m_projectBuild.runner();
+            std::string target = fried::core::buildTargetName(m_projectBuild.target());
+            progress.m_isVisible = true;
+            progress.m_canStop = m_projectBuild.isRunning();
+            progress.m_isFailed = runner.state() == ProjectBuild::State::Failed;
+            progress.m_isFinished = !m_projectBuild.isRunning();
+            progress.m_title = m_projectBuild.isRunning() ? "Building for " + target : progress.m_isFailed ? "Building for " + target + " failed" : "Built for " + target;
+            progress.m_step = (int)runner.step();
+            progress.m_steps = (int)runner.stepCount();
+            progress.m_stepLabel = runner.stepLabel();
+            progress.m_message = runner.failure();
+            progress.m_lines = &runner.lines();
         }
         else if (m_isFailureShown)
         {
             progress.m_isVisible = true;
             progress.m_isFailed = true;
+            progress.m_isFinished = true;
             progress.m_title = m_failedTitle;
             progress.m_message = m_failedMessage;
-            progress.m_log = tailOfFile(m_failedLog, 40);
+            progress.m_lines = m_failedLines.empty() ? nullptr : &m_failedLines;
         }
         return progress;
     }
@@ -113,7 +130,57 @@ namespace fried::editor
     void Editor::dismissBuild()
     {
         m_isFailureShown = false;
+        m_projectBuild.dismiss();
         changed();
+    }
+
+    void Editor::showFailure(const std::string &title, const std::string &message, const std::vector<fried::core::OutputLine> *lines)
+    {
+        m_isFailureShown = true;
+        m_failedTitle = title;
+        m_failedMessage = message;
+        m_failedLines = lines ? *lines : std::vector<fried::core::OutputLine>();
+    }
+
+    void Editor::stopBuild()
+    {
+        if (m_projectBuild.isRunning())
+        {
+            m_projectBuild.cancel();
+            changed();
+        }
+        else
+        {
+            stopGame();
+        }
+    }
+
+    // The scene is laid out against the display, so a change to the project is a reason to lay it out again.
+    void Editor::projectChanged()
+    {
+        m_needsLoad = true;
+        changed();
+    }
+
+    bool Editor::buildProject(fried::core::BuildTarget target, std::string *error)
+    {
+        if (m_builder || m_game.state() == GameRunner::State::Building || m_projectBuild.isRunning())
+        {
+            *error = "Something else is being built.";
+            return false;
+        }
+        if (!m_commands->isClean() && !save(error))
+        {
+            return false;
+        }
+        m_isFailureShown = false;
+        if (!m_projectBuild.start(target, error))
+        {
+            return false;
+        }
+        m_message = "Building for " + fried::core::buildTargetName(target);
+        changed();
+        return true;
     }
 
     void Editor::rebuildPlayer()
@@ -193,10 +260,7 @@ namespace fried::editor
         else
         {
             m_message = error;
-            m_isFailureShown = true;
-            m_failedTitle = "The game cannot be built";
-            m_failedLog.clear();
-            m_failedMessage = error;
+            showFailure("The game cannot be built", error, nullptr);
         }
         changed();
     }
@@ -222,7 +286,14 @@ namespace fried::editor
 
     void Editor::pump()
     {
+        if (m_projectBuild.isRunning() && m_projectBuild.pump() != ProjectBuild::State::Running)
+        {
+            m_message = m_projectBuild.state() == ProjectBuild::State::Succeeded ? "Built for " + fried::core::buildTargetName(m_projectBuild.target()) : m_projectBuild.runner().failure();
+            changed();
+        }
+
         GameRunner::State before = m_game.state();
+        std::vector<fried::core::OutputLine> gameLines = m_game.lines() ? *m_game.lines() : std::vector<fried::core::OutputLine>();
         GameRunner::State after = m_game.pump();
         if (after != before)
         {
@@ -233,10 +304,7 @@ namespace fried::editor
             else if (after == GameRunner::State::Failed)
             {
                 m_message = m_game.failure();
-                m_isFailureShown = true;
-                m_failedTitle = "Building the game failed";
-                m_failedLog = m_game.logFile();
-                m_failedMessage = m_game.failure();
+                showFailure("Building the game failed", m_game.failure(), &gameLines);
             }
             else if (after == GameRunner::State::Idle)
             {
@@ -252,10 +320,7 @@ namespace fried::editor
             {
                 m_status = Status::Failed;
                 m_message = m_builder->failure() + " The log is " + playerLogFile();
-                m_isFailureShown = true;
-                m_failedTitle = "Building the editor player failed";
-                m_failedLog = playerLogFile();
-                m_failedMessage = m_builder->failure();
+                showFailure("Building the editor player failed", m_builder->failure(), &m_builder->lines());
                 m_builder.reset();
                 changed();
             }

@@ -45,6 +45,9 @@ namespace fried::editor
         std::string stepLabel() const { return m_builder ? m_builder->stepLabel() : std::string(); }
         const std::string &logFile() const { return m_logFile; }
 
+        // What the build has printed so far, and nothing once it is over.
+        const std::vector<fried::core::OutputLine> *lines() const { return m_builder ? &m_builder->lines() : nullptr; }
+
         State state() const { return m_state; }
         const std::string &failure() const { return m_failure; }
 

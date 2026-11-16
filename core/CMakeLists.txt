@@ -11,6 +11,7 @@ add_library(fried_editor_core STATIC
     src/message_channel.cpp
     src/player_builder.cpp
     src/player_session.cpp
+    src/project_settings.cpp
     src/scene_document.cpp
     src/viewport.cpp
     src/version.cpp

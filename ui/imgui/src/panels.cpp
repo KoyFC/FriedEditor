@@ -36,6 +36,25 @@ namespace
     // A value that is changed by dragging it shows the horizontal resize pointer while it can be, and while it is.
     bool s_isValueDragged = false;
 
+    ImVec4 lineColor(fried::core::LineKind kind)
+    {
+        switch (kind)
+        {
+        case fried::core::LineKind::Error:
+            return imgui_backend::palette::tomato;
+        case fried::core::LineKind::Warning:
+            return imgui_backend::palette::yolk;
+        case fried::core::LineKind::Success:
+            return imgui_backend::palette::leaf;
+        case fried::core::LineKind::Command:
+            return imgui_backend::palette::yolkHot;
+        case fried::core::LineKind::Progress:
+            return imgui_backend::palette::whiteDim;
+        default:
+            return imgui_backend::palette::white;
+        }
+    }
+
     void showDragCursor()
     {
         if (ImGui::IsItemHovered() || ImGui::IsItemActive())
@@ -112,7 +131,6 @@ namespace
         return ImGuiMouseCursor_Arrow;
     }
 
-    constexpr const char *s_assetPayload = "FRIED_ASSET";
 
     ImU32 colorOf(unsigned int argb)
     {
@@ -270,13 +288,17 @@ namespace imgui_backend
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_Appearing);
         bool isOpen = true;
-        if (ImGui::Begin((progress.m_title + "###build").c_str(), progress.m_isFailed ? &isOpen : nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
+        if (ImGui::Begin((progress.m_title + "###build").c_str(), progress.m_isFinished ? &isOpen : nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
         {
             if (progress.m_isFailed)
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
                 ImGui::TextWrapped("%s", progress.m_message.c_str());
                 ImGui::PopStyleColor();
+            }
+            else if (progress.m_isFinished)
+            {
+                ImGui::TextColored(palette::leaf, "%s", progress.m_message.empty() ? "The build is done." : progress.m_message.c_str());
             }
             else
             {
@@ -289,8 +311,28 @@ namespace imgui_backend
 
             float footer = ImGui::GetFrameHeightWithSpacing() + 4;
             ImGui::BeginChild("##buildlog", ImVec2(0, -footer), ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar);
-            ImGui::TextUnformatted(progress.m_log.empty() ? "Waiting for the first line of output" : progress.m_log.c_str());
-            if (!progress.m_isFailed || ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1)
+            // Following the output is the point, but not at the cost of pulling the view away from someone who scrolled up to read something.
+            bool wasAtBottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1;
+            if (progress.m_lines == nullptr || progress.m_lines->empty())
+            {
+                ImGui::TextDisabled("%s", progress.m_isFinished ? "Nothing was printed." : "Waiting for the first line of output");
+            }
+            else
+            {
+                ImGuiListClipper clipper;
+                clipper.Begin((int)progress.m_lines->size());
+                while (clipper.Step())
+                {
+                    for (int index = clipper.DisplayStart; index < clipper.DisplayEnd; ++index)
+                    {
+                        const fried::core::OutputLine &line = (*progress.m_lines)[index];
+                        ImGui::PushStyleColor(ImGuiCol_Text, lineColor(line.m_kind));
+                        ImGui::TextUnformatted(line.m_text.c_str());
+                        ImGui::PopStyleColor();
+                    }
+                }
+            }
+            if (wasAtBottom)
             {
                 ImGui::SetScrollHereY(1.0f);
             }
@@ -298,11 +340,24 @@ namespace imgui_backend
 
             if (progress.m_canStop && ImGui::Button("Stop"))
             {
-                m_editor.stopGame();
+                m_editor.stopBuild();
             }
-            if (progress.m_isFailed && ImGui::Button("Close"))
+            if (progress.m_isFinished && ImGui::Button("Close"))
             {
                 isOpen = false;
+            }
+            if (progress.m_lines != nullptr && !progress.m_lines->empty())
+            {
+                ImGui::SameLine();
+                if (ImGui::Button("Copy output"))
+                {
+                    std::string text;
+                    for (const fried::core::OutputLine &line : *progress.m_lines)
+                    {
+                        text += line.m_text + "\n";
+                    }
+                    ImGui::SetClipboardText(text.c_str());
+                }
             }
         }
         ImGui::End();

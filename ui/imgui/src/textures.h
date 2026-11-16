@@ -35,6 +35,9 @@ namespace imgui_backend
         // Null while the file cannot be read.
         const Texture *get(const std::string &file);
 
+        // Makes the next get read the file again, for one that has been written since.
+        void forget(const std::string &file);
+
     private:
         std::map<std::string, Texture> m_images;
         std::map<std::string, bool> m_failed;

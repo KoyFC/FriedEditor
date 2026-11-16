@@ -20,6 +20,7 @@ add_library(fried_editor_imgui STATIC
     src/panels.cpp
     src/panels.h
     src/pointer.cpp
+    src/project_settings_window.cpp
     src/pointer.h
     src/style.cpp
     src/style.h

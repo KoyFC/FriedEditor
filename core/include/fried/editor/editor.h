@@ -9,6 +9,7 @@
 #include "fried/editor/core_types.h"
 #include "fried/editor/player_builder.h"
 #include "fried/editor/player_session.h"
+#include "fried/editor/project_settings.h"
 #include "fried/editor/scene_document.h"
 #include "fried/editor/viewport.h"
 
@@ -67,11 +68,14 @@ namespace fried::editor
         bool m_isSet = false;
     };
 
-    // What the backend shows while something is being built, or after it failed, until it is dismissed.
+    // What the backend shows while something is being built, or after it ended, until it is dismissed.
     struct BuildProgress
     {
         bool m_isVisible = false;
         bool m_isFailed = false;
+
+        // A build of the project for a platform stays on screen when it ends well too, so its output can be read.
+        bool m_isFinished = false;
         bool m_canStop = false;
         std::string m_title;
         std::string m_stepLabel;
@@ -79,8 +83,8 @@ namespace fried::editor
         int m_steps = 0;
         std::string m_message;
 
-        // The end of the build's log, which keeps growing while it runs.
-        std::string m_log;
+        // What the build has printed, which keeps growing while it runs. Null when there is only the message.
+        const std::vector<fried::core::OutputLine> *m_lines = nullptr;
     };
 
     struct ComponentView
@@ -141,6 +145,16 @@ namespace fried::editor
         BuildProgress buildProgress() const;
         // Hides a failed build's window. A build that is going on cannot be dismissed, only stopped.
         void dismissBuild();
+
+        // Stops whichever build is going on, of the game or of the project for a platform.
+        void stopBuild();
+
+        // The project's own settings, which are saved as they are changed, and its builds for each platform.
+        ProjectSettings &projectSettings() { return m_settings; }
+        ProjectBuild &projectBuild() { return m_projectBuild; }
+
+        // Saves the scene and builds the project for a platform. False with the reason in error when it cannot, or while something else is being built.
+        bool buildProject(fried::core::BuildTarget target, std::string *error);
 
         // Saves the scene, builds the project's game for the PC and runs it. Playing again while it runs does nothing.
         void play();
@@ -228,6 +242,8 @@ namespace fried::editor
 
     private:
         void startPlayer();
+        void projectChanged();
+        void showFailure(const std::string &title, const std::string &message, const std::vector<fried::core::OutputLine> *lines);
         void documentChanged(const DocumentChange &change);
         void cameraChanged();
         void changed();
@@ -246,6 +262,8 @@ namespace fried::editor
         std::string playerLogFile() const;
 
         Project m_project;
+        ProjectSettings m_settings{m_project};
+        ProjectBuild m_projectBuild{m_project};
         std::string m_enginePath;
         std::string m_scenePath;
         SceneDocument m_document;
@@ -255,7 +273,7 @@ namespace fried::editor
         GameRunner m_game;
         bool m_isFailureShown = false;
         std::string m_failedTitle;
-        std::string m_failedLog;
+        std::vector<fried::core::OutputLine> m_failedLines;
         std::string m_failedMessage;
         Status m_status = Status::Idle;
         std::string m_message;

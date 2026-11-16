@@ -122,6 +122,7 @@ namespace imgui_backend
         Pointer pointer(window);
         bool isRunning = true;
         bool isCloseAsked = false;
+        bool isSettingsOpen = false;
         bool isLayoutBuilt = false;
         int startupFrame = 0;
 
@@ -132,6 +133,11 @@ namespace imgui_backend
             {
                 ImGui_ImplSDL2_ProcessEvent(&event);
                 pointer.handleEvent(event);
+                if (event.type == SDL_DROPFILE)
+                {
+                    panels.fileDropped(event.drop.file);
+                    SDL_free(event.drop.file);
+                }
                 if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
                 {
                     if (editor.commands().isClean())
@@ -229,6 +235,11 @@ namespace imgui_backend
                         editor.rebuildPlayer();
                     }
                     ImGui::Separator();
+                    if (ImGui::MenuItem("Project Settings...", nullptr, isSettingsOpen))
+                    {
+                        isSettingsOpen = !isSettingsOpen;
+                    }
+                    ImGui::Separator();
                     if (ImGui::MenuItem("Quit"))
                     {
                         isCloseAsked = !editor.commands().isClean();
@@ -314,6 +325,10 @@ namespace imgui_backend
                 ++startupFrame;
             }
 
+            if (isSettingsOpen)
+            {
+                panels.projectSettings(&isSettingsOpen);
+            }
             panels.buildWindow();
 
             if (isCloseAsked)

@@ -5,10 +5,16 @@
 
 #include <imgui.h>
 
+#include <functional>
+#include <map>
 #include <string>
+#include <vector>
 
 namespace imgui_backend
 {
+    // What a file dragged out of the Assets panel carries: its reference, as "root/path".
+    inline constexpr const char *s_assetPayload = "FRIED_ASSET";
+
     // The panels of the editor. Each draws one window from the editor's models and calls the editor for what the user does.
     class Panels
     {
@@ -35,8 +41,14 @@ namespace imgui_backend
         int issueCount() const { return (int)m_issues.size(); }
         void statusBar();
 
-        // The window that shows a build going on, or one that failed, with the end of its log.
+        // The window that shows a build going on, or one that has ended, with what it printed.
         void buildWindow();
+
+        // The project's own settings and, for each platform, its icon, its packaging text and its build.
+        void projectSettings(bool *isOpen);
+
+        // A file dropped on the editor from outside it, which the settings window takes as an icon when it is open on a platform.
+        void fileDropped(const std::string &file);
 
     private:
         void openSceneFile(const std::string &path);
@@ -45,6 +57,13 @@ namespace imgui_backend
         void objectFields();
         void fieldEditor(const std::string &type, const fried::editor::FieldView &field);
         bool textField(const char *label, std::string *value);
+        void projectPage();
+        void platformPage(fried::editor::Platform platform);
+        void iconSection(fried::editor::Platform platform);
+        void packagingSection(fried::editor::Platform platform);
+        void buildSection(fried::editor::Platform platform);
+        void settingText(const char *label, const std::string &value, int limit, const std::function<std::string(const std::string &)> &set);
+        void applyIcon(fried::editor::Platform platform, const std::string &file, bool isForEveryPlatform);
         bool textArea(const char *label, std::string *value);
         bool referenceField(const std::string &type, const fried::editor::FieldView &field, bool isFont);
 
@@ -64,5 +83,18 @@ namespace imgui_backend
         fried::editor::Platform m_issuesPlatform = fried::editor::Platform::Pc;
         std::string m_issuesMessage;
         std::map<ImGuiID, std::string> m_textEdits;
+
+        // The settings window: its page (0 is the project, then one per platform), what was wrong with the last value typed into each field, and what the last icon set had to become.
+        int m_settingsPage = 0;
+        bool m_isSettingsShown = false;
+        std::map<std::string, std::string> m_settingErrors;
+        std::string m_iconSource;
+        std::vector<std::string> m_iconNotes;
+        std::string m_iconError;
+        std::map<fried::editor::Platform, int> m_buildTargetChoice;
+        std::vector<fried::editor::AssetIssue> m_buildIssues;
+        double m_buildIssuesCheckedAt = -100;
+        int m_buildIssuesTarget = -1;
+        std::string m_buildMessage;
     };
 }

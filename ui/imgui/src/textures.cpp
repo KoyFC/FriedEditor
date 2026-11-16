@@ -38,6 +38,12 @@ namespace imgui_backend
         return (ImTextureID)(intptr_t)m_texture;
     }
 
+    void ImageCache::forget(const std::string &file)
+    {
+        m_images.erase(file);
+        m_failed.erase(file);
+    }
+
     const Texture *ImageCache::get(const std::string &file)
     {
         auto found = m_images.find(file);

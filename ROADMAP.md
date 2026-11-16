@@ -103,6 +103,13 @@ Known limit: a position that depends on the screen's size, such as the right edg
 - [x] A window with the step, a bar and the end of the log while the player or the game builds, and the error when it fails
 - [x] The scene that was open is opened again the next time
 
+### 13. Project settings (FriedCore and FriedEditor)
+
+- [x] FriedCore, the library shared with the Project Manager: the project file, the steps of a build, the programs that run them and each platform's icon
+- [x] File, Project Settings: the project's identity, start scene and display, saved to `project.fried` as they change, with the viewport following
+- [x] A page per platform: its icon from any image, its packaging text, and its build with the output as it is printed
+- [ ] The Project Manager on FriedCore
+
 ## Later
 
 A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants.

@@ -42,30 +42,41 @@ namespace fried::editor
 
     std::string EditorState::lastScene(const std::string &projectDirectory)
     {
+        Json scene = projectValue(projectDirectory, "lastScene");
+        return scene.is_string() ? scene.get<std::string>() : std::string();
+    }
+
+    void EditorState::setLastScene(const std::string &projectDirectory, const std::string &sceneFile)
+    {
+        setProjectValue(projectDirectory, "lastScene", sceneFile);
+    }
+
+    Json EditorState::projectValue(const std::string &projectDirectory, const std::string &key)
+    {
         std::string path = filePath();
         if (path.empty())
         {
-            return std::string();
+            return Json();
         }
         std::ifstream file(path);
         if (!file)
         {
-            return std::string();
+            return Json();
         }
         Json state = Json::parse(file, nullptr, false);
         if (!state.is_object() || !state.contains("projects") || !state["projects"].is_object())
         {
-            return std::string();
+            return Json();
         }
         auto project = state["projects"].find(projectDirectory);
-        if (project == state["projects"].end() || !project->is_object())
+        if (project == state["projects"].end() || !project->is_object() || !project->contains(key))
         {
-            return std::string();
+            return Json();
         }
-        return project->value("lastScene", std::string());
+        return (*project)[key];
     }
 
-    void EditorState::setLastScene(const std::string &projectDirectory, const std::string &sceneFile)
+    void EditorState::setProjectValue(const std::string &projectDirectory, const std::string &key, const Json &value)
     {
         std::string path = filePath();
         if (path.empty())
@@ -84,7 +95,7 @@ namespace fried::editor
                 }
             }
         }
-        state["projects"][projectDirectory]["lastScene"] = sceneFile;
+        state["projects"][projectDirectory][key] = value;
         std::error_code ignored;
         fs::create_directories(fs::path(path).parent_path(), ignored);
         std::ofstream(path) << state.dump(2) << "\n";

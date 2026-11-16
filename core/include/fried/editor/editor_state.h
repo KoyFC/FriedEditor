@@ -1,16 +1,22 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
+
 #include <string>
 
 namespace fried::editor
 {
-    // What the editor remembers between runs, kept in the user's configuration folder, per project: the scene that was open.
+    // What the editor remembers between runs, kept in the user's configuration folder, per project: the scene that was open and how each platform is built.
     // FRIED_EDITOR_CONFIG names another folder, and "none" turns remembering off, which is what the tests use.
     class EditorState
     {
     public:
         static std::string lastScene(const std::string &projectDirectory);
         static void setLastScene(const std::string &projectDirectory, const std::string &sceneFile);
+
+        // One remembered value of a project by its name, null when there is none.
+        static nlohmann::json projectValue(const std::string &projectDirectory, const std::string &key);
+        static void setProjectValue(const std::string &projectDirectory, const std::string &key, const nlohmann::json &value);
 
     private:
         static std::string filePath();
