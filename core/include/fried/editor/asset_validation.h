@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fried/editor/platform.h"
+#include "fried/editor/core_types.h"
 
 #include <string>
 #include <vector>

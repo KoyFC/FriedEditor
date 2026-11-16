@@ -27,72 +27,23 @@ namespace fried::editor
     }
 
     PlayerBuilder::PlayerBuilder(std::vector<SubprocessOptions> steps)
-        : m_steps(std::move(steps))
-        , m_next(0)
-        , m_state(State::Building)
     {
-    }
-
-    std::string PlayerBuilder::stepLabel() const
-    {
-        if (m_next == 0 || m_next > m_steps.size())
-        {
-            return std::string();
-        }
-        const std::vector<std::string> &arguments = m_steps[m_next - 1].m_arguments;
-        if (arguments[0] == "haxe")
-        {
-            return "Generating C++ with Haxe";
-        }
-        for (const std::string &argument : arguments)
-        {
-            if (argument == "--build")
-            {
-                return "Compiling";
-            }
-        }
-        return "Configuring with CMake";
+        std::string logFile = steps.empty() ? std::string() : steps.front().m_logFile;
+        m_runner.start(std::move(steps), logFile);
     }
 
     PlayerBuilder::State PlayerBuilder::pump()
     {
-        if (m_state != State::Building)
+        switch (m_runner.pump())
         {
-            return m_state;
+        case fried::core::StepRunner::State::Succeeded:
+            return State::Succeeded;
+        case fried::core::StepRunner::State::Running:
+            return State::Building;
+        default:
+            m_failure = "The step " + std::to_string(m_runner.step()) + " of " + std::to_string(m_runner.stepCount()) + " failed. " + m_runner.failure();
+            return State::Failed;
         }
-
-        if (m_running)
-        {
-            if (m_running->isRunning())
-            {
-                return m_state;
-            }
-            if (m_running->exitCode() != 0)
-            {
-                m_failure = "The step " + std::to_string(m_next) + " of " + std::to_string(m_steps.size()) + " ("
-                    + m_steps[m_next - 1].m_arguments[0] + ") failed with exit code " + std::to_string(m_running->exitCode()) + ".";
-                m_running.reset();
-                m_state = State::Failed;
-                return m_state;
-            }
-            m_running.reset();
-        }
-
-        if (m_next == m_steps.size())
-        {
-            m_state = State::Succeeded;
-            return m_state;
-        }
-
-        std::string error;
-        m_running = startSubprocess(m_steps[m_next], &error);
-        ++m_next;
-        if (!m_running)
-        {
-            m_failure = error;
-            m_state = State::Failed;
-        }
-        return m_state;
     }
 
     std::string playerExecutablePath(const std::string &enginePath)

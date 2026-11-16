@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 
 #include "fried/editor/asset_validation.h"
-#include "fried/editor/image_io.h"
+#include "fried/core/image.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -12,25 +12,28 @@ namespace fs = std::filesystem;
 
 namespace
 {
-    struct Project
+    struct TestProject
     {
         fs::path m_root = fs::temp_directory_path() / "fried-editor-validation-test";
 
-        Project()
+        TestProject()
         {
             fs::remove_all(m_root);
             fs::create_directories(m_root / "assets");
         }
 
-        ~Project() { fs::remove_all(m_root); }
+        ~TestProject() { fs::remove_all(m_root); }
 
         std::string assets() const { return (m_root / "assets").string(); }
         std::string backups() const { return (m_root / "backup").string(); }
 
         void image(const std::string &name, int width, int height) const
         {
-            std::vector<unsigned char> pixels((size_t)width * height * 4, 200);
-            REQUIRE(writeImage((m_root / "assets" / name).string(), pixels.data(), width, height));
+            fried::core::Image pixels;
+            pixels.m_width = width;
+            pixels.m_height = height;
+            pixels.m_rgba.assign((size_t)width * height * 4, 200);
+            REQUIRE(fried::core::writeImage((m_root / "assets" / name).string(), pixels));
         }
 
         // A 16 bit PCM WAV with a few frames of silence.
@@ -68,7 +71,7 @@ namespace
 
 TEST_CASE("a texture over 1024 pixels is refused on the 3DS and DS, shrunk by its fix, and fine on the PC")
 {
-    Project project;
+    TestProject project;
     project.image("big.png", 2048, 1024);
     project.image("small.png", 64, 64);
 
@@ -82,18 +85,18 @@ TEST_CASE("a texture over 1024 pixels is refused on the 3DS and DS, shrunk by it
     std::string error;
     REQUIRE(applyFix(issues[0], project.assets(), project.backups(), &error));
     int width = 0, height = 0;
-    REQUIRE(imageSize(project.assets() + "/big.png", &width, &height));
+    REQUIRE(fried::core::imageSize(project.assets() + "/big.png", &width, &height));
     CHECK(width == 1024);
     CHECK(height == 512);
     CHECK(validateAssets(Platform::Nintendo3ds, project.assets()).empty());
 
-    CHECK(imageSize(project.backups() + "/big.png", &width, &height));
+    CHECK(fried::core::imageSize(project.backups() + "/big.png", &width, &height));
     CHECK(width == 2048);
 }
 
 TEST_CASE("the DS wants mono PCM WAV, and a stereo file is converted")
 {
-    Project project;
+    TestProject project;
     project.wav("stereo.wav", 2);
     project.wav("mono.wav", 1);
     project.wav("adpcm.wav", 1, 2);
@@ -121,7 +124,7 @@ TEST_CASE("the DS wants mono PCM WAV, and a stereo file is converted")
 
 TEST_CASE("the fx-CG50 warns about audio and about a project that does not fit")
 {
-    Project project;
+    TestProject project;
     project.wav("beep.wav", 1);
     auto issues = validateAssets(Platform::Cg50, project.assets());
     REQUIRE(issues.size() == 1);

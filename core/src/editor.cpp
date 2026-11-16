@@ -2,6 +2,8 @@
 
 #include "fried/editor/commands.h"
 
+#include "fried/core/engine_location.h"
+
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -11,18 +13,12 @@ namespace fried::editor
     using Json = nlohmann::json;
     namespace fs = std::filesystem;
 
+    // An engine from before the editor player existed cannot show a scene, so it does not count.
     std::string Editor::findEngine(const std::string &projectDirectory)
     {
-        for (const fs::path &candidate : {fs::path(projectDirectory) / "engine", fs::path(projectDirectory) / ".."})
-        {
-            std::error_code ignored;
-            fs::path normal = fs::weakly_canonical(candidate, ignored);
-            if (fs::exists(normal / "editor" / "player" / "build.hxml", ignored))
-            {
-                return normal.string();
-            }
-        }
-        return std::string();
+        std::string engine = fried::core::findEngine(projectDirectory);
+        std::error_code ignored;
+        return fs::exists(fs::path(engine) / "editor" / "player" / "build.hxml", ignored) ? engine : std::string();
     }
 
     bool Editor::open(const std::string &projectDirectory, const std::string &enginePath, std::string *error)

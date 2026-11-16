@@ -6,10 +6,9 @@
 #include "fried/editor/editor_state.h"
 #include "fried/editor/gizmo.h"
 #include "fried/editor/game_runner.h"
-#include "fried/editor/platform.h"
+#include "fried/editor/core_types.h"
 #include "fried/editor/player_builder.h"
 #include "fried/editor/player_session.h"
-#include "fried/editor/project.h"
 #include "fried/editor/scene_document.h"
 #include "fried/editor/viewport.h"
 

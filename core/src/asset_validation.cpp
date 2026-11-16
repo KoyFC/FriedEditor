@@ -1,7 +1,7 @@
 #include "fried/editor/asset_validation.h"
 
 #include "fried/editor/asset_browser.h"
-#include "fried/editor/image_io.h"
+#include "fried/core/image.h"
 
 #include <cstdint>
 #include <cstring>
@@ -130,7 +130,7 @@ namespace fried::editor
             if (entry.m_kind == AssetKind::Image && isConsole3d)
             {
                 int width = 0, height = 0;
-                if (imageSize(file, &width, &height) && (width > s_maxTextureSide || height > s_maxTextureSide))
+                if (core::imageSize(file, &width, &height) && (width > s_maxTextureSide || height > s_maxTextureSide))
                 {
                     issues.push_back({AssetIssue::Severity::Error, entry.reference(),
                                       "The " + platformLabel(platform) + " cannot hold a texture over " + std::to_string(s_maxTextureSide) + " pixels a side, and this is "
@@ -218,7 +218,7 @@ namespace fried::editor
 
         if (issue.m_fix == AssetIssue::Fix::ShrinkImage)
         {
-            return shrinkImage(backup.string(), file, s_maxTextureSide, error);
+            return core::shrinkImage(backup.string(), file, s_maxTextureSide, error);
         }
 
         Wav wav = readWav(backup.string());

@@ -13,6 +13,8 @@ endif()
 include(cmake/CoreIsUiFree.cmake)
 fried_editor_check_core_is_ui_free(${CMAKE_CURRENT_SOURCE_DIR}/core ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
+# The logic shared with the Project Manager, which also brings nlohmann/json and stb.
+add_subdirectory(third_party/fried_core)
 add_subdirectory(core)
 
 enable_testing()

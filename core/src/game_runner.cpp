@@ -1,5 +1,8 @@
 #include "fried/editor/game_runner.h"
 
+#include "fried/core/build.h"
+#include "fried/core/step_runner.h"
+
 #include <filesystem>
 #include <fstream>
 #include <regex>
@@ -29,11 +32,16 @@ namespace fried::editor
 
     std::vector<SubprocessOptions> GameRunner::steps(const std::string &projectDirectory, const std::string &logFile)
     {
-        return {
-            {{"haxe", "build.hxml", "-debug"}, {}, projectDirectory, logFile},
-            {{"cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Debug"}, {}, projectDirectory, logFile},
-            {{"cmake", "--build", "build", "--config", "Debug", "--parallel"}, {}, projectDirectory, logFile},
-        };
+        std::string error;
+        std::vector<fried::core::BuildStep> build = fried::core::Build::steps(fried::core::BuildTarget::Pc, fried::core::BuildType::Debug, false, projectDirectory,
+                                                                            fried::core::Build::defaultDirectory(fried::core::BuildTarget::Pc),
+                                                                            fried::core::detectToolchains({}), &error);
+        std::vector<SubprocessOptions> steps = fried::core::subprocessSteps(build, projectDirectory);
+        for (SubprocessOptions &step : steps)
+        {
+            step.m_logFile = logFile;
+        }
+        return steps;
     }
 
     std::string GameRunner::executablePath(const std::string &projectDirectory)

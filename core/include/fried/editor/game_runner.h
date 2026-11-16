@@ -24,7 +24,7 @@ namespace fried::editor
         // The target name the project's CMakeLists.txt gives fried_add_game. Empty when there is none.
         static std::string targetName(const std::string &projectDirectory);
 
-        // The steps that build the game in the project's build/ folder: haxe, then CMake to configure and to compile.
+        // The steps that build the game for the PC in the project's build/ folder, which are the Project Manager's.
         static std::vector<SubprocessOptions> steps(const std::string &projectDirectory, const std::string &logFile);
 
         // Where the build leaves the game's executable.

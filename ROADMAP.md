@@ -8,7 +8,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 - A scene is a JSON file under the project's `assets/scenes/`, written by this editor and only read by the engine.
 - The editor is split into `core/`, which has no UI or Qt dependency and is tested headless, and `ui/<toolkit>/`, which only draws and forwards input. Qt came first and Dear ImGui replaced it: ImGui is the editor now and the Qt backend is no longer extended. Nothing under `core/` may include a UI header.
 - The viewport is a separate engine process, the editor player, that renders offscreen on request and talks to the editor over loopback TCP.
-- Code shared with the Project Manager is copied minimally and converted to standard types, and extracted into a shared library only if the duplication starts to hurt.
+- Code shared with the Project Manager lives in FriedCore, a library with no UI toolkit in it that both take as a submodule.
 
 ## Phases
 
@@ -105,4 +105,4 @@ Known limit: a position that depends on the screen's size, such as the right edg
 
 ## Later
 
-A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants, a shared library with the Project Manager.
+A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants.

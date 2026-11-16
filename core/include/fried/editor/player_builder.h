@@ -2,13 +2,15 @@
 
 #include "fried/editor/transport.h"
 
+#include "fried/core/step_runner.h"
+
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace fried::editor
 {
-    // Runs the commands that build the editor player, one after another, without blocking the editor.
+    // Runs the commands that build the editor player, one after another, without blocking the editor. What they print goes to the log file the steps name.
     class PlayerBuilder
     {
     public:
@@ -31,18 +33,15 @@ namespace fried::editor
         State pump();
 
         // Which step is running, from 1, how many there are, and what it does in words.
-        std::size_t step() const { return m_next; }
-        std::size_t stepCount() const { return m_steps.size(); }
-        std::string stepLabel() const;
+        std::size_t step() const { return m_runner.step(); }
+        std::size_t stepCount() const { return m_runner.stepCount(); }
+        std::string stepLabel() const { return m_runner.stepLabel(); }
 
         // What the step that failed was, once it has.
         const std::string &failure() const { return m_failure; }
 
     private:
-        std::vector<SubprocessOptions> m_steps;
-        std::size_t m_next;
-        std::unique_ptr<Subprocess> m_running;
-        State m_state;
+        fried::core::StepRunner m_runner;
         std::string m_failure;
     };
 
