@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,13 +21,27 @@ namespace fried::editor
         nlohmann::json m_default;
     };
 
-    struct ComponentSchema
+    // A class of node: the class it extends, and the fields it declares itself, which are not the ones it inherits.
+    struct ClassSchema
     {
         std::string m_name;
+        std::string m_parent;
         std::vector<FieldSchema> m_fields;
     };
 
-    // Where an object is in the world, as the player measures it.
+    // What a node's parent gives it in the world, so a position in the world can be turned into one in the parent's space.
+    struct ParentValues
+    {
+        double m_x = 0;
+        double m_y = 0;
+        double m_rotation = 0;
+        double m_scaleX = 1;
+        double m_scaleY = 1;
+        double m_width = 0;
+        double m_height = 0;
+    };
+
+    // Where a node is in the world, as the player measures it.
     struct ObjectBounds
     {
         std::string m_id;
@@ -34,6 +49,7 @@ namespace fried::editor
         double m_y = 0;
         double m_width = 0;
         double m_height = 0;
+        std::optional<ParentValues> m_parent;
     };
 
     struct Frame
@@ -55,7 +71,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 1;
+        static constexpr int s_protocol = 2;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);
@@ -69,10 +85,14 @@ namespace fried::editor
 
         State state() const { return m_state; }
         const std::string &platform() const { return m_platform; }
-        const std::vector<ComponentSchema> &schema() const { return m_schema; }
+        const std::vector<ClassSchema> &schema() const { return m_schema; }
+        const ClassSchema *classNamed(const std::string &name) const;
+
+        // The class and every class above it, the most derived first, which is the order an inspector shows them in.
+        std::vector<const ClassSchema *> classChain(const std::string &name) const;
 
         void load(const nlohmann::json &scene, int viewWidth, int viewHeight);
-        void setField(const std::string &objectId, const std::string &component, const std::string &field, const nlohmann::json &value);
+        void setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value);
         void setEditorCamera(double x, double y, double zoom);
         void resize(int width, int height);
         void render();
@@ -90,6 +110,6 @@ namespace fried::editor
         std::unique_ptr<MessageChannel> m_channel;
         State m_state = State::Waiting;
         std::string m_platform;
-        std::vector<ComponentSchema> m_schema;
+        std::vector<ClassSchema> m_schema;
     };
 }

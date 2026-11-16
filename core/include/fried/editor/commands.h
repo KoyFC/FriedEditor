@@ -4,33 +4,15 @@
 
 #include <map>
 #include <optional>
+#include <set>
 
 namespace fried::editor
 {
-    // Gives a component's field a value, or with no value takes it out of the file so the engine's default applies.
-    class SetComponentField : public Command
+    // Gives a node's field a value, or with no value takes it out of the file so the engine's default applies. The name is a field too.
+    class SetNodeField : public Command
     {
     public:
-        SetComponentField(std::string id, std::string type, std::string field, std::optional<nlohmann::json> value);
-
-        std::string label() const override { return "Change " + m_field; }
-        bool apply(SceneDocument &document) override;
-        void revert(SceneDocument &document) override;
-        bool mergeWith(const Command &later) override;
-
-    private:
-        std::string m_id;
-        std::string m_type;
-        std::string m_field;
-        std::optional<nlohmann::json> m_value;
-        std::optional<nlohmann::json> m_before;
-    };
-
-    // The same for what the object itself holds: name, active and priority.
-    class SetObjectField : public Command
-    {
-    public:
-        SetObjectField(std::string id, std::string field, std::optional<nlohmann::json> value);
+        SetNodeField(std::string id, std::string field, std::optional<nlohmann::json> value);
 
         std::string label() const override { return "Change " + m_field; }
         bool apply(SceneDocument &document) override;
@@ -44,119 +26,90 @@ namespace fried::editor
         std::optional<nlohmann::json> m_before;
     };
 
-    // Moves an object by setting its Transform's x and y together, so dragging it is one step.
-    class SetPosition : public Command
+    // Sets several numeric fields at once, so a drag of a node or a handle is one step.
+    class SetNodeFields : public Command
     {
     public:
-        SetPosition(std::string id, double x, double y);
+        SetNodeFields(std::string id, std::map<std::string, double> fields);
 
-        std::string label() const override { return "Move object"; }
+        std::string label() const override { return "Change " + (m_fields.size() == 1 ? m_fields.begin()->first : std::string("node")); }
         bool apply(SceneDocument &document) override;
         void revert(SceneDocument &document) override;
         bool mergeWith(const Command &later) override;
 
     private:
         std::string m_id;
-        std::string m_type;
-        double m_x;
-        double m_y;
-        std::optional<nlohmann::json> m_beforeX;
-        std::optional<nlohmann::json> m_beforeY;
-    };
-
-    // Sets several Transform fields at once, so a drag of a handle is one step.
-    class SetTransformFields : public Command
-    {
-    public:
-        SetTransformFields(std::string id, std::map<std::string, double> fields);
-
-        std::string label() const override { return "Transform object"; }
-        bool apply(SceneDocument &document) override;
-        void revert(SceneDocument &document) override;
-        bool mergeWith(const Command &later) override;
-
-    private:
-        std::string m_id;
-        std::string m_type;
         std::map<std::string, double> m_fields;
         std::map<std::string, std::optional<nlohmann::json>> m_before;
     };
 
-    class AddObject : public Command
+    class AddNode : public Command
     {
     public:
-        AddObject(int index, nlohmann::json object);
+        AddNode(std::string parentId, int index, nlohmann::json node);
 
-        std::string label() const override { return "Add object"; }
+        std::string label() const override { return "Add node"; }
         bool apply(SceneDocument &document) override;
         void revert(SceneDocument &document) override;
 
     private:
+        std::string m_parentId;
         int m_index;
-        nlohmann::json m_object;
+        nlohmann::json m_node;
     };
 
-    // Takes its place as the scene's camera with it, and gives them back on undo.
-    class RemoveObject : public Command
+    // Takes the node's children with it, and its place as the scene's camera, and gives them back on undo.
+    class RemoveNode : public Command
     {
     public:
-        explicit RemoveObject(std::string id);
+        explicit RemoveNode(std::string id);
 
-        std::string label() const override { return "Remove object"; }
+        std::string label() const override { return "Remove node"; }
         bool apply(SceneDocument &document) override;
         void revert(SceneDocument &document) override;
 
     private:
         std::string m_id;
-        nlohmann::json m_object;
+        std::string m_parentId;
+        nlohmann::json m_node;
         int m_index = 0;
         bool m_wasCamera = false;
+        std::optional<std::string> m_camera;
     };
 
-    class MoveObject : public Command
+    // Reorders a node among its siblings or moves it under another node.
+    class MoveNode : public Command
     {
     public:
-        MoveObject(std::string id, int index);
+        MoveNode(std::string id, std::string parentId, int index);
 
-        std::string label() const override { return "Reorder object"; }
+        std::string label() const override { return "Move node"; }
         bool apply(SceneDocument &document) override;
         void revert(SceneDocument &document) override;
 
     private:
         std::string m_id;
+        std::string m_parentId;
         int m_index;
-        int m_before = 0;
+        std::string m_beforeParentId;
+        int m_beforeIndex = 0;
     };
 
-    class AddComponent : public Command
+    // Gives a node another class. It keeps the fields the new class also has and drops the others, and undo brings all of them back. The caller says which fields the new class has, since only the player knows.
+    class ChangeNodeType : public Command
     {
     public:
-        AddComponent(std::string id, int index, nlohmann::json component);
+        ChangeNodeType(std::string id, std::string type, std::set<std::string> keptFields);
 
-        std::string label() const override { return "Add component"; }
-        bool apply(SceneDocument &document) override;
-        void revert(SceneDocument &document) override;
-
-    private:
-        std::string m_id;
-        int m_index;
-        nlohmann::json m_component;
-    };
-
-    class RemoveComponent : public Command
-    {
-    public:
-        RemoveComponent(std::string id, std::string type);
-
-        std::string label() const override { return "Remove component"; }
+        std::string label() const override { return "Change type to " + m_type; }
         bool apply(SceneDocument &document) override;
         void revert(SceneDocument &document) override;
 
     private:
         std::string m_id;
         std::string m_type;
-        nlohmann::json m_component;
-        int m_index = 0;
+        std::set<std::string> m_keptFields;
+        nlohmann::json m_before;
     };
 
     class SetCamera : public Command
@@ -171,21 +124,5 @@ namespace fried::editor
     private:
         std::optional<std::string> m_id;
         std::optional<std::string> m_before;
-    };
-
-    // Turns an object's Transform into a RectTransform, which takes its place, or back, so the object keeps where it is.
-    class ChangeTransformType : public Command
-    {
-    public:
-        ChangeTransformType(std::string id, std::string type);
-
-        std::string label() const override { return m_type == "RectTransform" ? "Add RectTransform" : "Remove RectTransform"; }
-        bool apply(SceneDocument &document) override;
-        void revert(SceneDocument &document) override;
-
-    private:
-        std::string m_id;
-        std::string m_type;
-        nlohmann::json m_before;
     };
 }

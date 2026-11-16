@@ -100,11 +100,12 @@ namespace fried::editor
         else if (type == "schema")
         {
             m_schema.clear();
-            for (const auto &component : listOf(header, "components"))
+            for (const auto &entry : listOf(header, "classes"))
             {
-                ComponentSchema schema;
-                schema.m_name = component.value("name", "");
-                for (const auto &field : listOf(component, "fields"))
+                ClassSchema schema;
+                schema.m_name = entry.value("name", "");
+                schema.m_parent = entry.contains("parent") && entry["parent"].is_string() ? entry["parent"].get<std::string>() : "";
+                for (const auto &field : listOf(entry, "fields"))
                 {
                     FieldSchema fieldSchema;
                     fieldSchema.m_name = field.value("name", "");
@@ -139,8 +140,15 @@ namespace fried::editor
             frame.m_rgba = message.m_pixels;
             for (const auto &bounds : listOf(header, "bounds"))
             {
-                frame.m_bounds.push_back({bounds.value("id", ""), bounds.value("x", 0.0), bounds.value("y", 0.0), bounds.value("width", 0.0),
-                                          bounds.value("height", 0.0)});
+                ObjectBounds box{bounds.value("id", ""), bounds.value("x", 0.0), bounds.value("y", 0.0), bounds.value("width", 0.0),
+                                 bounds.value("height", 0.0), std::nullopt};
+                if (bounds.contains("parent") && bounds["parent"].is_object())
+                {
+                    const auto &parent = bounds["parent"];
+                    box.m_parent = ParentValues{parent.value("x", 0.0),      parent.value("y", 0.0),      parent.value("rotation", 0.0), parent.value("scaleX", 1.0),
+                                                parent.value("scaleY", 1.0), parent.value("width", 0.0),  parent.value("height", 0.0)};
+                }
+                frame.m_bounds.push_back(std::move(box));
             }
             if (m_onFrame)
             {
@@ -164,12 +172,34 @@ namespace fried::editor
         }
     }
 
-    void PlayerSession::setField(const std::string &objectId, const std::string &component, const std::string &field, const nlohmann::json &value)
+    void PlayerSession::setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "setField"}, {"id", objectId}, {"component", component}, {"field", field}, {"value", value}});
+            m_channel->send({{"type", "setField"}, {"id", nodeId}, {"field", field}, {"value", value}});
         }
+    }
+
+    const ClassSchema *PlayerSession::classNamed(const std::string &name) const
+    {
+        for (const ClassSchema &schema : m_schema)
+        {
+            if (schema.m_name == name)
+            {
+                return &schema;
+            }
+        }
+        return nullptr;
+    }
+
+    std::vector<const ClassSchema *> PlayerSession::classChain(const std::string &name) const
+    {
+        std::vector<const ClassSchema *> chain;
+        for (const ClassSchema *schema = classNamed(name); schema && chain.size() < m_schema.size(); schema = classNamed(schema->m_parent))
+        {
+            chain.push_back(schema);
+        }
+        return chain;
     }
 
     void PlayerSession::setEditorCamera(double x, double y, double zoom)

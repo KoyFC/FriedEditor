@@ -62,28 +62,40 @@ TEST_CASE("a session greets the player, learns the schema and relays requests")
     CHECK(asked[0].m_header["type"] == "schema");
 
     nlohmann::json flip = {{"name", "flip"}, {"kind", "flip"}, {"values", nlohmann::json::array({"None", "Horizontal"})}, {"defaultValue", "None"}};
-    nlohmann::json sprite = {{"name", "Sprite"}, {"fields", nlohmann::json::array({flip})}};
-    REQUIRE(player.send({{"type", "schema"}, {"components", nlohmann::json::array({sprite})}}));
+    nlohmann::json sprite = {{"name", "Sprite"}, {"parent", "Node2D"}, {"fields", nlohmann::json::array({flip})}};
+    nlohmann::json node2d = {{"name", "Node2D"}, {"parent", nullptr}, {"fields", nlohmann::json::array()}};
+    REQUIRE(player.send({{"type", "schema"}, {"classes", nlohmann::json::array({node2d, sprite})}}));
     pumpUntil(session, [&] { return session.state() == PlayerSession::State::Ready; });
     REQUIRE(session.state() == PlayerSession::State::Ready);
-    REQUIRE(session.schema().size() == 1);
-    CHECK(session.schema()[0].m_name == "Sprite");
-    CHECK(session.schema()[0].m_fields[0].m_values.size() == 2);
-    CHECK(session.schema()[0].m_fields[0].m_default == "None");
+    REQUIRE(session.schema().size() == 2);
+    CHECK(session.schema()[1].m_name == "Sprite");
+    CHECK(session.schema()[1].m_parent == "Node2D");
+    CHECK(session.schema()[0].m_parent.empty());
+    CHECK(session.schema()[1].m_fields[0].m_values.size() == 2);
+    CHECK(session.schema()[1].m_fields[0].m_default == "None");
+    auto chain = session.classChain("Sprite");
+    REQUIRE(chain.size() == 2);
+    CHECK(chain[0]->m_name == "Sprite");
+    CHECK(chain[1]->m_name == "Node2D");
+    CHECK(session.classChain("Nope").empty());
 
-    session.setField("player", "Transform", "x", 12);
+    session.setField("player", "x", 12);
     session.render();
     auto requests = waitFor(player, 2);
     REQUIRE(requests.size() == 2);
     CHECK(requests[0].m_header["field"] == "x");
     CHECK(requests[1].m_header["type"] == "render");
 
-    nlohmann::json bounds = {{"id", "player"}, {"x", 1.5}, {"y", 2}, {"width", 3}, {"height", 4}};
+    nlohmann::json bounds = {{"id", "player"}, {"x", 1.5}, {"y", 2}, {"width", 3}, {"height", 4},
+                             {"parent", {{"x", 10}, {"y", 20}, {"rotation", 30}, {"scaleX", 2}, {"scaleY", 4}}}};
     nlohmann::json frame = {{"type", "frame"}, {"width", 1}, {"height", 1}, {"bounds", nlohmann::json::array({bounds})}};
     REQUIRE(player.send(frame));
     pumpUntil(session, [&] { return received.m_width != 0; });
     REQUIRE(received.m_bounds.size() == 1);
     CHECK(received.m_bounds[0].m_x == 1.5);
+    REQUIRE(received.m_bounds[0].m_parent.has_value());
+    CHECK(received.m_bounds[0].m_parent->m_rotation == 30);
+    CHECK(received.m_bounds[0].m_parent->m_scaleY == 4);
     CHECK(reported.empty());
 }
 
@@ -139,7 +151,10 @@ TEST_CASE("the real player answers a scene with a frame" * doctest::skip(std::ge
     REQUIRE(reported.empty());
     REQUIRE(session.state() == PlayerSession::State::Ready);
     CHECK(session.platform() == "pc");
-    CHECK(session.schema().size() == 7);
+    CHECK(session.schema().size() >= 10);
+    CHECK(session.classNamed("Sprite") != nullptr);
+    CHECK(session.classNamed("Sprite")->m_parent == "Node2D");
+    CHECK(session.classNamed("Control") != nullptr);
 
     std::ifstream file(FRIED_EDITOR_TEST_DATA "/sample.scene.json");
     nlohmann::json scene = nlohmann::json::parse(file);

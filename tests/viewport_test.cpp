@@ -72,16 +72,16 @@ TEST_CASE("the overlay outlines the selection and the game's frame")
 TEST_CASE("dragging merges into one step and undoes to the start")
 {
     SceneDocument document = SceneDocument::empty("Main");
-    document.insertObject(0, nlohmann::json{{"id", "a"}, {"components", nlohmann::json::array({nlohmann::json{{"type", "Transform"}, {"x", 5}}})}});
+    document.insertNode("", 0, nlohmann::json{{"id", "a"}, {"type", "Node2D"}, {"x", 5}});
     CommandStack stack(document);
 
     for (int step = 1; step <= 4; ++step)
     {
-        stack.execute(std::make_unique<SetPosition>("a", 5 + step * 10, step * 3), true);
+        stack.execute(std::make_unique<SetNodeFields>("a", std::map<std::string, double>{{"x", 5.0 + step * 10}, {"y", step * 3.0}}), true);
     }
-    CHECK(document.componentField("a", "Transform", "x") == nlohmann::json(45));
+    CHECK(document.nodeField("a", "x") == nlohmann::json(45));
     stack.undo();
-    CHECK(document.componentField("a", "Transform", "x") == nlohmann::json(5));
-    CHECK_FALSE(document.componentField("a", "Transform", "y").has_value());
+    CHECK(document.nodeField("a", "x") == nlohmann::json(5));
+    CHECK_FALSE(document.nodeField("a", "y").has_value());
     CHECK_FALSE(stack.canUndo());
 }

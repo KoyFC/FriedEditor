@@ -496,25 +496,51 @@ namespace imgui_backend
         }
     }
 
+    namespace
+    {
+        constexpr const char *s_nodePayload = "fried-node";
+
+        // The classes of nodes as a menu that follows the inheritance: a class with others under it opens a submenu that starts with itself.
+        void classMenu(const std::vector<fried::editor::ClassSchema> &classes, const std::string &parent, const std::function<void(const std::string &)> &choose)
+        {
+            for (const fried::editor::ClassSchema &schema : classes)
+            {
+                if (schema.m_parent != parent)
+                {
+                    continue;
+                }
+                bool hasSubclasses = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &other) { return other.m_parent == schema.m_name; });
+                if (!hasSubclasses)
+                {
+                    if (ImGui::MenuItem(schema.m_name.c_str()))
+                    {
+                        choose(schema.m_name);
+                    }
+                }
+                else if (ImGui::BeginMenu(schema.m_name.c_str()))
+                {
+                    if (ImGui::MenuItem(schema.m_name.c_str()))
+                    {
+                        choose(schema.m_name);
+                    }
+                    ImGui::Separator();
+                    classMenu(classes, schema.m_name, choose);
+                    ImGui::EndMenu();
+                }
+            }
+        }
+    }
+
     void Panels::hierarchy()
     {
         if (ImGui::Button("Add"))
         {
-            ImGui::OpenPopup("add-object");
+            ImGui::OpenPopup("add-node");
         }
-        if (ImGui::BeginPopup("add-object"))
+        if (ImGui::BeginPopup("add-node"))
         {
-            if (ImGui::MenuItem("Empty object"))
-            {
-                m_editor.addObject("");
-            }
-            for (const std::string &type : m_editor.componentTypes())
-            {
-                if (type != "Transform" && ImGui::MenuItem(type.c_str()))
-                {
-                    m_editor.addObject(type);
-                }
-            }
+            ImGui::TextDisabled(m_editor.selected() ? "Add under the selected node" : "Add to the scene");
+            classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, m_editor.selected()); });
             ImGui::EndPopup();
         }
         ImGui::SameLine();
@@ -539,16 +565,154 @@ namespace imgui_backend
         }
         ImGui::Separator();
 
-        for (const auto &row : m_editor.hierarchy())
+        const std::vector<fried::editor::HierarchyRow> rows = m_editor.hierarchy();
+        int openDepth = 0;
+        for (std::size_t position = 0; position < rows.size(); ++position)
         {
+            const auto &row = rows[position];
+            while (openDepth > row.m_depth)
+            {
+                ImGui::TreePop();
+                --openDepth;
+            }
             bool isSelected = m_editor.selected() && *m_editor.selected() == row.m_id;
+            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
+            flags |= isSelected ? ImGuiTreeNodeFlags_Selected : 0;
+            flags |= row.m_hasChildren ? 0 : (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
             std::string text = row.m_name + (row.m_isCamera ? "   camera" : "");
-            ImGui::PushID(row.m_id.c_str());
-            if (ImGui::Selectable(text.c_str(), isSelected))
+            bool isOpen = ImGui::TreeNodeEx(row.m_id.c_str(), flags, "%s", text.c_str());
+
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
             {
                 m_editor.select(row.m_id);
             }
-            ImGui::PopID();
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
+            {
+                m_renameId = row.m_id;
+                m_renameText = row.m_name;
+                m_isRenameAsked = true;
+            }
+
+            if (ImGui::BeginDragDropSource())
+            {
+                ImGui::SetDragDropPayload(s_nodePayload, row.m_id.c_str(), row.m_id.size() + 1);
+                ImGui::TextUnformatted(row.m_name.c_str());
+                ImGui::EndDragDropSource();
+            }
+            if (ImGui::BeginDragDropTarget())
+            {
+                if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_nodePayload, ImGuiDragDropFlags_AcceptNoDrawDefaultRect))
+                {
+                    std::string dropped((const char *)payload->Data);
+                    ImVec2 low = ImGui::GetItemRectMin();
+                    ImVec2 high = ImGui::GetItemRectMax();
+                    float place = (ImGui::GetMousePos().y - low.y) / std::max(1.0f, high.y - low.y);
+                    const fried::editor::SceneDocument &document = m_editor.document();
+                    if (place < 0.25f)
+                    {
+                        m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id));
+                    }
+                    else if (place > 0.75f && !(row.m_hasChildren && isOpen))
+                    {
+                        m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id) + 1);
+                    }
+                    else
+                    {
+                        m_editor.reparent(dropped, row.m_id, document.childCount(row.m_id));
+                    }
+                }
+                else if (payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType(s_nodePayload))
+                {
+                    // Shows where the drop would go.
+                    ImVec2 low = ImGui::GetItemRectMin();
+                    ImVec2 high = ImGui::GetItemRectMax();
+                    float place = (ImGui::GetMousePos().y - low.y) / std::max(1.0f, high.y - low.y);
+                    ImDrawList *list = ImGui::GetWindowDrawList();
+                    ImU32 color = IM_COL32(255, 200, 0, 255);
+                    if (place < 0.25f)
+                    {
+                        list->AddLine(ImVec2(low.x, low.y), ImVec2(high.x, low.y), color, 2.0f);
+                    }
+                    else if (place > 0.75f)
+                    {
+                        list->AddLine(ImVec2(low.x, high.y), ImVec2(high.x, high.y), color, 2.0f);
+                    }
+                    else
+                    {
+                        list->AddRect(low, high, color);
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+
+            if (ImGui::BeginPopupContextItem(("node-menu-" + row.m_id).c_str()))
+            {
+                m_editor.select(row.m_id);
+                if (ImGui::BeginMenu("Add Child"))
+                {
+                    classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, row.m_id); });
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Change Type"))
+                {
+                    classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.changeType(row.m_id, type); });
+                    ImGui::EndMenu();
+                }
+                if (ImGui::MenuItem("Rename"))
+                {
+                    m_renameId = row.m_id;
+                    m_renameText = row.m_name;
+                    m_isRenameAsked = true;
+                }
+                if (ImGui::MenuItem("Use as the Camera"))
+                {
+                    m_editor.setCameraToSelected();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Delete"))
+                {
+                    m_editor.removeSelected();
+                }
+                ImGui::EndPopup();
+            }
+
+            if (row.m_hasChildren)
+            {
+                if (isOpen)
+                {
+                    ++openDepth;
+                }
+                else
+                {
+                    while (position + 1 < rows.size() && rows[position + 1].m_depth > row.m_depth)
+                    {
+                        ++position;
+                    }
+                }
+            }
+        }
+        while (openDepth > 0)
+        {
+            ImGui::TreePop();
+            --openDepth;
+        }
+
+        if (m_isRenameAsked)
+        {
+            ImGui::OpenPopup("rename-node");
+            m_isRenameAsked = false;
+        }
+        if (ImGui::BeginPopup("rename-node"))
+        {
+            ImGui::TextDisabled("Name");
+            ImGui::SetKeyboardFocusHere();
+            ImGui::SetNextItemWidth(220);
+            if (ImGui::InputText("##rename", &m_renameText, ImGuiInputTextFlags_EnterReturnsTrue))
+            {
+                m_editor.rename(m_renameId, m_renameText);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
     }
 
@@ -603,31 +767,7 @@ namespace imgui_backend
         return false;
     }
 
-    void Panels::objectFields()
-    {
-        std::string name = m_editor.selectedObjectField("name").value_or(Json(*m_editor.selected())).get<std::string>();
-        caption("Name");
-        if (textField("##object-name", &name))
-        {
-            m_editor.renameSelected(name);
-        }
-
-        int priority = m_editor.selectedObjectField("priority").value_or(Json(0)).get<int>();
-        caption("Priority");
-        if (dragInt("##priority", &priority))
-        {
-            m_editor.setObjectField("priority", Json(priority));
-        }
-
-        bool isActive = m_editor.selectedObjectField("active").value_or(Json(true)).get<bool>();
-        caption("Active");
-        if (ImGui::Checkbox("##active", &isActive))
-        {
-            m_editor.setObjectField("active", Json(isActive));
-        }
-    }
-
-    bool Panels::referenceField(const std::string &type, const FieldView &field, bool isFont)
+    bool Panels::referenceField(const FieldView &field, bool isFont)
     {
         std::string text = fried::editor::assetReferenceText(field.m_value, isFont);
         bool changed = textField(("##" + field.m_schema.m_name).c_str(), &text);
@@ -635,7 +775,7 @@ namespace imgui_backend
         {
             if (auto reference = fried::editor::assetReferenceFromText(text, isFont))
             {
-                m_editor.setField(type, field.m_schema.m_name, *reference);
+                m_editor.setField(field.m_schema.m_name, *reference);
             }
         }
 
@@ -646,7 +786,7 @@ namespace imgui_backend
             {
                 if (auto reference = fried::editor::assetReferenceFromText(std::string((const char *)payload->Data, payload->DataSize - 1) + (isFont ? "@16" : ""), isFont))
                 {
-                    m_editor.setField(type, field.m_schema.m_name, *reference);
+                    m_editor.setField(field.m_schema.m_name, *reference);
                 }
             }
             ImGui::EndDragDropTarget();
@@ -654,7 +794,7 @@ namespace imgui_backend
         return changed;
     }
 
-    void Panels::fieldEditor(const std::string &type, const FieldView &field)
+    void Panels::fieldEditor(const FieldView &field)
     {
         const std::string &name = field.m_schema.m_name;
         const std::string &kind = field.m_schema.m_kind;
@@ -675,7 +815,7 @@ namespace imgui_backend
             int value = field.m_value.is_number() ? field.m_value.get<int>() : 0;
             if (dragInt("##v", &value))
             {
-                m_editor.setField(type, name, Json(value));
+                m_editor.setField(name, Json(value));
             }
         }
         else if (kind == "float")
@@ -684,7 +824,7 @@ namespace imgui_backend
             float speed = name == "rotation" ? 0.5f : (name.find("scale") == 0 || name == "zoom" ? 0.01f : 1.0f);
             if (dragFloat("##v", &value, speed, 0, 0, "%.3f"))
             {
-                m_editor.setField(type, name, Json((double)value));
+                m_editor.setField(name, Json((double)value));
             }
         }
         else if (kind == "bool")
@@ -692,7 +832,7 @@ namespace imgui_backend
             bool value = field.m_value.is_boolean() && field.m_value.get<bool>();
             if (ImGui::Checkbox("##v", &value))
             {
-                m_editor.setField(type, name, Json(value));
+                m_editor.setField(name, Json(value));
             }
         }
         else if (kind == "string")
@@ -700,7 +840,7 @@ namespace imgui_backend
             std::string value = field.m_value.is_string() ? field.m_value.get<std::string>() : std::string();
             if (isTextArea ? textArea("##v", &value) : textField("##v", &value))
             {
-                m_editor.setField(type, name, Json(value));
+                m_editor.setField(name, Json(value));
             }
         }
         else if (kind == "color")
@@ -708,7 +848,7 @@ namespace imgui_backend
             ImVec4 color = vectorOf(field.m_value);
             if (ImGui::ColorEdit4("##v", &color.x, ImGuiColorEditFlags_AlphaPreviewHalf))
             {
-                m_editor.setField(type, name,
+                m_editor.setField(name,
                                   Json{{"r", channel(color.x)}, {"g", channel(color.y)}, {"b", channel(color.z)}, {"a", channel(color.w)}});
             }
         }
@@ -722,7 +862,7 @@ namespace imgui_backend
                 {
                     if (ImGui::Selectable(option.c_str(), option == current))
                     {
-                        m_editor.setField(type, name, Json(option));
+                        m_editor.setField(name, Json(option));
                     }
                 }
                 ImGui::EndCombo();
@@ -733,7 +873,7 @@ namespace imgui_backend
             bool isUsed = field.m_value.is_object();
             if (ImGui::Checkbox("whole image", &isUsed) == true)
             {
-                m_editor.setField(type, name, isUsed ? Json{{"x", 0}, {"y", 0}, {"width", 32}, {"height", 32}} : Json());
+                m_editor.setField(name, isUsed ? Json{{"x", 0}, {"y", 0}, {"width", 32}, {"height", 32}} : Json());
             }
             if (field.m_value.is_object())
             {
@@ -741,7 +881,7 @@ namespace imgui_backend
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 if (dragInt4("##region", values))
                 {
-                    m_editor.setField(type, name, Json{{"x", values[0]}, {"y", values[1]}, {"width", values[2]}, {"height", values[3]}});
+                    m_editor.setField(name, Json{{"x", values[0]}, {"y", values[1]}, {"width", values[2]}, {"height", values[3]}});
                 }
             }
         }
@@ -762,14 +902,14 @@ namespace imgui_backend
             {
                 if (ImGui::Selectable("(none)", current.empty()))
                 {
-                    m_editor.setField(type, name, Json());
+                    m_editor.setField(name, Json());
                 }
                 for (const auto &row : rows)
                 {
                     ImGui::PushID(row.m_id.c_str());
                     if (ImGui::Selectable(row.m_name.c_str(), row.m_id == current))
                     {
-                        m_editor.setField(type, name, Json(row.m_id));
+                        m_editor.setField(name, Json(row.m_id));
                     }
                     ImGui::PopID();
                 }
@@ -778,13 +918,13 @@ namespace imgui_backend
         }
         else
         {
-            referenceField(type, field, kind == "font");
+            referenceField(field, kind == "font");
         }
         ImGui::PopID();
     }
 
-    // The RectTransform as pictures and the few numbers that matter: a preview of the object on the screen, the place it is anchored to, its pivot, and either its position or its distance to the edges it stretches between.
-    void Panels::rectTransformEditor(const fried::editor::ComponentView &view)
+    // A Control as pictures and the few numbers that matter: a preview of the object on the screen, the place it is anchored to, its pivot, and either its position or its distance to the edges it stretches between.
+    void Panels::controlEditor(const fried::editor::ClassView &view)
     {
         auto find = [&](const char *name) -> const FieldView * {
             for (const FieldView &field : view.m_fields)
@@ -807,7 +947,7 @@ namespace imgui_backend
             float value = field->m_value.is_number() ? field->m_value.get<float>() : 0.0f;
             if (dragFloat("##v", &value, 1.0f, 0, 0, "%.0f"))
             {
-                m_editor.setField(view.m_type, name, Json((double)value));
+                m_editor.setField(name, Json((double)value));
             }
             ImGui::PopID();
         };
@@ -838,7 +978,7 @@ namespace imgui_backend
                 static const char *rows[] = {"Top", "Middle", "Bottom", "Stretch"};
                 const float cell = 40;
                 bool isCustom = preview->m_horizontal == AnchorAxis::Custom || preview->m_vertical == AnchorAxis::Custom;
-                ImGui::TextDisabled(isCustom ? "Anchor to the screen (now custom)" : "Anchor to the screen");
+                ImGui::TextDisabled(isCustom ? "Anchor to the parent (now custom)" : "Anchor to the parent");
                 for (int row = 0; row < 4; ++row)
                 {
                     for (int column = 0; column < 4; ++column)
@@ -905,22 +1045,25 @@ namespace imgui_backend
                 ImGui::SetTooltip("Pivot");
             }
 
-            // The object on the screen it is laid out for, with its anchors.
+            // The control in its parent, with its anchors.
             ImGui::SameLine();
             float previewWidth = std::max(60.0f, ImGui::GetContentRegionAvail().x);
             float previewHeight = buttonSize;
             ImVec2 origin = ImGui::GetCursorScreenPos();
             ImGui::Dummy(ImVec2(previewWidth, previewHeight));
-            float scale = std::min(previewWidth / (float)preview->m_viewWidth, previewHeight / (float)preview->m_viewHeight);
-            ImVec2 screenSize((float)preview->m_viewWidth * scale, (float)preview->m_viewHeight * scale);
+            // A parent that is not a control has no size, so its rectangle is a point and the anchors cannot spread across anything.
+            float parentWidth = std::max(1.0f, (float)preview->m_viewWidth);
+            float parentHeight = std::max(1.0f, (float)preview->m_viewHeight);
+            float scale = std::min(previewWidth / parentWidth, previewHeight / parentHeight);
+            ImVec2 screenSize(parentWidth * scale, parentHeight * scale);
             ImVec2 screenMin(origin.x + (previewWidth - screenSize.x) / 2, origin.y + (previewHeight - screenSize.y) / 2);
             auto toPreview = [&](double x, double y) { return ImVec2(screenMin.x + (float)x * scale, screenMin.y + (float)y * scale); };
             list->AddRectFilled(screenMin, ImVec2(screenMin.x + screenSize.x, screenMin.y + screenSize.y), IM_COL32(30, 30, 38, 255));
             list->AddRect(screenMin, ImVec2(screenMin.x + screenSize.x, screenMin.y + screenSize.y), IM_COL32(150, 150, 160, 255));
-            list->AddRectFilled(toPreview(preview->m_x, preview->m_y), toPreview(preview->m_x + preview->m_width, preview->m_y + preview->m_height),
-                                IM_COL32(255, 200, 0, 90));
-            list->AddRect(toPreview(preview->m_x, preview->m_y), toPreview(preview->m_x + preview->m_width, preview->m_y + preview->m_height),
-                          IM_COL32(255, 200, 0, 255));
+            double boxX = preview->m_x - preview->m_originX;
+            double boxY = preview->m_y - preview->m_originY;
+            list->AddRectFilled(toPreview(boxX, boxY), toPreview(boxX + preview->m_width, boxY + preview->m_height), IM_COL32(255, 200, 0, 90));
+            list->AddRect(toPreview(boxX, boxY), toPreview(boxX + preview->m_width, boxY + preview->m_height), IM_COL32(255, 200, 0, 255));
             ImVec2 anchorLow = toPreview(preview->m_viewWidth * preview->m_anchorMinX, preview->m_viewHeight * preview->m_anchorMinY);
             ImVec2 anchorHigh = toPreview(preview->m_viewWidth * preview->m_anchorMaxX, preview->m_viewHeight * preview->m_anchorMaxY);
             if (anchorLow.x != anchorHigh.x || anchorLow.y != anchorHigh.y)
@@ -970,7 +1113,7 @@ namespace imgui_backend
         {
             if (field.m_schema.m_name == "rotation" || field.m_schema.m_name == "scaleX" || field.m_schema.m_name == "scaleY")
             {
-                fieldEditor(view.m_type, field);
+                fieldEditor(field);
             }
         }
         if (ImGui::TreeNode("Anchors and offsets as numbers"))
@@ -980,7 +1123,7 @@ namespace imgui_backend
                 const std::string &name = field.m_schema.m_name;
                 if (name != "rotation" && name != "scaleX" && name != "scaleY" && name != "enabled")
                 {
-                    fieldEditor(view.m_type, field);
+                    fieldEditor(field);
                 }
             }
             ImGui::TreePop();
@@ -995,51 +1138,23 @@ namespace imgui_backend
             return;
         }
 
-        objectFields();
         for (const auto &view : m_editor.inspector())
         {
-            ImGui::PushID(view.m_type.c_str());
+            ImGui::PushID(view.m_class.c_str());
             ImGui::Spacing();
-            bool isOpen = ImGui::CollapsingHeader(view.m_type.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
-            if (view.m_isRemovable)
+            bool isOpen = ImGui::CollapsingHeader(view.m_class.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+            if (isOpen && view.m_class == "Control")
             {
-                ImGui::SameLine(ImGui::GetWindowWidth() - 36);
-                if (ImGui::SmallButton("x"))
-                {
-                    m_editor.removeComponent(view.m_type);
-                    ImGui::PopID();
-                    return;
-                }
-            }
-            if (isOpen && view.m_type == "RectTransform")
-            {
-                rectTransformEditor(view);
+                controlEditor(view);
             }
             else if (isOpen)
             {
                 for (const FieldView &field : view.m_fields)
                 {
-                    fieldEditor(view.m_type, field);
+                    fieldEditor(field);
                 }
             }
             ImGui::PopID();
-        }
-
-        ImGui::Spacing();
-        if (ImGui::Button("Add component", ImVec2(-FLT_MIN, 0)))
-        {
-            ImGui::OpenPopup("add-component");
-        }
-        if (ImGui::BeginPopup("add-component"))
-        {
-            for (const std::string &type : m_editor.addableComponents())
-            {
-                if (ImGui::MenuItem(type.c_str()))
-                {
-                    m_editor.addComponent(type);
-                }
-            }
-            ImGui::EndPopup();
         }
     }
 

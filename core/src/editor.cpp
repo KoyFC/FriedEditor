@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <set>
 
 namespace fried::editor
 {
@@ -444,64 +445,90 @@ namespace fried::editor
     std::vector<HierarchyRow> Editor::hierarchy() const
     {
         std::vector<HierarchyRow> rows;
-        for (const Json &object : m_document.data()["objects"])
+        std::optional<std::string> camera = m_document.cameraId();
+        for (const std::string &id : m_document.nodeIds())
         {
-            std::string id = object.value("id", "");
-            rows.push_back({id, object.value("name", id), m_document.cameraId() == id});
+            std::optional<Json> name = m_document.nodeField(id, "name");
+            rows.push_back({id, name && name->is_string() ? name->get<std::string>() : id, camera == id, m_document.depthOf(id),
+                            m_document.childCount(id) > 0});
         }
         return rows;
     }
 
-    const ComponentSchema *Editor::schemaOf(const std::string &type) const
+    bool Editor::isClassOf(const std::string &type, const std::string &ancestor) const
     {
-        for (const ComponentSchema &schema : m_session.schema())
+        for (const ClassSchema *schema : m_session.classChain(type))
         {
-            if (schema.m_name == type)
+            if (schema->m_name == ancestor)
             {
-                return &schema;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Editor::isControl(const std::string &id) const
+    {
+        return isClassOf(m_document.typeOf(id), "Control");
+    }
+
+    const ObjectBounds *Editor::boundsOf(const std::string &id) const
+    {
+        for (const ObjectBounds &box : m_frame.m_bounds)
+        {
+            if (box.m_id == id)
+            {
+                return &box;
             }
         }
         return nullptr;
     }
 
-    Json Editor::newComponent(const std::string &type) const
+    // A new node holds what its class says by default, except what every node has, which the file leaves out.
+    Json Editor::newNode(const std::string &type) const
     {
-        Json component = {{"type", type}};
-        if (const ComponentSchema *schema = schemaOf(type))
+        Json node = {{"type", type}};
+        for (const ClassSchema *schema : m_session.classChain(type))
         {
+            if (schema->m_name == "Node" || schema->m_name == "CanvasItem")
+            {
+                continue;
+            }
             for (const FieldSchema &field : schema->m_fields)
             {
-                if (field.m_name != "enabled" && !field.m_default.is_null())
+                if (!field.m_default.is_null())
                 {
-                    component[field.m_name] = field.m_default;
+                    node[field.m_name] = field.m_default;
                 }
             }
         }
-        return component;
+        return node;
     }
 
-    void Editor::addObject(const std::string &componentType)
+    void Editor::addNode(const std::string &type, const std::optional<std::string> &parentId)
     {
-        std::string base = componentType.empty() ? "object" : componentType;
+        std::string base = type;
         std::transform(base.begin(), base.end(), base.begin(), [](unsigned char c) { return (char)std::tolower(c); });
         std::string id = m_document.uniqueId(base);
 
-        Json transform = newComponent("Transform");
-        transform["x"] = std::round(m_viewport.cameraX());
-        transform["y"] = std::round(m_viewport.cameraY());
-        Json components = Json::array({transform});
-        if (!componentType.empty() && componentType != "Transform")
+        Json node = newNode(type);
+        node["id"] = id;
+        node["name"] = type;
+        if (isClassOf(type, "Node2D"))
         {
-            components.push_back(newComponent(componentType));
+            node["x"] = std::round(m_viewport.cameraX());
+            node["y"] = std::round(m_viewport.cameraY());
         }
-        std::string name = componentType.empty() ? "Object" : componentType;
-        m_commands->execute(std::make_unique<AddObject>((int)m_document.objectIds().size(), Json{{"id", id}, {"name", name}, {"components", components}}));
-        select(id);
+        std::string parent = parentId ? *parentId : "";
+        if (m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node)))
+        {
+            select(id);
+        }
     }
 
     void Editor::removeSelected()
     {
-        if (m_selected && m_commands->execute(std::make_unique<RemoveObject>(*m_selected)))
+        if (m_selected && m_commands->execute(std::make_unique<RemoveNode>(*m_selected)))
         {
             select(std::nullopt);
         }
@@ -512,11 +539,35 @@ namespace fried::editor
         if (m_selected)
         {
             int target = m_document.indexOf(*m_selected) + delta;
-            if (target >= 0 && target < (int)m_document.objectIds().size())
+            std::string parent = m_document.parentOf(*m_selected);
+            if (target >= 0 && target < m_document.childCount(parent))
             {
-                m_commands->execute(std::make_unique<MoveObject>(*m_selected, target));
+                m_commands->execute(std::make_unique<MoveNode>(*m_selected, parent, target));
             }
         }
+    }
+
+    void Editor::reparent(const std::string &id, const std::string &parentId, int index)
+    {
+        // The place is counted among the siblings as they are now, so a node moved later in its own list leaves a gap behind it.
+        if (m_document.parentOf(id) == parentId && m_document.indexOf(id) >= 0 && m_document.indexOf(id) < index)
+        {
+            --index;
+        }
+        m_commands->execute(std::make_unique<MoveNode>(id, parentId, index));
+    }
+
+    void Editor::changeType(const std::string &id, const std::string &type)
+    {
+        std::set<std::string> kept;
+        for (const ClassSchema *schema : m_session.classChain(type))
+        {
+            for (const FieldSchema &field : schema->m_fields)
+            {
+                kept.insert(field.m_name);
+            }
+        }
+        m_commands->execute(std::make_unique<ChangeNodeType>(id, type, kept));
     }
 
     void Editor::setCameraToSelected()
@@ -527,45 +578,48 @@ namespace fried::editor
         }
     }
 
+    void Editor::rename(const std::string &id, const std::string &name)
+    {
+        m_commands->execute(std::make_unique<SetNodeField>(id, "name", Json(name)));
+    }
+
     void Editor::renameSelected(const std::string &name)
     {
         if (m_selected)
         {
-            m_commands->execute(std::make_unique<SetObjectField>(*m_selected, "name", Json(name)));
+            rename(*m_selected, name);
         }
     }
 
-    std::vector<ComponentView> Editor::inspector() const
+    std::vector<ClassView> Editor::inspector() const
     {
-        std::vector<ComponentView> views;
-        const Json *object = m_selected ? m_document.object(*m_selected) : nullptr;
-        if (!object)
+        std::vector<ClassView> views;
+        const Json *node = m_selected ? m_document.node(*m_selected) : nullptr;
+        if (!node)
         {
             return views;
         }
-        for (const Json &component : (*object)["components"])
+        std::vector<const ClassSchema *> chain = m_session.classChain(node->value("type", ""));
+        for (std::size_t position = 0; position < chain.size(); ++position)
         {
-            std::string type = component.value("type", "");
-            const ComponentSchema *schema = schemaOf(type);
-            if (!schema)
+            const ClassSchema *schema = chain[position];
+            ClassView view;
+            view.m_class = schema->m_name;
+            // The name belongs to every node, so it is the first field of the section of the class every node is.
+            if (position + 1 == chain.size())
             {
-                continue;
+                FieldView name;
+                name.m_schema = {"name", "string", {}, Json(*m_selected)};
+                name.m_isSet = node->contains("name");
+                name.m_value = name.m_isSet ? (*node)["name"] : Json(*m_selected);
+                view.m_fields.push_back(std::move(name));
             }
-            ComponentView view;
-            view.m_type = type;
-            view.m_isRemovable = type != "Transform";
-            bool isRect = type == "RectTransform";
             for (const FieldSchema &field : schema->m_fields)
             {
-                // A RectTransform lays out the position, so the offsets are what is edited.
-                if (isRect && (field.m_name == "x" || field.m_name == "y"))
-                {
-                    continue;
-                }
                 FieldView fieldView;
                 fieldView.m_schema = field;
-                fieldView.m_isSet = component.contains(field.m_name);
-                fieldView.m_value = fieldView.m_isSet ? component[field.m_name] : field.m_default;
+                fieldView.m_isSet = node->contains(field.m_name);
+                fieldView.m_value = fieldView.m_isSet ? (*node)[field.m_name] : field.m_default;
                 view.m_fields.push_back(std::move(fieldView));
             }
             views.push_back(std::move(view));
@@ -573,94 +627,17 @@ namespace fried::editor
         return views;
     }
 
-    std::vector<std::string> Editor::addableComponents() const
-    {
-        std::vector<std::string> types;
-        const Json *object = m_selected ? m_document.object(*m_selected) : nullptr;
-        if (!object)
-        {
-            return types;
-        }
-        for (const ComponentSchema &schema : m_session.schema())
-        {
-            bool has = false;
-            for (const Json &component : (*object)["components"])
-            {
-                has = has || component.value("type", "") == schema.m_name;
-            }
-            // A transform is replaced, never added next to another.
-            if (!has && schema.m_name != "Transform")
-            {
-                types.push_back(schema.m_name);
-            }
-        }
-        return types;
-    }
-
-    std::vector<std::string> Editor::componentTypes() const
-    {
-        std::vector<std::string> types;
-        for (const ComponentSchema &schema : m_session.schema())
-        {
-            types.push_back(schema.m_name);
-        }
-        return types;
-    }
-
-    std::optional<Json> Editor::selectedObjectField(const std::string &field) const
-    {
-        return m_selected ? m_document.objectField(*m_selected, field) : std::nullopt;
-    }
-
-    void Editor::setObjectField(const std::string &field, const std::optional<Json> &value)
+    void Editor::setField(const std::string &field, const std::optional<Json> &value)
     {
         if (m_selected)
         {
-            m_commands->execute(std::make_unique<SetObjectField>(*m_selected, field, value), true);
+            m_commands->execute(std::make_unique<SetNodeField>(*m_selected, field, value), true);
         }
-    }
-
-    void Editor::setField(const std::string &type, const std::string &field, const std::optional<Json> &value)
-    {
-        if (!m_selected)
-        {
-            return;
-        }
-        m_commands->execute(std::make_unique<SetComponentField>(*m_selected, type, field, value), true);
     }
 
     void Editor::setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge)
     {
-        m_commands->execute(std::make_unique<SetTransformFields>(id, fields), merge);
-    }
-
-    void Editor::addComponent(const std::string &type)
-    {
-        if (m_selected)
-        {
-            const Json *object = m_document.object(*m_selected);
-            if (type == "RectTransform")
-            {
-                m_commands->execute(std::make_unique<ChangeTransformType>(*m_selected, "RectTransform"));
-                // As in Unity's interface, it starts anchored to the center of the screen, where the object is.
-                setAnchorPreset(AnchorAxis::Center, AnchorAxis::Center);
-                return;
-            }
-            m_commands->execute(std::make_unique<AddComponent>(*m_selected, (int)(*object)["components"].size(), newComponent(type)));
-        }
-    }
-
-    void Editor::removeComponent(const std::string &type)
-    {
-        if (m_selected)
-        {
-            if (type == "RectTransform")
-            {
-                m_commands->execute(std::make_unique<ChangeTransformType>(*m_selected, "Transform"));
-                return;
-            }
-            m_commands->execute(std::make_unique<RemoveComponent>(*m_selected, type));
-        }
+        m_commands->execute(std::make_unique<SetNodeFields>(id, fields), merge);
     }
 
     std::vector<AssetEntry> Editor::assets() const
@@ -689,15 +666,18 @@ namespace fried::editor
         {
             if (auto target = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
             {
-                bool hasSprite = false;
-                for (const Json &component : (*m_document.object(*target))["components"])
+                bool hasTexture = false;
+                for (const ClassSchema *schema : m_session.classChain(m_document.typeOf(*target)))
                 {
-                    hasSprite = hasSprite || component.value("type", "") == "Sprite";
+                    for (const FieldSchema &field : schema->m_fields)
+                    {
+                        hasTexture = hasTexture || field.m_name == "texture";
+                    }
                 }
-                if (hasSprite)
+                if (hasTexture)
                 {
                     select(target);
-                    m_commands->execute(std::make_unique<SetComponentField>(*target, "Sprite", "texture", reference));
+                    m_commands->execute(std::make_unique<SetNodeField>(*target, "texture", reference));
                     return;
                 }
             }
@@ -709,19 +689,29 @@ namespace fried::editor
 
         std::string stem = fs::path(path).stem().stem().string();
         std::string id = m_document.uniqueId(stem.empty() ? "asset" : stem);
-        Json transform = newComponent("Transform");
-        transform["x"] = std::round(m_viewport.frameToWorldX(frameX));
-        transform["y"] = std::round(m_viewport.frameToWorldY(frameY));
-        Json component = newComponent(kind == AssetKind::Image ? "Sprite" : "Text");
-        component[kind == AssetKind::Image ? "texture" : "font"] = reference;
-        if (kind == AssetKind::Font)
+        double worldX = std::round(m_viewport.frameToWorldX(frameX));
+        double worldY = std::round(m_viewport.frameToWorldY(frameY));
+        Json node = newNode(kind == AssetKind::Image ? "Sprite" : "Label");
+        node["id"] = id;
+        node["name"] = stem;
+        node[kind == AssetKind::Image ? "texture" : "font"] = reference;
+        if (kind == AssetKind::Image)
         {
-            component["text"] = "Text";
-            component["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
+            node["x"] = worldX;
+            node["y"] = worldY;
         }
-        m_commands->execute(std::make_unique<AddObject>((int)m_document.objectIds().size(),
-                                                        Json{{"id", id}, {"name", stem}, {"components", Json::array({transform, component})}}));
-        select(id);
+        else
+        {
+            // A label sits at its offset from the top left of its parent, which for a node at the top of the scene is the world's origin.
+            node["offsetX"] = worldX;
+            node["offsetY"] = worldY;
+            node["text"] = "Text";
+            node["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
+        }
+        if (m_commands->execute(std::make_unique<AddNode>("", m_document.childCount(""), node)))
+        {
+            select(id);
+        }
     }
 
     std::vector<AssetIssue> Editor::issues() const
@@ -750,42 +740,36 @@ namespace fried::editor
     TransformValues Editor::transformOf(const std::string &id) const
     {
         auto number = [&](const char *field, double fallback) {
-            std::optional<Json> value = m_document.componentField(id, m_document.transformType(id), field);
+            std::optional<Json> value = m_document.nodeField(id, field);
             return value && value->is_number() ? value->get<double>() : fallback;
         };
         TransformValues values = {number("x", 0), number("y", 0), number("rotation", 0), number("scaleX", 1), number("scaleY", 1)};
-        if (m_document.transformType(id) == "RectTransform")
+        if (isControl(id))
         {
             // Where the layout put it, which the last frame shows.
-            for (const ObjectBounds &box : m_frame.m_bounds)
+            if (const ObjectBounds *box = boundsOf(id))
             {
-                if (box.m_id == id)
-                {
-                    values.m_x = box.m_x;
-                    values.m_y = box.m_y;
-                }
+                values.m_x = box->m_x;
+                values.m_y = box->m_y;
             }
         }
         return values;
     }
 
-    // The anchors of the selected object's RectTransform, as fractions of the screen the layout is made for: a marker at each corner of the area they span, and that area itself when the object stretches.
-    DrawList Editor::anchorOverlay(int viewWidth, int viewHeight) const
+    // The anchors of the selected Control, as fractions of its parent's rectangle: a marker at each corner of the area they span, and that area itself when the control stretches.
+    DrawList Editor::anchorOverlay() const
     {
         DrawList list;
-        if (!m_selected || m_document.transformType(*m_selected) != "RectTransform")
+        std::optional<RectPreview> preview = rectPreview();
+        if (!preview)
         {
             return list;
         }
-        auto number = [&](const char *field) {
-            std::optional<Json> value = m_document.componentField(*m_selected, "RectTransform", field);
-            return value && value->is_number() ? value->get<double>() : 0.0;
-        };
         constexpr unsigned int anchorColor = 0xff40c0ff;
-        double left = m_frameView.worldToFrameX(viewWidth * number("anchorMinX"));
-        double right = m_frameView.worldToFrameX(viewWidth * number("anchorMaxX"));
-        double top = m_frameView.worldToFrameY(viewHeight * number("anchorMinY"));
-        double bottom = m_frameView.worldToFrameY(viewHeight * number("anchorMaxY"));
+        double left = m_frameView.worldToFrameX(preview->m_originX + preview->m_viewWidth * preview->m_anchorMinX);
+        double right = m_frameView.worldToFrameX(preview->m_originX + preview->m_viewWidth * preview->m_anchorMaxX);
+        double top = m_frameView.worldToFrameY(preview->m_originY + preview->m_viewHeight * preview->m_anchorMinY);
+        double bottom = m_frameView.worldToFrameY(preview->m_originY + preview->m_viewHeight * preview->m_anchorMaxY);
         if (left != right || top != bottom)
         {
             list.push_back({DrawCommand::Kind::Rect, left, top, right - left, bottom - top, anchorColor});
@@ -803,24 +787,17 @@ namespace fried::editor
 
     std::optional<RectPreview> Editor::rectPreview() const
     {
-        if (!m_selected || m_document.transformType(*m_selected) != "RectTransform")
+        if (!m_selected || !isControl(*m_selected))
         {
             return std::nullopt;
         }
-        const ObjectBounds *box = nullptr;
-        for (const ObjectBounds &candidate : m_frame.m_bounds)
-        {
-            if (candidate.m_id == *m_selected)
-            {
-                box = &candidate;
-            }
-        }
+        const ObjectBounds *box = boundsOf(*m_selected);
         if (!box)
         {
             return std::nullopt;
         }
         auto number = [&](const char *field) {
-            std::optional<Json> value = m_document.componentField(*m_selected, "RectTransform", field);
+            std::optional<Json> value = m_document.nodeField(*m_selected, field);
             return value && value->is_number() ? value->get<double>() : 0.0;
         };
         auto axisOf = [](double minimum, double maximum) {
@@ -830,10 +807,21 @@ namespace fried::editor
             }
             return minimum == 0 ? AnchorAxis::Start : minimum == 0.5 ? AnchorAxis::Center : minimum == 1 ? AnchorAxis::End : AnchorAxis::Custom;
         };
-        std::pair<int, int> logical = m_project.logicalSize(m_platform);
         RectPreview preview;
-        preview.m_viewWidth = logical.first;
-        preview.m_viewHeight = logical.second;
+        // The rectangle the anchors refer to is the parent's: a control's, a point for any other node, or the screen for a node at the top.
+        if (box->m_parent)
+        {
+            preview.m_originX = box->m_parent->m_x;
+            preview.m_originY = box->m_parent->m_y;
+            preview.m_viewWidth = box->m_parent->m_width;
+            preview.m_viewHeight = box->m_parent->m_height;
+        }
+        else
+        {
+            std::pair<int, int> logical = m_project.logicalSize(m_platform);
+            preview.m_viewWidth = logical.first;
+            preview.m_viewHeight = logical.second;
+        }
         preview.m_x = box->m_x;
         preview.m_y = box->m_y;
         preview.m_width = box->m_width;
@@ -846,7 +834,7 @@ namespace fried::editor
         preview.m_pivotY = number("pivotY");
         preview.m_horizontal = axisOf(preview.m_anchorMinX, preview.m_anchorMaxX);
         preview.m_vertical = axisOf(preview.m_anchorMinY, preview.m_anchorMaxY);
-        std::optional<Json> below = m_document.componentField(*m_selected, "RectTransform", "below");
+        std::optional<Json> below = m_document.nodeField(*m_selected, "below");
         preview.m_isBelow = below && below->is_string() && !below->get<std::string>().empty();
         return preview;
     }
@@ -855,8 +843,9 @@ namespace fried::editor
     {
         // The fields of one axis that keep a box of the given start and size where it is, for the anchors and pivot the axis is given.
         void keepAxis(std::map<std::string, double> &fields, bool isHorizontal, double anchorMin, double anchorMax, double pivot, double start, double size,
-                      double view)
+                      double origin, double view)
         {
+            start -= origin;
             const char *minimumName = isHorizontal ? "anchorMinX" : "anchorMinY";
             const char *maximumName = isHorizontal ? "anchorMaxX" : "anchorMaxY";
             fields[minimumName] = anchorMin;
@@ -900,13 +889,15 @@ namespace fried::editor
         if (horizontal != AnchorAxis::Custom)
         {
             double pivot = horizontal == AnchorAxis::Stretch ? 0.5 : anchorOf(horizontal, false);
-            keepAxis(fields, true, anchorOf(horizontal, false), anchorOf(horizontal, true), pivot, preview->m_x, preview->m_width, preview->m_viewWidth);
+            keepAxis(fields, true, anchorOf(horizontal, false), anchorOf(horizontal, true), pivot, preview->m_x, preview->m_width, preview->m_originX,
+                     preview->m_viewWidth);
         }
         // An object under another is placed by the gap to it, which is not a place on the screen.
         if (vertical != AnchorAxis::Custom && !preview->m_isBelow)
         {
             double pivot = vertical == AnchorAxis::Stretch ? 0.5 : anchorOf(vertical, false);
-            keepAxis(fields, false, anchorOf(vertical, false), anchorOf(vertical, true), pivot, preview->m_y, preview->m_height, preview->m_viewHeight);
+            keepAxis(fields, false, anchorOf(vertical, false), anchorOf(vertical, true), pivot, preview->m_y, preview->m_height, preview->m_originY,
+                     preview->m_viewHeight);
         }
         if (!fields.empty())
         {
@@ -924,7 +915,8 @@ namespace fried::editor
         std::map<std::string, double> fields;
         if (preview->m_horizontal != AnchorAxis::Stretch)
         {
-            keepAxis(fields, true, preview->m_anchorMinX, preview->m_anchorMaxX, x, preview->m_x, preview->m_width, preview->m_viewWidth);
+            keepAxis(fields, true, preview->m_anchorMinX, preview->m_anchorMaxX, x, preview->m_x, preview->m_width, preview->m_originX,
+                     preview->m_viewWidth);
         }
         else
         {
@@ -932,7 +924,8 @@ namespace fried::editor
         }
         if (preview->m_vertical != AnchorAxis::Stretch && !preview->m_isBelow)
         {
-            keepAxis(fields, false, preview->m_anchorMinY, preview->m_anchorMaxY, y, preview->m_y, preview->m_height, preview->m_viewHeight);
+            keepAxis(fields, false, preview->m_anchorMinY, preview->m_anchorMaxY, y, preview->m_y, preview->m_height, preview->m_originY,
+                     preview->m_viewHeight);
         }
         else
         {
@@ -943,8 +936,35 @@ namespace fried::editor
 
     std::map<std::string, double> Editor::dragFields(const std::string &id, std::map<std::string, double> fields)
     {
-        if (m_document.transformType(id) != "RectTransform")
+        if (!isControl(id))
         {
+            // The pointer moves the node in the world, and the node's own x and y are in its parent's space.
+            const ObjectBounds *box = boundsOf(id);
+            if (!box || !box->m_parent)
+            {
+                return fields;
+            }
+            if (!m_drag.m_hasMoved)
+            {
+                TransformValues start = transformOf(id);
+                m_drag.m_originX = start.m_x;
+                m_drag.m_originY = start.m_y;
+            }
+            auto x = fields.find("x");
+            auto y = fields.find("y");
+            if (x == fields.end() || y == fields.end())
+            {
+                return fields;
+            }
+            double worldDx = x->second - m_drag.m_originX;
+            double worldDy = y->second - m_drag.m_originY;
+            double radians = -box->m_parent->m_rotation * 3.14159265358979323846 / 180.0;
+            double cosine = std::cos(radians);
+            double sine = std::sin(radians);
+            double scaleX = box->m_parent->m_scaleX != 0 ? box->m_parent->m_scaleX : 1;
+            double scaleY = box->m_parent->m_scaleY != 0 ? box->m_parent->m_scaleY : 1;
+            x->second = std::round(m_drag.m_originX + (worldDx * cosine - worldDy * sine) / scaleX);
+            y->second = std::round(m_drag.m_originY + (worldDx * sine + worldDy * cosine) / scaleY);
             return fields;
         }
         if (!m_drag.m_hasMoved)
@@ -954,7 +974,7 @@ namespace fried::editor
             m_drag.m_appliedY = start.m_y;
         }
         auto number = [&](const char *field) {
-            std::optional<Json> value = m_document.componentField(id, "RectTransform", field);
+            std::optional<Json> value = m_document.nodeField(id, field);
             return value && value->is_number() ? value->get<double>() : 0.0;
         };
         auto moveAxis = [&](const char *position, double &applied, const char *anchorMin, const char *anchorMax, const char *insetStart, const char *insetEnd,
@@ -1009,21 +1029,8 @@ namespace fried::editor
         {
             return 1.0;
         }
-        for (const Json &object : m_document.data()["objects"])
-        {
-            if (object.value("id", "") != *id)
-            {
-                continue;
-            }
-            for (const Json &component : object["components"])
-            {
-                if (component.value("type", "") == "Camera" && component.contains("zoom") && component["zoom"].is_number() && component["zoom"].get<double>() > 0)
-                {
-                    return component["zoom"].get<double>();
-                }
-            }
-        }
-        return 1.0;
+        std::optional<Json> zoom = m_document.nodeField(*id, "zoom");
+        return zoom && zoom->is_number() && zoom->get<double>() > 0 ? zoom->get<double>() : 1.0;
     }
 
     DrawList Editor::overlay() const
@@ -1051,18 +1058,18 @@ namespace fried::editor
                                             (int)std::lround(logical.second / zoom));
         DrawList handles = Gizmo::draw(handlesFor(m_frameView));
         list.insert(list.end(), handles.begin(), handles.end());
-        DrawList anchors = anchorOverlay(logical.first, logical.second);
+        DrawList anchors = anchorOverlay();
         list.insert(list.end(), anchors.begin(), anchors.end());
         return list;
     }
 
     void Editor::documentChanged(const DocumentChange &change)
     {
-        if (change.m_kind == DocumentChange::Kind::Field && !change.m_value.is_null() && change.m_field != "enabled")
+        if (change.m_kind == DocumentChange::Kind::Field && !change.m_value.is_null())
         {
             if (m_status == Status::Ready)
             {
-                m_session.setField(change.m_objectId, change.m_component, change.m_field, change.m_value);
+                m_session.setField(change.m_nodeId, change.m_field, change.m_value);
             }
         }
         else

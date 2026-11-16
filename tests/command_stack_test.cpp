@@ -7,16 +7,18 @@ using Json = nlohmann::json;
 
 namespace
 {
-    Json object(const std::string &id)
+    Json node(const std::string &id)
     {
-        return {{"id", id}, {"name", id}, {"components", Json::array({Json{{"type", "Transform"}, {"x", 1}}, Json{{"type", "Sprite"}}})}};
+        return {{"id", id}, {"name", id}, {"type", "Sprite"}, {"x", 1}, {"flip", "None"}};
     }
 
+    // a (with child a1), b
     SceneDocument sample()
     {
         SceneDocument document = SceneDocument::empty("Main");
-        document.insertObject(0, object("a"));
-        document.insertObject(1, object("b"));
+        document.insertNode("", 0, node("a"));
+        document.insertNode("", 1, node("b"));
+        document.insertNode("a", 0, node("a1"));
         document.markSaved();
         return document;
     }
@@ -42,30 +44,62 @@ TEST_CASE("every command undoes to the exact bytes it started from, and redoes t
     document.setCameraId("b");
     CommandStack stack(document);
 
-    roundTrips(document, stack, [] { return std::make_unique<SetComponentField>("a", "Transform", "x", Json(9)); });
-    roundTrips(document, stack, [] { return std::make_unique<SetComponentField>("a", "Transform", "x", std::nullopt); });
-    roundTrips(document, stack, [] { return std::make_unique<SetObjectField>("a", "priority", Json(2)); });
-    roundTrips(document, stack, [] { return std::make_unique<ChangeTransformType>("a", "RectTransform"); });
-    roundTrips(document, stack, [] { return std::make_unique<AddObject>(1, object("c")); });
-    roundTrips(document, stack, [] { return std::make_unique<RemoveObject>("a"); });
-    roundTrips(document, stack, [] { return std::make_unique<RemoveObject>("b"); });
-    roundTrips(document, stack, [] { return std::make_unique<MoveObject>("a", 1); });
-    roundTrips(document, stack, [] { return std::make_unique<AddComponent>("a", 2, Json{{"type", "Camera"}}); });
-    roundTrips(document, stack, [] { return std::make_unique<RemoveComponent>("a", "Sprite"); });
+    roundTrips(document, stack, [] { return std::make_unique<SetNodeField>("a", "x", Json(9)); });
+    roundTrips(document, stack, [] { return std::make_unique<SetNodeField>("a", "x", std::nullopt); });
+    roundTrips(document, stack, [] { return std::make_unique<SetNodeField>("a", "priority", Json(2)); });
+    roundTrips(document, stack, [] { return std::make_unique<SetNodeField>("a", "name", Json("renamed")); });
+    roundTrips(document, stack, [] { return std::make_unique<SetNodeFields>("a", std::map<std::string, double>{{"x", 5}, {"y", 6}}); });
+    roundTrips(document, stack, [] { return std::make_unique<AddNode>("", 1, node("c")); });
+    roundTrips(document, stack, [] { return std::make_unique<AddNode>("a", 1, node("c")); });
+    roundTrips(document, stack, [] { return std::make_unique<RemoveNode>("a"); });
+    roundTrips(document, stack, [] { return std::make_unique<RemoveNode>("a1"); });
+    roundTrips(document, stack, [] { return std::make_unique<RemoveNode>("b"); });
+    roundTrips(document, stack, [] { return std::make_unique<MoveNode>("a", "", 1); });
+    roundTrips(document, stack, [] { return std::make_unique<MoveNode>("b", "a", 0); });
+    roundTrips(document, stack, [] { return std::make_unique<MoveNode>("a1", "", 0); });
+    roundTrips(document, stack, [] { return std::make_unique<ChangeNodeType>("a", "Label", std::set<std::string>{"x"}); });
     roundTrips(document, stack, [] { return std::make_unique<SetCamera>(std::nullopt); });
 }
 
-TEST_CASE("removing an object takes its camera role, and undo returns it")
+TEST_CASE("removing a node takes its subtree and its camera role, and undo returns both")
 {
     SceneDocument document = sample();
-    document.setCameraId("a");
+    document.setCameraId("a1");
     CommandStack stack(document);
 
-    REQUIRE(stack.execute(std::make_unique<RemoveObject>("a")));
+    REQUIRE(stack.execute(std::make_unique<RemoveNode>("a")));
     CHECK_FALSE(document.cameraId().has_value());
+    CHECK_FALSE(document.contains("a1"));
 
     stack.undo();
-    CHECK(document.cameraId() == std::optional<std::string>("a"));
+    CHECK(document.cameraId() == std::optional<std::string>("a1"));
+    CHECK(document.parentOf("a1") == "a");
+}
+
+TEST_CASE("a node that is not moved anywhere is not a step to undo")
+{
+    SceneDocument document = sample();
+    CommandStack stack(document);
+    CHECK_FALSE(stack.execute(std::make_unique<MoveNode>("a", "", 0)));
+    CHECK_FALSE(stack.execute(std::make_unique<MoveNode>("a", "a1", 0)));
+    CHECK_FALSE(stack.canUndo());
+}
+
+TEST_CASE("changing a node's type keeps the fields the new class has and the name, and undo brings everything back")
+{
+    SceneDocument document = sample();
+    CommandStack stack(document);
+    REQUIRE(stack.execute(std::make_unique<ChangeNodeType>("a", "Label", std::set<std::string>{"x", "text"})));
+    CHECK(document.typeOf("a") == "Label");
+    CHECK(document.nodeField("a", "x") == Json(1));
+    CHECK(document.nodeField("a", "name") == Json("a"));
+    CHECK_FALSE(document.nodeField("a", "flip").has_value());
+    CHECK(document.childrenOf("a") == std::vector<std::string>({"a1"}));
+
+    stack.undo();
+    CHECK(document.typeOf("a") == "Sprite");
+    CHECK(document.nodeField("a", "flip") == Json("None"));
+    CHECK_FALSE(stack.execute(std::make_unique<ChangeNodeType>("a", "Sprite", std::set<std::string>{})));
 }
 
 TEST_CASE("a drag is one step to undo when its edits are merged")
@@ -75,16 +109,16 @@ TEST_CASE("a drag is one step to undo when its edits are merged")
 
     for (int x = 10; x <= 50; x += 10)
     {
-        stack.execute(std::make_unique<SetComponentField>("a", "Transform", "x", Json(x)), true);
+        stack.execute(std::make_unique<SetNodeField>("a", "x", Json(x)), true);
     }
-    CHECK(document.componentField("a", "Transform", "x") == Json(50));
-    stack.execute(std::make_unique<SetComponentField>("a", "Transform", "y", Json(3)), true);
+    CHECK(document.nodeField("a", "x") == Json(50));
+    stack.execute(std::make_unique<SetNodeField>("a", "y", Json(3)), true);
 
     stack.undo();
-    CHECK_FALSE(document.componentField("a", "Transform", "y").has_value());
-    CHECK(document.componentField("a", "Transform", "x") == Json(50));
+    CHECK_FALSE(document.nodeField("a", "y").has_value());
+    CHECK(document.nodeField("a", "x") == Json(50));
     stack.undo();
-    CHECK(document.componentField("a", "Transform", "x") == Json(1));
+    CHECK(document.nodeField("a", "x") == Json(1));
     CHECK_FALSE(stack.canUndo());
 }
 
@@ -96,7 +130,7 @@ TEST_CASE("a new edit drops what was undone, and the clean position follows save
     stack.m_onChange = [&] { ++notified; };
 
     CHECK(stack.isClean());
-    stack.execute(std::make_unique<SetObjectField>("a", "name", Json("one")));
+    stack.execute(std::make_unique<SetNodeField>("a", "name", Json("one")));
     CHECK_FALSE(stack.isClean());
     stack.markClean();
     CHECK(stack.isClean());
@@ -104,31 +138,11 @@ TEST_CASE("a new edit drops what was undone, and the clean position follows save
 
     stack.undo();
     CHECK_FALSE(stack.isClean());
-    stack.execute(std::make_unique<SetObjectField>("a", "name", Json("two")));
+    stack.execute(std::make_unique<SetNodeField>("a", "name", Json("two")));
     CHECK_FALSE(stack.canRedo());
     CHECK_FALSE(stack.isClean());
     CHECK(stack.undoLabel() == "Change name");
     CHECK(notified == 3);
 
-    CHECK_FALSE(stack.execute(std::make_unique<SetObjectField>("missing", "name", Json("x"))));
-}
-
-
-TEST_CASE("a RectTransform takes the place of the Transform and keeps where the object is")
-{
-    SceneDocument document = sample();
-    CommandStack stack(document);
-    CHECK(document.transformType("a") == "Transform");
-
-    REQUIRE(stack.execute(std::make_unique<ChangeTransformType>("a", "RectTransform")));
-    CHECK(document.transformType("a") == "RectTransform");
-    CHECK(document.componentField("a", "RectTransform", "offsetX") == Json(1));
-    CHECK((*document.object("a"))["components"][0]["type"] == "RectTransform");
-
-    REQUIRE(stack.execute(std::make_unique<SetTransformFields>("a", std::map<std::string, double>{{"offsetX", 5}})));
-    CHECK(document.componentField("a", "RectTransform", "offsetX") == Json(5));
-
-    Json removed;
-    int index = 0;
-    CHECK_FALSE(document.removeComponent("a", "RectTransform", &removed, &index));
+    CHECK_FALSE(stack.execute(std::make_unique<SetNodeField>("missing", "name", Json("x"))));
 }

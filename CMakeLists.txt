@@ -21,7 +21,7 @@ enable_testing()
 add_subdirectory(tests)
 
 # A UI backend is optional, so the core and its tests build where no toolkit is installed.
-option(FRIED_EDITOR_QT "Build the Qt backend" ON)
+option(FRIED_EDITOR_QT "Build the Qt backend, which is not kept in step with the core" OFF)
 if(FRIED_EDITOR_QT)
     find_package(Qt6 COMPONENTS Widgets)
     if(Qt6_FOUND)

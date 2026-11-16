@@ -22,11 +22,14 @@
 
 namespace fried::editor
 {
+    // One node of the scene's tree as the hierarchy lists it, parents before their children.
     struct HierarchyRow
     {
         std::string m_id;
         std::string m_name;
         bool m_isCamera = false;
+        int m_depth = 0;
+        bool m_hasChildren = false;
     };
 
     // Where an anchor sits along one axis of the screen: at its start, middle or end, or spread across all of it.
@@ -39,9 +42,11 @@ namespace fried::editor
         Custom
     };
 
-    // What the backend draws of the selected object's RectTransform: the screen the layout is made for, the box the object takes in it and where its anchors and pivot are.
+    // What the backend draws of the selected Control: the rectangle its anchors refer to, which is its parent's, the box the control takes in it and where its anchors and pivot are.
     struct RectPreview
     {
+        double m_originX = 0;
+        double m_originY = 0;
         double m_viewWidth = 0;
         double m_viewHeight = 0;
         double m_x = 0;
@@ -87,11 +92,11 @@ namespace fried::editor
         const std::vector<fried::core::OutputLine> *m_lines = nullptr;
     };
 
-    struct ComponentView
+    // What one class of the selected node's chain declares, with the node's values for it. The inspector shows one section for each, the node's own class first.
+    struct ClassView
     {
-        std::string m_type;
+        std::string m_class;
         std::vector<FieldView> m_fields;
-        bool m_isRemovable = true;
     };
 
     // Everything the editor does that is not drawing: a backend shows these models, forwards its input and calls the methods.
@@ -168,36 +173,43 @@ namespace fried::editor
         void select(const std::optional<std::string> &id);
 
         std::vector<HierarchyRow> hierarchy() const;
-        // An empty type adds an object with only its Transform.
-        void addObject(const std::string &componentType);
+
+        // Adds a node of a class as the last child of a node, or at the top of the scene with no parent, and selects it. A node that is placed by a position starts at the center of the view.
+        void addNode(const std::string &type, const std::optional<std::string> &parentId = std::nullopt);
         void removeSelected();
+
+        // Moves the selected node among its siblings.
         void moveSelected(int delta);
+
+        // Moves a node under another, or to the top of the scene with an empty parent. The index is its place among the new siblings as they are now.
+        void reparent(const std::string &id, const std::string &parentId, int index);
+        void changeType(const std::string &id, const std::string &type);
         void setCameraToSelected();
+        void rename(const std::string &id, const std::string &name);
         void renameSelected(const std::string &name);
 
-        std::vector<ComponentView> inspector() const;
-        std::vector<std::string> addableComponents() const;
-        std::vector<std::string> componentTypes() const;
-        std::optional<nlohmann::json> selectedObjectField(const std::string &field) const;
-        void setObjectField(const std::string &field, const std::optional<nlohmann::json> &value);
-        void setField(const std::string &type, const std::string &field, const std::optional<nlohmann::json> &value);
-        // The selected object's RectTransform for the backend to draw, when it has one and the player has shown it.
+        // The selected node's class sections, the node's own class first.
+        std::vector<ClassView> inspector() const;
+
+        // Every class the player knows, each after the class it extends, which is what a menu of node types is made from.
+        const std::vector<ClassSchema> &classes() const { return m_session.schema(); }
+        bool isClassOf(const std::string &type, const std::string &ancestor) const;
+        void setField(const std::string &field, const std::optional<nlohmann::json> &value);
+
+        // The selected Control's anchors and box for the backend to draw, when it is one and the player has shown it.
         std::optional<RectPreview> rectPreview() const;
 
-        // Anchors the object to a place on the screen, as Unity's presets do, and moves the offsets so that it stays where it is. Custom leaves that axis as it is.
+        // Anchors the control to a place in its parent, as Unity's presets do, and moves the offsets so that it stays where it is. Custom leaves that axis as it is.
         void setAnchorPreset(AnchorAxis horizontal, AnchorAxis vertical);
 
-        // Moves the pivot, and the offsets with it so that the object stays where it is.
+        // Moves the pivot, and the offsets with it so that the control stays where it is.
         void setPivot(double x, double y);
-
-        void addComponent(const std::string &type);
-        void removeComponent(const std::string &type);
 
         // The files of both asset roots, and where one is on disk.
         std::vector<AssetEntry> assets() const;
         std::string assetFile(const std::string &root, const std::string &path) const;
 
-        // An image dropped on an object with a Sprite becomes its texture, and anywhere else a new Sprite. A font becomes a new Text.
+        // An image dropped on a node that has a texture becomes its texture, and anywhere else a new Sprite. A font becomes a new Label.
         void dropAsset(const std::string &root, const std::string &path, double frameX, double frameY);
 
         // What is wrong with the project's assets for the platform being previewed, and putting one right.
@@ -248,17 +260,18 @@ namespace fried::editor
         void cameraChanged();
         void changed();
         TransformValues transformOf(const std::string &id) const;
-        DrawList anchorOverlay(int viewWidth, int viewHeight) const;
+        DrawList anchorOverlay() const;
+        bool isControl(const std::string &id) const;
+        const ObjectBounds *boundsOf(const std::string &id) const;
 
-        // What a drag asks of an object's position, as the fields to write. A RectTransform's position is a result of its layout, so moving it changes its offsets, or its insets where it stretches.
+        // What a drag asks of a node's position, as the fields to write. A Control's position is a result of its layout, so moving it changes its offsets, or its insets where it stretches, and a Node2D under another is moved by what the parent's rotation and scale turn the drag into.
         std::map<std::string, double> dragFields(const std::string &id, std::map<std::string, double> fields);
         std::vector<GizmoHandle> currentHandles() const;
         std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
         double gameCameraZoom() const;
         void execute(std::unique_ptr<Command> command, bool merge);
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
-        nlohmann::json newComponent(const std::string &type) const;
-        const ComponentSchema *schemaOf(const std::string &type) const;
+        nlohmann::json newNode(const std::string &type) const;
         std::string playerLogFile() const;
 
         Project m_project;
@@ -317,6 +330,8 @@ namespace fried::editor
             double m_startY = 0;
             double m_appliedX = 0;
             double m_appliedY = 0;
+            double m_originX = 0;
+            double m_originY = 0;
             double m_lastFrameX = 0;
             double m_lastFrameY = 0;
             bool m_hasMoved = false;

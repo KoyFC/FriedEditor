@@ -1,5 +1,6 @@
 #include "fried/editor/scene_document.h"
 
+#include <algorithm>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -10,28 +11,34 @@ namespace fried::editor
 
     namespace
     {
-        Json *findComponentIn(Json &object, const std::string &type)
-        {
-            for (Json &component : object["components"])
-            {
-                if (component.value("type", "") == type)
-                {
-                    return &component;
-                }
-            }
-            return nullptr;
-        }
-
-        // Sets or erases one key, and reports whether the object changed.
-        void assign(Json &object, const std::string &key, const std::optional<Json> &value)
+        // Sets or erases one key.
+        void assign(Json &node, const std::string &key, const std::optional<Json> &value)
         {
             if (value)
             {
-                object[key] = *value;
+                node[key] = *value;
             }
             else
             {
-                object.erase(key);
+                node.erase(key);
+            }
+        }
+
+        bool isReserved(const std::string &field)
+        {
+            return field == "id" || field == "type" || field == "children";
+        }
+
+        void collectIds(const Json &node, std::vector<std::string> *ids)
+        {
+            ids->push_back(node.value("id", ""));
+            auto children = node.find("children");
+            if (children != node.end() && children->is_array())
+            {
+                for (const Json &child : *children)
+                {
+                    collectIds(child, ids);
+                }
             }
         }
     }
@@ -39,9 +46,58 @@ namespace fried::editor
     SceneDocument SceneDocument::empty(const std::string &name)
     {
         SceneDocument document;
-        document.m_data = {{"version", s_version}, {"name", name}, {"objects", Json::array()}};
+        document.m_data = {{"version", s_version}, {"name", name}, {"nodes", Json::array()}};
         document.m_name = name;
         return document;
+    }
+
+    // Walks one list of nodes, checking each and recording where it is.
+    bool SceneDocument::indexList(const Json &nodes, const std::string &parent, int depth, std::string *error)
+    {
+        int position = 0;
+        for (const Json &node : nodes)
+        {
+            std::string id = node.is_object() ? node.value("id", "") : "";
+            if (id.empty())
+            {
+                *error = "A node in the scene file has no id.";
+                return false;
+            }
+            if (!node.contains("type") || !node["type"].is_string())
+            {
+                *error = "The node " + id + " has no type.";
+                return false;
+            }
+            if (m_index.count(id))
+            {
+                *error = "The node id " + id + " is used twice.";
+                return false;
+            }
+            m_index[id] = {parent, position++, depth};
+            m_order.push_back(id);
+            auto children = node.find("children");
+            if (children != node.end())
+            {
+                if (!children->is_array())
+                {
+                    *error = "The children of " + id + " are not a list.";
+                    return false;
+                }
+                if (!indexList(*children, id, depth + 1, error))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    void SceneDocument::reindex()
+    {
+        m_index.clear();
+        m_order.clear();
+        std::string ignored;
+        indexList(m_data["nodes"], "", 0, &ignored);
     }
 
     bool SceneDocument::parse(const std::string &text, std::string *error)
@@ -55,28 +111,24 @@ namespace fried::editor
         if (parsed.value("version", 0) != s_version)
         {
             *error = "The scene file is version " + std::to_string(parsed.value("version", 0)) + ", and this editor reads version "
-                + std::to_string(s_version) + ".";
+                + std::to_string(s_version) + ". Scenes are rewritten by hand when the engine's format changes.";
             return false;
         }
-        if (!parsed.contains("objects") || !parsed["objects"].is_array())
+        if (!parsed.contains("nodes") || !parsed["nodes"].is_array())
         {
-            *error = "The scene file has no list of objects.";
+            *error = "The scene file has no list of nodes.";
             return false;
         }
-        for (Json &object : parsed["objects"])
+
+        SceneDocument next;
+        next.m_data = std::move(parsed);
+        if (!next.indexList(next.m_data["nodes"], "", 0, error))
         {
-            if (!object.is_object() || !object.value("id", "").size())
-            {
-                *error = "An object in the scene file has no id.";
-                return false;
-            }
-            if (!object.contains("components"))
-            {
-                object["components"] = Json::array();
-            }
+            return false;
         }
-        m_data = std::move(parsed);
-        m_name = m_data.value("name", "");
+        next.m_name = next.m_data.value("name", "");
+        next.m_onChange = std::move(m_onChange);
+        *this = std::move(next);
         m_isModified = false;
         return true;
     }
@@ -116,57 +168,116 @@ namespace fried::editor
         return m_data.dump(1, '\t') + "\n";
     }
 
-    std::vector<std::string> SceneDocument::objectIds() const
+    Json *SceneDocument::listOf(const std::string &parentId)
+    {
+        if (parentId.empty())
+        {
+            return &m_data["nodes"];
+        }
+        Json *parent = find(parentId);
+        if (!parent)
+        {
+            return nullptr;
+        }
+        Json &list = (*parent)["children"];
+        if (list.is_null())
+        {
+            list = Json::array();
+        }
+        return &list;
+    }
+
+    const Json *SceneDocument::listOf(const std::string &parentId) const
+    {
+        return const_cast<SceneDocument *>(this)->listOf(parentId);
+    }
+
+    Json *SceneDocument::find(const std::string &id)
+    {
+        auto found = m_index.find(id);
+        if (found == m_index.end())
+        {
+            return nullptr;
+        }
+        Json *list = listOf(found->second.m_parent);
+        return list && found->second.m_position < (int)list->size() ? &(*list)[found->second.m_position] : nullptr;
+    }
+
+    const Json *SceneDocument::node(const std::string &id) const
+    {
+        return const_cast<SceneDocument *>(this)->find(id);
+    }
+
+    std::string SceneDocument::typeOf(const std::string &id) const
+    {
+        const Json *found = node(id);
+        return found ? found->value("type", "") : "";
+    }
+
+    std::string SceneDocument::parentOf(const std::string &id) const
+    {
+        auto found = m_index.find(id);
+        return found == m_index.end() ? "" : found->second.m_parent;
+    }
+
+    std::vector<std::string> SceneDocument::childrenOf(const std::string &id) const
     {
         std::vector<std::string> ids;
-        for (const Json &object : m_data["objects"])
+        const Json *list = id.empty() ? &m_data["nodes"] : (node(id) && node(id)->contains("children") ? &(*node(id))["children"] : nullptr);
+        if (list)
         {
-            ids.push_back(object.value("id", ""));
+            for (const Json &child : *list)
+            {
+                ids.push_back(child.value("id", ""));
+            }
         }
         return ids;
     }
 
-    const Json *SceneDocument::object(const std::string &id) const
+    int SceneDocument::childCount(const std::string &id) const
     {
-        for (const Json &candidate : m_data["objects"])
+        if (id.empty())
         {
-            if (candidate.value("id", "") == id)
-            {
-                return &candidate;
-            }
+            return (int)m_data["nodes"].size();
         }
-        return nullptr;
+        const Json *found = node(id);
+        return found && found->contains("children") ? (int)(*found)["children"].size() : 0;
+    }
+
+    int SceneDocument::depthOf(const std::string &id) const
+    {
+        auto found = m_index.find(id);
+        return found == m_index.end() ? -1 : found->second.m_depth;
     }
 
     int SceneDocument::indexOf(const std::string &id) const
     {
-        int index = 0;
-        for (const Json &candidate : m_data["objects"])
+        auto found = m_index.find(id);
+        return found == m_index.end() ? -1 : found->second.m_position;
+    }
+
+    bool SceneDocument::isInside(const std::string &id, const std::string &ancestor) const
+    {
+        for (std::string current = parentOf(id); !current.empty(); current = parentOf(current))
         {
-            if (candidate.value("id", "") == id)
+            if (current == ancestor)
             {
-                return index;
+                return true;
             }
-            ++index;
         }
-        return -1;
+        return false;
     }
 
     std::string SceneDocument::uniqueId(const std::string &base) const
     {
-        std::set<std::string> taken;
-        for (const std::string &id : objectIds())
-        {
-            taken.insert(id);
-        }
-        if (!taken.count(base))
+        if (!m_index.count(base))
         {
             return base;
         }
         for (int number = 2;; ++number)
         {
             std::string candidate = base + "-" + std::to_string(number);
-            if (!taken.count(candidate))
+            if (!m_index.count(candidate))
             {
                 return candidate;
             }
@@ -192,74 +303,100 @@ namespace fried::editor
         changed({DocumentChange::Kind::Structure});
     }
 
-    bool SceneDocument::insertObject(int index, const Json &object)
+    bool SceneDocument::insertNode(const std::string &parentId, int index, const Json &inserted)
     {
-        std::string id = object.value("id", "");
-        Json &objects = m_data["objects"];
-        if (id.empty() || this->object(id) || index < 0 || index > (int)objects.size())
+        std::vector<std::string> ids;
+        collectIds(inserted, &ids);
+        std::set<std::string> unique;
+        for (const std::string &id : ids)
+        {
+            if (id.empty() || m_index.count(id) || !unique.insert(id).second)
+            {
+                return false;
+            }
+        }
+        if (!inserted.contains("type") || !inserted["type"].is_string())
         {
             return false;
         }
-        objects.insert(objects.begin() + index, object);
-        changed({DocumentChange::Kind::Structure, id});
+        if (!parentId.empty() && !contains(parentId))
+        {
+            return false;
+        }
+        Json *list = listOf(parentId);
+        if (!list || index < 0 || index > (int)list->size())
+        {
+            return false;
+        }
+        list->insert(list->begin() + index, inserted);
+        reindex();
+        changed({DocumentChange::Kind::Structure, inserted.value("id", "")});
         return true;
     }
 
-    bool SceneDocument::removeObject(const std::string &id, Json *removed, int *index)
+    bool SceneDocument::removeNode(const std::string &id, Json *removed, std::string *parentId, int *index)
     {
-        int position = indexOf(id);
-        if (position < 0)
+        auto found = m_index.find(id);
+        if (found == m_index.end())
         {
             return false;
         }
-        Json &objects = m_data["objects"];
-        *removed = objects[position];
-        *index = position;
-        objects.erase(objects.begin() + position);
-        if (cameraId() == id)
+        *parentId = found->second.m_parent;
+        *index = found->second.m_position;
+        Json *list = listOf(*parentId);
+        *removed = (*list)[*index];
+        std::vector<std::string> gone;
+        collectIds(*removed, &gone);
+        list->erase(list->begin() + *index);
+        auto camera = cameraId();
+        if (camera && std::find(gone.begin(), gone.end(), *camera) != gone.end())
         {
             m_data.erase("camera");
         }
+        // A parent left with no children stops mentioning them, so a file never holds an empty list.
+        if (!parentId->empty() && list->empty())
+        {
+            find(*parentId)->erase("children");
+        }
+        reindex();
         changed({DocumentChange::Kind::Structure, id});
         return true;
     }
 
-    bool SceneDocument::moveObject(const std::string &id, int index)
+    bool SceneDocument::moveNode(const std::string &id, const std::string &parentId, int index)
     {
-        Json &objects = m_data["objects"];
-        int position = indexOf(id);
-        if (position < 0 || index < 0 || index >= (int)objects.size())
+        if (!contains(id) || (!parentId.empty() && !contains(parentId)) || parentId == id || isInside(parentId, id))
         {
             return false;
         }
-        Json moved = objects[position];
-        objects.erase(objects.begin() + position);
-        objects.insert(objects.begin() + index, moved);
+        int size = childCount(parentId) - (parentOf(id) == parentId ? 1 : 0);
+        if (index < 0 || index > size)
+        {
+            return false;
+        }
+
+        // The removal and the insertion are one change, so only the last is reported.
+        auto handler = std::move(m_onChange);
+        m_onChange = nullptr;
+        Json moving;
+        std::string oldParent;
+        int oldIndex = 0;
+        std::optional<std::string> camera = cameraId();
+        removeNode(id, &moving, &oldParent, &oldIndex);
+        listOf(parentId)->insert(listOf(parentId)->begin() + index, moving);
+        if (camera)
+        {
+            m_data["camera"] = *camera;
+        }
+        reindex();
+        m_onChange = std::move(handler);
         changed({DocumentChange::Kind::Structure, id});
         return true;
     }
 
-    Json *SceneDocument::findObject(const std::string &id)
+    std::optional<Json> SceneDocument::nodeField(const std::string &id, const std::string &field) const
     {
-        for (Json &candidate : m_data["objects"])
-        {
-            if (candidate.value("id", "") == id)
-            {
-                return &candidate;
-            }
-        }
-        return nullptr;
-    }
-
-    Json *SceneDocument::findComponent(const std::string &id, const std::string &type)
-    {
-        Json *object = findObject(id);
-        return object ? findComponentIn(*object, type) : nullptr;
-    }
-
-    std::optional<Json> SceneDocument::objectField(const std::string &id, const std::string &field) const
-    {
-        const Json *found = object(id);
+        const Json *found = node(id);
         if (!found || !found->contains(field))
         {
             return std::nullopt;
@@ -267,120 +404,35 @@ namespace fried::editor
         return (*found)[field];
     }
 
-    bool SceneDocument::setObjectField(const std::string &id, const std::string &field, const std::optional<Json> &value)
+    bool SceneDocument::setNodeField(const std::string &id, const std::string &field, const std::optional<Json> &value)
     {
-        Json *found = findObject(id);
-        if (!found || field == "id" || field == "components")
+        Json *found = find(id);
+        if (!found || isReserved(field))
         {
             return false;
         }
         assign(*found, field, value);
-        changed({DocumentChange::Kind::Field, id, "", field, value ? *value : Json()});
+        changed({DocumentChange::Kind::Field, id, field, value ? *value : Json()});
         return true;
     }
 
-    bool SceneDocument::insertComponent(const std::string &id, int index, const Json &component)
+    bool SceneDocument::replaceNode(const std::string &id, const Json &contents, Json *before)
     {
-        Json *found = findObject(id);
-        std::string type = component.value("type", "");
-        if (!found || type.empty() || findComponentIn(*found, type))
+        Json *found = find(id);
+        if (!found || !contents.is_object() || contents.value("id", "") != id || !contents.contains("type"))
         {
             return false;
         }
-        Json &components = (*found)["components"];
-        if (index < 0 || index > (int)components.size())
+        *before = *found;
+        before->erase("children");
+        Json next = contents;
+        next.erase("children");
+        if (found->contains("children"))
         {
-            return false;
+            next["children"] = (*found)["children"];
         }
-        components.insert(components.begin() + index, component);
+        *found = std::move(next);
         changed({DocumentChange::Kind::Structure, id});
-        return true;
-    }
-
-    std::string SceneDocument::transformType(const std::string &id) const
-    {
-        const Json *found = object(id);
-        if (found && found->contains("components"))
-        {
-            for (const Json &component : (*found)["components"])
-            {
-                if (component.value("type", "") == "RectTransform")
-                {
-                    return "RectTransform";
-                }
-            }
-        }
-        return "Transform";
-    }
-
-    bool SceneDocument::replaceTransform(const std::string &id, const Json &component, Json *before)
-    {
-        Json *found = findObject(id);
-        if (!found || !found->contains("components") || (*found)["components"].empty())
-        {
-            return false;
-        }
-        Json &first = (*found)["components"][0];
-        std::string type = first.value("type", "");
-        if (type != "Transform" && type != "RectTransform")
-        {
-            return false;
-        }
-        *before = first;
-        first = component;
-        changed({DocumentChange::Kind::Structure, id});
-        return true;
-    }
-
-    bool SceneDocument::removeComponent(const std::string &id, const std::string &type, Json *removed, int *index)
-    {
-        Json *found = findObject(id);
-        if (!found || type == "Transform" || type == "RectTransform")
-        {
-            return false;
-        }
-        Json &components = (*found)["components"];
-        for (std::size_t position = 0; position < components.size(); ++position)
-        {
-            if (components[position].value("type", "") == type)
-            {
-                *removed = components[position];
-                *index = (int)position;
-                components.erase(components.begin() + position);
-                changed({DocumentChange::Kind::Structure, id});
-                return true;
-            }
-        }
-        return false;
-    }
-
-    std::optional<Json> SceneDocument::componentField(const std::string &id, const std::string &type, const std::string &field) const
-    {
-        const Json *found = object(id);
-        if (!found)
-        {
-            return std::nullopt;
-        }
-        for (const Json &component : (*found)["components"])
-        {
-            if (component.value("type", "") == type)
-            {
-                return component.contains(field) ? std::optional<Json>(component[field]) : std::nullopt;
-            }
-        }
-        return std::nullopt;
-    }
-
-    bool SceneDocument::setComponentField(const std::string &id, const std::string &type, const std::string &field,
-                                          const std::optional<Json> &value)
-    {
-        Json *component = findComponent(id, type);
-        if (!component || field == "type")
-        {
-            return false;
-        }
-        assign(*component, field, value);
-        changed({DocumentChange::Kind::Field, id, type, field, value ? *value : Json()});
         return true;
     }
 

@@ -42,7 +42,7 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
     editor.pointerMove(view.worldToFrameX(320) + 40, view.worldToFrameY(200) + 20);
     editor.pointerUp();
-    CHECK(editor.document().componentField("sprite", "Transform", "x") == nlohmann::json(328));
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(328));
     CHECK(editor.document().isModified());
 
     size_t frames = editor.frame().m_rgba.size();
@@ -51,7 +51,7 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     CHECK(frames > 0);
 
     editor.commands().undo();
-    CHECK(editor.document().componentField("sprite", "Transform", "x") == nlohmann::json(288));
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
 
     // Scale mode puts a handle on the sprite's right edge, which is 128 world pixels wide.
     editor.setGizmoMode(GizmoMode::Scale);
@@ -65,14 +65,14 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.pointerDown(handleX, handleY, Editor::Pointer::Primary);
     editor.pointerMove(handleX + 64 * view.zoom(), handleY);
     editor.pointerUp();
-    CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(12.0));
-    CHECK(editor.document().componentField("sprite", "Transform", "scaleY") == nlohmann::json(8));
+    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(12.0));
+    CHECK(editor.document().nodeField("sprite", "scaleY") == nlohmann::json(8));
     editor.commands().undo();
-    CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(8));
+    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(8));
 
     // An image dropped on the sprite swaps its texture, and dropped on empty space makes a new sprite there.
     editor.dropAsset("game", "icon.png", view.worldToFrameX(320), view.worldToFrameY(200));
-    CHECK(editor.document().componentField("sprite", "Sprite", "texture") == nlohmann::json({{"root", "game"}, {"path", "icon.png"}}));
+    CHECK(editor.document().nodeField("sprite", "texture") == nlohmann::json({{"root", "game"}, {"path", "icon.png"}}));
     editor.dropAsset("game", "sprite.png", 10, 10);
     CHECK(editor.hierarchy().size() == 4);
     CHECK(editor.selected() == std::optional<std::string>("sprite-2"));
@@ -81,22 +81,22 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.commands().undo();
     CHECK(editor.hierarchy().size() == 3);
 
-    editor.addObject("Text");
+    editor.addNode("Label");
     CHECK(editor.hierarchy().size() == 4);
-    CHECK(editor.inspector().size() == 2);
+    CHECK(editor.inspector().size() == 4);
     editor.commands().undo();
 
     // Changing the platform only changes what the viewport previews, so an edit still reaches the one value the scene has.
     editor.setPlatform(Platform::NintendoDs);
     editor.select(std::string("sprite"));
-    editor.setField("Transform", "scaleX", nlohmann::json(2));
-    CHECK(editor.document().componentField("sprite", "Transform", "scaleX") == nlohmann::json(2));
+    editor.setField("scaleX", nlohmann::json(2));
+    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(2));
     CHECK(editor.document().data().find("platforms") == editor.document().data().end());
     pumpUntil(editor, [&] { return false; });
     CHECK(editor.status() == Editor::Status::Ready);
 }
 
-TEST_CASE("the editor shows the sandbox's scene with the components of the game" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+TEST_CASE("the editor shows the sandbox's scene with the nodes of the game" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
 {
     std::string engine = std::getenv("FRIED_ENGINE");
     Editor editor;
@@ -109,8 +109,8 @@ TEST_CASE("the editor shows the sandbox's scene with the components of the game"
     }
     REQUIRE(editor.status() == Editor::Status::Ready);
     REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
-    pumpUntil(editor, [&] { return !editor.frame().m_bounds.empty() && editor.frame().m_bounds.size() == 8; });
-    REQUIRE(editor.frame().m_bounds.size() == 8);
+    pumpUntil(editor, [&] { return !editor.frame().m_bounds.empty() && editor.frame().m_bounds.size() == 14; });
+    REQUIRE(editor.frame().m_bounds.size() == 14);
 
     // A box is as big as it says, so the wall can be picked anywhere along it.
     for (const auto &bound : editor.frame().m_bounds)
@@ -122,19 +122,30 @@ TEST_CASE("the editor shows the sandbox's scene with the components of the game"
         }
     }
 
-    editor.select(std::string("camera"));
+    editor.select(std::string("camera-follow"));
     bool hasReference = false;
-    for (const ComponentView &component : editor.inspector())
+    for (const ClassView &view : editor.inspector())
     {
-        for (const FieldView &field : component.m_fields)
+        for (const FieldView &field : view.m_fields)
         {
-            if (component.m_type == "CameraFollow" && field.m_schema.m_name == "target")
+            if (view.m_class == "CameraFollow" && field.m_schema.m_name == "target")
             {
                 hasReference = field.m_schema.m_kind == "object" && field.m_value == "player";
             }
         }
     }
     CHECK(hasReference);
+
+    // The inspector has a section for each class of the chain, the node's own first, and the name in the last.
+    editor.select(std::string("player"));
+    std::vector<ClassView> sections = editor.inspector();
+    REQUIRE(sections.size() == 5);
+    CHECK(sections[0].m_class == "Player");
+    CHECK(sections[1].m_class == "Sprite");
+    CHECK(sections[2].m_class == "Node2D");
+    CHECK(sections[3].m_class == "CanvasItem");
+    CHECK(sections[4].m_class == "Node");
+    CHECK(sections[4].m_fields[0].m_schema.m_name == "name");
 }
 
 TEST_CASE("the overlay stays with the picture it was drawn for while the view is panned" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
@@ -173,7 +184,7 @@ TEST_CASE("the picture and the overlay agree on where the wall is, at any pan an
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
     REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
-    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     struct Step
     {
@@ -227,7 +238,7 @@ TEST_CASE("how long a camera move takes to come back as a frame" * doctest::skip
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
     REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
-    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     editor.setViewSize(864, 490);
     pumpUntil(editor, [&] { return editor.frame().m_width == 864; });
@@ -264,7 +275,7 @@ TEST_CASE("the display frame is the display's size divided by the camera's zoom"
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
     REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
-    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     auto frameWidth = [&] {
         for (const DrawCommand &command : editor.overlay())
@@ -280,7 +291,7 @@ TEST_CASE("the display frame is the display's size divided by the camera's zoom"
     CHECK(frameWidth() == doctest::Approx(640 * zoom));
 
     editor.select(std::string("camera"));
-    editor.setField("Camera", "zoom", nlohmann::json(2.0));
+    editor.setField("zoom", nlohmann::json(2.0));
     unsigned long serial = editor.frameSerial();
     pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
     CHECK(frameWidth() == doctest::Approx(320 * zoom));
@@ -294,7 +305,7 @@ TEST_CASE("the empty part of a frame has the editor's background color, before a
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
     REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
-    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 8; });
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     auto corner = [&](int x, int y) {
         const Frame &frame = editor.frame();

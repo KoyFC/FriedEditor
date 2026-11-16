@@ -53,9 +53,8 @@ namespace imgui_backend
     private:
         void openSceneFile(const std::string &path);
         void sceneChangeDialog();
-        void rectTransformEditor(const fried::editor::ComponentView &view);
-        void objectFields();
-        void fieldEditor(const std::string &type, const fried::editor::FieldView &field);
+        void controlEditor(const fried::editor::ClassView &view);
+        void fieldEditor(const fried::editor::FieldView &field);
         bool textField(const char *label, std::string *value);
         void projectPage();
         void platformPage(fried::editor::Platform platform);
@@ -65,7 +64,7 @@ namespace imgui_backend
         void settingText(const char *label, const std::string &value, int limit, const std::function<std::string(const std::string &)> &set);
         void applyIcon(fried::editor::Platform platform, const std::string &file, bool isForEveryPlatform);
         bool textArea(const char *label, std::string *value);
-        bool referenceField(const std::string &type, const fried::editor::FieldView &field, bool isFont);
+        bool referenceField(const fried::editor::FieldView &field, bool isFont);
 
         fried::editor::Editor &m_editor;
         Texture m_frame;
@@ -83,6 +82,9 @@ namespace imgui_backend
         fried::editor::Platform m_issuesPlatform = fried::editor::Platform::Pc;
         std::string m_issuesMessage;
         std::map<ImGuiID, std::string> m_textEdits;
+        std::string m_renameId;
+        std::string m_renameText;
+        bool m_isRenameAsked = false;
 
         // The settings window: its page (0 is the project, then one per platform), what was wrong with the last value typed into each field, and what the last icon set had to become.
         int m_settingsPage = 0;

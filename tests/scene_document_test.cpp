@@ -12,19 +12,25 @@ using Json = nlohmann::json;
 
 namespace
 {
-    Json object(const std::string &id, const std::string &name)
+    Json node(const std::string &id, const std::string &name, const std::string &type = "Node2D")
     {
-        return {{"id", id},
-                {"name", name},
-                {"components", Json::array({Json{{"type", "Transform"}, {"x", 1}, {"y", 2}}})}};
+        return {{"id", id}, {"name", name}, {"type", type}, {"x", 1}, {"y", 2}};
     }
 
+    // a (with children a1 and a2), b
     SceneDocument sample()
     {
         SceneDocument document = SceneDocument::empty("Main");
-        REQUIRE(document.insertObject(0, object("a", "A")));
-        REQUIRE(document.insertObject(1, object("b", "B")));
+        REQUIRE(document.insertNode("", 0, node("a", "A")));
+        REQUIRE(document.insertNode("", 1, node("b", "B")));
+        REQUIRE(document.insertNode("a", 0, node("a1", "A1")));
+        REQUIRE(document.insertNode("a", 1, node("a2", "A2")));
         return document;
+    }
+
+    std::vector<std::string> ids(std::initializer_list<const char *> list)
+    {
+        return std::vector<std::string>(list.begin(), list.end());
     }
 }
 
@@ -38,38 +44,66 @@ TEST_CASE("the file text is stable, so a scene read and written is the same byte
     REQUIRE(again.parse(first, &error));
     CHECK(again.dump() == first);
     CHECK(first.back() == '\n');
-    CHECK(first.find("\"objects\"") < first.find("\"version\""));
+    CHECK(first.find("\"nodes\"") < first.find("\"version\""));
 }
 
-TEST_CASE("the scene file the engine's sandbox ships round-trips byte for byte" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+TEST_CASE("the scene files the engine's sandbox ships round-trip byte for byte" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
 {
-    std::ifstream file(std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/sandbox.scene.json");
-    std::stringstream text;
-    text << file.rdbuf();
+    for (const char *name : {"sandbox", "sandbox_ui", "sandbox_3d"})
+    {
+        std::ifstream file(std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/" + name + ".scene.json");
+        std::stringstream text;
+        text << file.rdbuf();
 
-    SceneDocument document;
-    std::string error;
-    REQUIRE(document.parse(text.str(), &error));
-    CHECK(document.dump() == text.str());
+        SceneDocument document;
+        std::string error;
+        REQUIRE(document.parse(text.str(), &error));
+        CHECK(document.dump() == text.str());
+    }
 }
 
-TEST_CASE("objects are inserted, moved and removed by id, and each edit reports itself")
+TEST_CASE("nodes are listed parents first, with their parent, place and depth")
+{
+    SceneDocument document = sample();
+    CHECK(document.nodeIds() == ids({"a", "a1", "a2", "b"}));
+    CHECK(document.nodeCount() == 4);
+    CHECK(document.childrenOf("") == ids({"a", "b"}));
+    CHECK(document.childrenOf("a") == ids({"a1", "a2"}));
+    CHECK(document.childrenOf("b").empty());
+    CHECK(document.parentOf("a2") == "a");
+    CHECK(document.parentOf("a").empty());
+    CHECK(document.indexOf("a2") == 1);
+    CHECK(document.depthOf("a1") == 1);
+    CHECK(document.depthOf("b") == 0);
+    CHECK(document.isInside("a2", "a"));
+    CHECK_FALSE(document.isInside("a", "a2"));
+    CHECK(document.typeOf("a1") == "Node2D");
+    CHECK(document.contains("b"));
+    CHECK_FALSE(document.contains("zzz"));
+}
+
+TEST_CASE("nodes are inserted, moved and removed by id, and each edit reports itself")
 {
     SceneDocument document = sample();
     std::vector<DocumentChange> changes;
     document.m_onChange = [&](const DocumentChange &change) { changes.push_back(change); };
 
-    CHECK_FALSE(document.insertObject(0, object("a", "again")));
-    CHECK(document.moveObject("b", 0));
-    CHECK(document.objectIds() == std::vector<std::string>({"b", "a"}));
+    CHECK_FALSE(document.insertNode("", 0, node("a", "again")));
+    CHECK_FALSE(document.insertNode("nope", 0, node("c", "C")));
+    CHECK_FALSE(document.insertNode("", 9, node("c", "C")));
+    CHECK(document.moveNode("b", "", 0));
+    CHECK(document.nodeIds() == ids({"b", "a", "a1", "a2"}));
 
     Json removed;
+    std::string parent;
     int index = -1;
-    CHECK(document.removeObject("b", &removed, &index));
-    CHECK(index == 0);
-    CHECK(removed["name"] == "B");
-    CHECK(document.insertObject(index, removed));
-    CHECK(document.objectIds() == std::vector<std::string>({"b", "a"}));
+    CHECK(document.removeNode("a", &removed, &parent, &index));
+    CHECK(parent.empty());
+    CHECK(index == 1);
+    CHECK(removed["children"].size() == 2);
+    CHECK(document.nodeIds() == ids({"b"}));
+    CHECK(document.insertNode(parent, index, removed));
+    CHECK(document.nodeIds() == ids({"b", "a", "a1", "a2"}));
 
     REQUIRE(changes.size() == 3);
     CHECK(changes[0].m_kind == DocumentChange::Kind::Structure);
@@ -78,42 +112,86 @@ TEST_CASE("objects are inserted, moved and removed by id, and each edit reports 
     CHECK(document.uniqueId("c") == "c");
 }
 
-TEST_CASE("a component field can be set, read back and left to the engine's default again")
+TEST_CASE("a node is moved under another or out of it, and never inside itself")
+{
+    SceneDocument document = sample();
+    CHECK(document.moveNode("b", "a", 1));
+    CHECK(document.childrenOf("a") == ids({"a1", "b", "a2"}));
+    CHECK(document.parentOf("b") == "a");
+    CHECK(document.depthOf("b") == 1);
+
+    CHECK_FALSE(document.moveNode("a", "a", 0));
+    CHECK_FALSE(document.moveNode("a", "a2", 0));
+    CHECK_FALSE(document.moveNode("a", "b", 0));
+    CHECK_FALSE(document.moveNode("b", "a", 9));
+
+    // Within the same parent the index is the place once the node has left its old one.
+    CHECK(document.moveNode("a1", "a", 2));
+    CHECK(document.childrenOf("a") == ids({"b", "a2", "a1"}));
+
+    CHECK(document.moveNode("a2", "", 0));
+    CHECK(document.nodeIds() == ids({"a2", "a", "b", "a1"}));
+}
+
+TEST_CASE("a parent left with no children stops mentioning them, so the file holds no empty list")
+{
+    SceneDocument document = sample();
+    Json removed;
+    std::string parent;
+    int index = 0;
+    REQUIRE(document.removeNode("a1", &removed, &parent, &index));
+    REQUIRE(document.removeNode("a2", &removed, &parent, &index));
+    CHECK_FALSE(document.node("a")->contains("children"));
+    CHECK(document.insertNode("a", 0, node("a3", "A3")));
+    CHECK(document.node("a")->at("children").size() == 1);
+}
+
+TEST_CASE("removing a node takes the camera with it when the camera was inside")
+{
+    SceneDocument document = sample();
+    document.setCameraId("a2");
+    Json removed;
+    std::string parent;
+    int index = 0;
+    REQUIRE(document.removeNode("a", &removed, &parent, &index));
+    CHECK_FALSE(document.cameraId().has_value());
+}
+
+TEST_CASE("a node field can be set, read back and left to the engine's default again")
 {
     SceneDocument document = sample();
     std::vector<DocumentChange> changes;
     document.m_onChange = [&](const DocumentChange &change) { changes.push_back(change); };
 
-    CHECK(document.setComponentField("a", "Transform", "x", 40));
-    CHECK(document.componentField("a", "Transform", "x") == Json(40));
-    CHECK(document.setComponentField("a", "Transform", "x", std::nullopt));
-    CHECK_FALSE(document.componentField("a", "Transform", "x").has_value());
+    CHECK(document.setNodeField("a", "x", 40));
+    CHECK(document.nodeField("a", "x") == Json(40));
+    CHECK(document.setNodeField("a", "x", std::nullopt));
+    CHECK_FALSE(document.nodeField("a", "x").has_value());
+    CHECK(document.setNodeField("a1", "name", Json("renamed")));
+    CHECK(document.nodeField("a1", "name") == Json("renamed"));
 
-    CHECK_FALSE(document.setComponentField("a", "Sprite", "flip", Json("None")));
-    CHECK_FALSE(document.setComponentField("nope", "Transform", "x", 1));
+    CHECK_FALSE(document.setNodeField("nope", "x", 1));
+    CHECK_FALSE(document.setNodeField("a", "id", Json("z")));
+    CHECK_FALSE(document.setNodeField("a", "type", Json("Sprite")));
+    CHECK_FALSE(document.setNodeField("a", "children", Json::array()));
 
-    REQUIRE(changes.size() == 2);
+    REQUIRE(changes.size() == 3);
     CHECK(changes[0].m_kind == DocumentChange::Kind::Field);
+    CHECK(changes[0].m_nodeId == "a");
     CHECK(changes[0].m_field == "x");
     CHECK(changes[0].m_value == 40);
-
-    CHECK(document.setObjectField("a", "priority", 3));
-    CHECK(document.objectField("a", "priority") == Json(3));
-    CHECK_FALSE(document.setObjectField("a", "id", Json("z")));
 }
 
-TEST_CASE("components are added and removed, except the transform")
+TEST_CASE("replacing a node's contents keeps its children")
 {
     SceneDocument document = sample();
-    CHECK(document.insertComponent("a", 1, Json{{"type", "Sprite"}, {"flip", "None"}}));
-    CHECK_FALSE(document.insertComponent("a", 2, Json{{"type", "Sprite"}}));
-
-    Json removed;
-    int index = -1;
-    CHECK_FALSE(document.removeComponent("a", "Transform", &removed, &index));
-    CHECK(document.removeComponent("a", "Sprite", &removed, &index));
-    CHECK(index == 1);
-    CHECK(removed["flip"] == "None");
+    Json before;
+    REQUIRE(document.replaceNode("a", Json{{"id", "a"}, {"type", "Sprite"}, {"name", "A"}}, &before));
+    CHECK(document.typeOf("a") == "Sprite");
+    CHECK(document.childrenOf("a") == ids({"a1", "a2"}));
+    CHECK(before["type"] == "Node2D");
+    CHECK_FALSE(before.contains("children"));
+    CHECK_FALSE(document.replaceNode("a", Json{{"id", "other"}, {"type", "Sprite"}}, &before));
 }
 
 TEST_CASE("a file that is not a scene is refused with a reason")
@@ -121,45 +199,28 @@ TEST_CASE("a file that is not a scene is refused with a reason")
     SceneDocument document;
     std::string error;
     CHECK_FALSE(document.parse("[]", &error));
+    CHECK_FALSE(document.parse(R"({"version": 1, "nodes": []})", &error));
+    CHECK(error.find("version 1") != std::string::npos);
     CHECK_FALSE(document.parse(R"({"version": 2, "objects": []})", &error));
-    CHECK(error.find("version 2") != std::string::npos);
-    CHECK_FALSE(document.parse(R"({"version": 1, "objects": [{"name": "no id"}]})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": [{"type": "Node", "name": "no id"}]})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": [{"id": "a"}]})", &error));
+    CHECK(error.find("no type") != std::string::npos);
+    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": [{"id": "a", "type": "Node", "children": [{"id": "a", "type": "Node"}]}]})", &error));
+    CHECK(error.find("used twice") != std::string::npos);
     CHECK_FALSE(document.load("/nonexistent/scene.json", &error));
 }
 
-TEST_CASE("a component of a type the player does not know is kept as it is")
+TEST_CASE("a node of a type the player does not know is kept as it is")
 {
     SceneDocument document = SceneDocument::empty("Main");
-    Json custom = {{"id", "a"},
-                   {"name", "A"},
-                   {"components", Json::array({Json{{"type", "Transform"}, {"x", 1}}, Json{{"type", "Mystery"}, {"target", "b"}, {"depth", 3}}})}};
-    REQUIRE(document.insertObject(0, custom));
+    Json custom = {{"id", "a"}, {"name", "A"}, {"type", "Mystery"}, {"target", "b"}, {"depth", 3}};
+    REQUIRE(document.insertNode("", 0, custom));
 
     std::string path = (std::filesystem::temp_directory_path() / "fried-unknown-type.scene.json").string();
     std::string error;
     REQUIRE(document.save(path, &error));
     SceneDocument reloaded = SceneDocument::empty("Other");
     REQUIRE(reloaded.load(path, &error));
-    CHECK(reloaded.data()["objects"][0] == custom);
+    CHECK(reloaded.data()["nodes"][0] == custom);
     std::filesystem::remove(path);
-}
-
-TEST_CASE("the sandbox's scene files are in the form the editor writes" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
-{
-    for (const char *name : {"sandbox", "sandbox_ui"})
-    {
-        std::string path = std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/" + name + ".scene.json";
-        std::string error;
-        SceneDocument document = SceneDocument::empty("x");
-        REQUIRE(document.load(path, &error));
-        std::string again = (std::filesystem::temp_directory_path() / (std::string(name) + "-again.scene.json")).string();
-        REQUIRE(document.save(again, &error));
-
-        std::ifstream first(path), second(again);
-        std::stringstream a, b;
-        a << first.rdbuf();
-        b << second.rdbuf();
-        CHECK(a.str() == b.str());
-        std::filesystem::remove(again);
-    }
 }

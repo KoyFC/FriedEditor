@@ -4,7 +4,7 @@ FriedEditor is the scene editor for [Fried Engine](https://github.com/KoyFC/Frie
 
 ## Decisions
 
-- v1 is 2D only, with no hierarchy and built-in components only.
+- v1 is 2D only, with no hierarchy and built-in components only. Section 14 replaced that with a tree of typed nodes.
 - A scene is a JSON file under the project's `assets/scenes/`, written by this editor and only read by the engine.
 - The editor is split into `core/`, which has no UI or Qt dependency and is tested headless, and `ui/<toolkit>/`, which only draws and forwards input. Qt came first and Dear ImGui replaced it: ImGui is the editor now and the Qt backend is no longer extended. Nothing under `core/` may include a UI header.
 - The viewport is a separate engine process, the editor player, that renders offscreen on request and talks to the editor over loopback TCP.
@@ -110,6 +110,17 @@ Known limit: a position that depends on the screen's size, such as the right edg
 - [x] A page per platform: its icon from any image, its packaging text, and its build with the output as it is printed
 - [x] The Project Manager on FriedCore
 
+### 14. Nodes (FriedEngine and FriedEditor)
+
+- [x] The engine's scenes are trees of typed nodes, with no game objects or components: `Node`, `CanvasItem`, `Node2D` and `Control`, scene file version 2
+- [x] The document is a tree: nodes are inserted, moved under another node and removed with their subtree, and the camera goes with a subtree that held it
+- [x] Commands for fields, several fields at once, adding, removing and moving a node, changing its class and the camera
+- [x] Protocol 2: the schema lists classes with the class each extends and the fields it declares, and a frame gives each node's parent's world values
+- [x] The hierarchy is a tree with drag and drop, a right click menu and rename
+- [x] The inspector has one section for each class of the node's chain
+- [x] A `Node2D` under a rotated or scaled parent is dragged in its own coordinates, and a `Control` is anchored to its parent's rectangle
+- [ ] The player changes its tree in place for adding, removing and moving, and the hierarchy and inspector are cached and clipped for scenes of thousands of nodes
+
 ## Later
 
-A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, hierarchy, a `screen` field for dual-screen platforms, 3D components, per-platform asset variants.
+A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, a `screen` field for dual-screen platforms, 3D nodes, per-platform asset variants.
