@@ -108,7 +108,7 @@ Known limit: a position that depends on the screen's size, such as the right edg
 - [x] FriedCore, the library shared with the Project Manager: the project file, the steps of a build, the programs that run them and each platform's icon
 - [x] File, Project Settings: the project's identity, start scene and display, saved to `project.fried` as they change, with the viewport following
 - [x] A page per platform: its icon from any image, its packaging text, and its build with the output as it is printed
-- [ ] The Project Manager on FriedCore
+- [x] The Project Manager on FriedCore
 
 ## Later
 
