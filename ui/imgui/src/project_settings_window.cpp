@@ -20,6 +20,7 @@ namespace
     constexpr float s_iconPreviewBase = 128;
     constexpr double s_issuesLifetime = 3.0;
     constexpr int s_framerates[] = {0, 30, 60, 75, 90, 120, 144, 165, 240};
+    constexpr int s_physicsRates[] = {20, 30, 60, 90, 120, 144, 240};
 
     // The label on the left and the widget filling the rest, which is how a settings page reads.
     void row(const char *label)
@@ -255,6 +256,50 @@ namespace imgui_backend
         }
         ImGui::EndDisabled();
         ImGui::TextDisabled("Only used while vsync is off, as the rate the game starts at (0 is no limit). The game can change it afterwards, for example from a settings menu.");
+
+        int physicsRate = project.physicsRate();
+        bool isPhysicsPreset = std::find(std::begin(s_physicsRates), std::end(s_physicsRates), physicsRate) != std::end(s_physicsRates);
+        bool isPhysicsCustom = m_isPhysicsRateCustom || !isPhysicsPreset;
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Physics rate");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(scaled(140));
+        std::string physicsShown = isPhysicsCustom ? "Custom" : std::to_string(physicsRate) + " steps/s";
+        if (ImGui::BeginCombo("##physicsRate", physicsShown.c_str()))
+        {
+            for (int choice : s_physicsRates)
+            {
+                std::string label = std::to_string(choice) + " steps/s";
+                if (ImGui::Selectable(label.c_str(), !isPhysicsCustom && choice == physicsRate))
+                {
+                    m_isPhysicsRateCustom = false;
+                    m_settingErrors["PhysicsRate"] = settings.setPhysicsRate(choice);
+                }
+            }
+            if (ImGui::Selectable("Custom", isPhysicsCustom))
+            {
+                m_isPhysicsRateCustom = true;
+            }
+            ImGui::EndCombo();
+        }
+        if (isPhysicsCustom)
+        {
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(scaled(100));
+            if (ImGui::InputInt("##customPhysicsRate", &physicsRate, 0))
+            {
+                m_settingErrors["PhysicsRate"] = settings.setPhysicsRate(physicsRate);
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("steps/s");
+        }
+        ImGui::TextDisabled("The fixed steps a second the game runs fixedUpdate and its kinematic bodies at, whatever the frame rate. A console that cannot afford 60 may ask for 30.");
+        if (!m_settingErrors["PhysicsRate"].empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+            ImGui::TextWrapped("%s", m_settingErrors["PhysicsRate"].c_str());
+            ImGui::PopStyleColor();
+        }
 
         std::pair<int, int> size = project.logicalSize(m_editor.platform());
         ImGui::TextDisabled("On the %s the game draws in %dx%d, which is the frame the viewport shows.", fried::editor::platformLabel(m_editor.platform()).c_str(),

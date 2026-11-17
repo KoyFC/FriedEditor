@@ -100,6 +100,7 @@ namespace imgui_backend
         std::string m_iconError;
         std::map<fried::editor::Platform, int> m_buildTargetChoice;
         bool m_isFramerateCustom = false;
+        bool m_isPhysicsRateCustom = false;
         std::vector<fried::editor::AssetIssue> m_buildIssues;
         double m_buildIssuesCheckedAt = -100;
         int m_buildIssuesTarget = -1;

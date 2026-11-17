@@ -136,6 +136,19 @@ TEST_CASE("vsync is saved as it is turned off and on")
     CHECK(project.read("project.fried").find("vsync") == std::string::npos);
 }
 
+TEST_CASE("the physics rate is saved, leaves no key at 60 and refuses one out of range")
+{
+    TemporaryProject project("physics-rate");
+    ProjectSettings settings(project.m_project);
+    CHECK(project.m_project.physicsRate() == 60);
+    CHECK(settings.setPhysicsRate(0) == "The physics rate must be between 1 and 1000 steps a second.");
+    CHECK(settings.setPhysicsRate(1001) == "The physics rate must be between 1 and 1000 steps a second.");
+    CHECK(settings.setPhysicsRate(30).empty());
+    CHECK(project.read("project.fried").find("\"physicsRate\": 30") != std::string::npos);
+    CHECK(settings.setPhysicsRate(60).empty());
+    CHECK(project.read("project.fried").find("physicsRate") == std::string::npos);
+}
+
 TEST_CASE("the default target framerate is saved and refuses a negative one")
 {
     TemporaryProject project("framerate");

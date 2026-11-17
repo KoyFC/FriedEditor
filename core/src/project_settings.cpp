@@ -115,6 +115,12 @@ namespace fried::editor
         return apply(value < 0 ? "The target framerate cannot be negative." : std::string(), [&](Project &project) { project.setDefaultTargetFramerate(value); });
     }
 
+    std::string ProjectSettings::setPhysicsRate(int value)
+    {
+        return apply(value < 1 || value > 1000 ? "The physics rate must be between 1 and 1000 steps a second." : std::string(),
+                     [&](Project &project) { project.setPhysicsRate(value); });
+    }
+
     std::string ProjectSettings::setDisplay(const DisplaySettings &value)
     {
         std::string problem;
