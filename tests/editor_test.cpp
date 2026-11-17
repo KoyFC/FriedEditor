@@ -148,6 +148,47 @@ TEST_CASE("the editor shows the sandbox's scene with the nodes of the game" * do
     CHECK(sections[4].m_fields[0].m_schema.m_name == "name");
 }
 
+TEST_CASE("the move handle of a child is where the child is in the world, not at the world's origin" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    for (int attempt = 0; attempt < 120000 && editor.status() != Editor::Status::Ready && editor.status() != Editor::Status::Failed; ++attempt)
+    {
+        editor.pump();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE(editor.status() == Editor::Status::Ready);
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
+    REQUIRE(editor.frame().m_bounds.size() == 14);
+
+    editor.setGizmoMode(GizmoMode::Move);
+    for (const char *id : {"player-hitbox", "player", "post-0"})
+    {
+        const ObjectBounds *box = nullptr;
+        for (const ObjectBounds &candidate : editor.frame().m_bounds)
+        {
+            if (candidate.m_id == id)
+            {
+                box = &candidate;
+            }
+        }
+        REQUIRE(box != nullptr);
+        REQUIRE(box->m_origin.has_value());
+        editor.select(std::string(id));
+        std::vector<GizmoHandle> handles = editor.handlesFor(editor.viewport());
+        REQUIRE(handles.size() == 2);
+        CHECK(handles[0].m_originX == doctest::Approx(editor.viewport().worldToFrameX(box->m_origin->first)));
+        CHECK(handles[0].m_originY == doctest::Approx(editor.viewport().worldToFrameY(box->m_origin->second)));
+    }
+
+    // The hitbox's own x and y are zero, its parent's are not, and the handle follows where it is drawn.
+    editor.select(std::string("player-hitbox"));
+    CHECK(editor.handlesFor(editor.viewport())[0].m_originX != doctest::Approx(editor.viewport().worldToFrameX(0)));
+}
+
 TEST_CASE("the overlay stays with the picture it was drawn for while the view is panned" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
 {
     std::string engine = std::getenv("FRIED_ENGINE");

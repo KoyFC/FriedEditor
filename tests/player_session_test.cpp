@@ -96,6 +96,16 @@ TEST_CASE("a session greets the player, learns the schema and relays requests")
     REQUIRE(received.m_bounds[0].m_parent.has_value());
     CHECK(received.m_bounds[0].m_parent->m_rotation == 30);
     CHECK(received.m_bounds[0].m_parent->m_scaleY == 4);
+    CHECK_FALSE(received.m_bounds[0].m_origin.has_value());
+
+    nlohmann::json placed = {{"id", "child"}, {"x", 0}, {"y", 0}, {"width", 1}, {"height", 1}, {"originX", 288.5}, {"originY", -4}};
+    received = Frame();
+    REQUIRE(player.send({{"type", "frame"}, {"width", 1}, {"height", 1}, {"bounds", nlohmann::json::array({placed})}}));
+    pumpUntil(session, [&] { return received.m_width != 0; });
+    REQUIRE(received.m_bounds.size() == 1);
+    REQUIRE(received.m_bounds[0].m_origin.has_value());
+    CHECK(received.m_bounds[0].m_origin->first == 288.5);
+    CHECK(received.m_bounds[0].m_origin->second == -4);
     CHECK(reported.empty());
 }
 

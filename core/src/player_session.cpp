@@ -142,6 +142,10 @@ namespace fried::editor
             {
                 ObjectBounds box{bounds.value("id", ""), bounds.value("x", 0.0), bounds.value("y", 0.0), bounds.value("width", 0.0),
                                  bounds.value("height", 0.0), std::nullopt};
+                if (bounds.contains("originX") && bounds.contains("originY") && bounds["originX"].is_number() && bounds["originY"].is_number())
+                {
+                    box.m_origin = std::make_pair(bounds["originX"].get<double>(), bounds["originY"].get<double>());
+                }
                 if (bounds.contains("parent") && bounds["parent"].is_object())
                 {
                     const auto &parent = bounds["parent"];

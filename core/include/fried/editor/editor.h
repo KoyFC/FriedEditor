@@ -254,6 +254,9 @@ namespace fried::editor
         // Something the backend shows has changed: a frame, the selection, the document or the status.
         std::function<void()> m_onChanged;
 
+        // The handles of the gizmo on the selected node, as they are placed in a view.
+        std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
+
     private:
         void startPlayer();
         void projectChanged();
@@ -269,7 +272,6 @@ namespace fried::editor
         // What a drag asks of a node's position, as the fields to write. A Control's position is a result of its layout, so moving it changes its offsets, or its insets where it stretches, and a Node2D under another is moved by what the parent's rotation and scale turn the drag into.
         std::map<std::string, double> dragFields(const std::string &id, std::map<std::string, double> fields);
         std::vector<GizmoHandle> currentHandles() const;
-        std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
         double gameCameraZoom() const;
         void execute(std::unique_ptr<Command> command, bool merge);
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);

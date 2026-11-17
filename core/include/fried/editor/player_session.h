@@ -50,6 +50,9 @@ namespace fried::editor
         double m_width = 0;
         double m_height = 0;
         std::optional<ParentValues> m_parent;
+
+        // Where the node is in the world, which its box does not always start at. A player that does not say leaves it empty.
+        std::optional<std::pair<double, double>> m_origin;
     };
 
     struct Frame

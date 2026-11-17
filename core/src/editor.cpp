@@ -1041,7 +1041,14 @@ namespace fried::editor
             {
                 if (box.m_id == *m_selected)
                 {
-                    return Gizmo::handles(m_gizmoMode, view, box, transformOf(box.m_id));
+                    // A handle is drawn where the node is in the world, and its fields are in its parent's space, so a child is placed by the origin the player reports.
+                    TransformValues transform = transformOf(box.m_id);
+                    if (box.m_origin)
+                    {
+                        transform.m_x = box.m_origin->first;
+                        transform.m_y = box.m_origin->second;
+                    }
+                    return Gizmo::handles(m_gizmoMode, view, box, transform);
                 }
             }
         }
