@@ -1194,18 +1194,35 @@ namespace fried::editor
             }
         }
 
-        std::optional<std::string> hit = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY);
-        select(hit);
-        if (hit)
+        // A press on what is not selected only selects it. What is selected is moved by pressing anywhere inside its box, even where a child sits on top of it, so a node is never dragged out from under the pointer by what covers it.
+        if (isOverSelected(frameX, frameY))
         {
             m_drag.m_kind = Drag::Kind::Object;
-            m_drag.m_id = *hit;
+            m_drag.m_id = *m_selected;
             m_drag.m_startWorldX = m_viewport.frameToWorldX(frameX);
             m_drag.m_startWorldY = m_viewport.frameToWorldY(frameY);
-            TransformValues values = transformOf(*hit);
+            TransformValues values = transformOf(*m_selected);
             m_drag.m_startX = values.m_x;
             m_drag.m_startY = values.m_y;
+            return;
         }
+        select(Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY));
+    }
+
+    bool Editor::isOverSelected(double frameX, double frameY) const
+    {
+        if (!m_selected)
+        {
+            return false;
+        }
+        for (const ObjectBounds &box : m_frame.m_bounds)
+        {
+            if (box.m_id == *m_selected)
+            {
+                return Viewport::hit(m_viewport, {box}, frameX, frameY).has_value();
+            }
+        }
+        return false;
     }
 
     Editor::PointerTarget Editor::pointerTarget(double frameX, double frameY) const
@@ -1231,7 +1248,7 @@ namespace fried::editor
             target.m_kind = PointerTarget::Kind::Handle;
             target.m_handle = handle->m_kind;
         }
-        else if (Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
+        else if (isOverSelected(frameX, frameY))
         {
             target.m_kind = PointerTarget::Kind::Object;
         }

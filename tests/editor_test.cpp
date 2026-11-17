@@ -40,6 +40,11 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
     CHECK(editor.selected() == std::optional<std::string>("sprite"));
     editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
+    editor.pointerUp();
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+
+    editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
+    editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
     editor.pointerMove(view.worldToFrameX(320) + 40, view.worldToFrameY(200) + 20);
     editor.pointerUp();
     CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(328));
@@ -183,6 +188,51 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
         CHECK(handles[0].m_originX == doctest::Approx(editor.viewport().worldToFrameX(box->m_origin->first)));
         CHECK(handles[0].m_originY == doctest::Approx(editor.viewport().worldToFrameY(box->m_origin->second)));
     }
+
+    // What is selected is dragged from anywhere inside its box, even where its child is drawn over it, and the child is not picked up instead.
+    const ObjectBounds *player = nullptr;
+    const ObjectBounds *hitbox = nullptr;
+    for (const ObjectBounds &candidate : editor.frame().m_bounds)
+    {
+        if (candidate.m_id == "player")
+        {
+            player = &candidate;
+        }
+        else if (candidate.m_id == "player-hitbox")
+        {
+            hitbox = &candidate;
+        }
+    }
+    REQUIRE(player != nullptr);
+    REQUIRE(hitbox != nullptr);
+    editor.select(std::string("player"));
+    const Viewport &view = editor.viewport();
+    // A point where the hitbox is what a press would pick and no handle is, since other nodes and the gizmo can cover parts of it.
+    double pressX = 0;
+    double pressY = 0;
+    bool found = false;
+    for (int column = 1; column < 8 && !found; ++column)
+    {
+        for (int row = 1; row < 8 && !found; ++row)
+        {
+            double x = view.worldToFrameX(hitbox->m_x + hitbox->m_width * column / 8);
+            double y = view.worldToFrameY(hitbox->m_y + hitbox->m_height * row / 8);
+            if (Viewport::hit(view, editor.frame().m_bounds, x, y) == std::optional<std::string>("player-hitbox") && !Gizmo::hit(editor.handlesFor(view), x, y))
+            {
+                pressX = x;
+                pressY = y;
+                found = true;
+            }
+        }
+    }
+    REQUIRE(found);
+    CHECK(editor.pointerTarget(pressX, pressY).m_kind == Editor::PointerTarget::Kind::Object);
+    auto before = editor.document().nodeField("player", "x");
+    editor.pointerDown(pressX, pressY, Editor::Pointer::Primary);
+    editor.pointerMove(pressX + 20 * view.zoom(), pressY);
+    editor.pointerUp();
+    CHECK(editor.selected() == std::optional<std::string>("player"));
+    CHECK(editor.document().nodeField("player", "x") != before);
 
     // The hitbox's own x and y are zero, its parent's are not, and the handle follows where it is drawn.
     editor.select(std::string("player-hitbox"));

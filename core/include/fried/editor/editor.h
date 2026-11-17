@@ -251,6 +251,9 @@ namespace fried::editor
         };
         PointerTarget pointerTarget(double frameX, double frameY) const;
 
+        // Whether a point is inside the selected node's box, whatever is drawn over it.
+        bool isOverSelected(double frameX, double frameY) const;
+
         // Something the backend shows has changed: a frame, the selection, the document or the status.
         std::function<void()> m_onChanged;
 
