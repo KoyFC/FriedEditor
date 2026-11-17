@@ -19,6 +19,7 @@ namespace
     constexpr float s_labelBase = 150;
     constexpr float s_iconPreviewBase = 128;
     constexpr double s_issuesLifetime = 3.0;
+    constexpr int s_framerates[] = {0, 30, 60, 75, 90, 120, 144, 165, 240};
 
     // The label on the left and the widget filling the rest, which is how a settings page reads.
     void row(const char *label)
@@ -217,14 +218,40 @@ namespace imgui_backend
 
         ImGui::BeginDisabled(vsync);
         int framerate = project.defaultTargetFramerate();
+        bool isPreset = std::find(std::begin(s_framerates), std::end(s_framerates), framerate) != std::end(s_framerates);
+        bool isCustom = m_isFramerateCustom || !isPreset;
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("Default target framerate");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(scaled(100));
-        if (ImGui::InputInt("##defaultTargetFramerate", &framerate, 0) )
+        ImGui::SetNextItemWidth(scaled(140));
+        std::string shown = isCustom ? "Custom" : framerate == 0 ? "No limit" : std::to_string(framerate) + " fps";
+        if (ImGui::BeginCombo("##defaultTargetFramerate", shown.c_str()))
         {
-            framerate = std::max(framerate, 0);
-            m_settingErrors["Framerate"] = settings.setDefaultTargetFramerate(framerate);
+            for (int choice : s_framerates)
+            {
+                std::string label = choice == 0 ? "No limit" : std::to_string(choice) + " fps";
+                if (ImGui::Selectable(label.c_str(), !isCustom && choice == framerate))
+                {
+                    m_isFramerateCustom = false;
+                    m_settingErrors["Framerate"] = settings.setDefaultTargetFramerate(choice);
+                }
+            }
+            if (ImGui::Selectable("Custom", isCustom))
+            {
+                m_isFramerateCustom = true;
+            }
+            ImGui::EndCombo();
+        }
+        if (isCustom)
+        {
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(scaled(100));
+            if (ImGui::InputInt("##customFramerate", &framerate, 0))
+            {
+                m_settingErrors["Framerate"] = settings.setDefaultTargetFramerate(std::max(framerate, 0));
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("fps");
         }
         ImGui::EndDisabled();
         ImGui::TextDisabled("Only used while vsync is off, as the rate the game starts at (0 is no limit). The game can change it afterwards, for example from a settings menu.");
