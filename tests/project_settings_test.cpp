@@ -123,6 +123,19 @@ TEST_CASE("the display is saved and changes the size the game draws in on a plat
     CHECK(project.read("project.fried").find("width") == std::string::npos);
 }
 
+TEST_CASE("vsync is saved as it is turned off and on")
+{
+    TemporaryProject project("vsync");
+    ProjectSettings settings(project.m_project);
+    CHECK(project.m_project.vsync());
+
+    CHECK(settings.setVsync(false).empty());
+    CHECK(project.read("project.fried").find("\"vsync\": false") != std::string::npos);
+
+    CHECK(settings.setVsync(true).empty());
+    CHECK(project.read("project.fried").find("vsync") == std::string::npos);
+}
+
 TEST_CASE("the start scene is one of the project's scene files")
 {
     TemporaryProject project("scenes");

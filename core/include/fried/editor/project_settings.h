@@ -27,6 +27,7 @@ namespace fried::editor
         std::string setStartScene(const std::string &value);
         std::string setVitaTitleId(const std::string &value);
         std::string setDisplay(const DisplaySettings &value);
+        std::string setVsync(bool value);
 
         // The 3DS's description and the DS's two subtitles, which are the only lines of packaging text there are.
         std::string setPackagingText(const std::string &section, const std::string &key, const std::string &value);

@@ -46,7 +46,15 @@ namespace imgui_backend
         if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse))
         {
             m_isSettingsShown = true;
-            ImGui::BeginChild("##pages", ImVec2(s_listWidth, 0), ImGuiChildFlags_Borders);
+            Platform shown = m_settingsPage == 0 ? Platform::Pc : fried::core::s_platforms[m_settingsPage - 1];
+            size_t targetCount = m_settingsPage == 0 ? 0 : fried::editor::ProjectBuild::targetsOf(shown).size();
+            float stripHeight = 0;
+            if (targetCount > 0)
+            {
+                int rows = targetCount > 1 ? 4 : 3;
+                stripHeight = rows * ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().WindowPadding.y * 2 + ImGui::GetStyle().ItemSpacing.y;
+            }
+            ImGui::BeginChild("##pages", ImVec2(s_listWidth, -stripHeight), ImGuiChildFlags_Borders);
             if (ImGui::Selectable("Project", m_settingsPage == 0))
             {
                 m_settingsPage = 0;
@@ -65,7 +73,7 @@ namespace imgui_backend
             ImGui::EndChild();
 
             ImGui::SameLine();
-            ImGui::BeginChild("##page", ImVec2(0, 0));
+            ImGui::BeginChild("##page", ImVec2(0, -stripHeight));
             if (m_settingsPage == 0)
             {
                 projectPage();
@@ -75,6 +83,13 @@ namespace imgui_backend
                 platformPage(fried::core::s_platforms[m_settingsPage - 1]);
             }
             ImGui::EndChild();
+
+            if (targetCount > 0)
+            {
+                ImGui::BeginChild("##buildSettings", ImVec2(0, 0), ImGuiChildFlags_Borders);
+                buildSettingsStrip(shown);
+                ImGui::EndChild();
+            }
         }
         ImGui::End();
     }
@@ -191,6 +206,14 @@ namespace imgui_backend
             ImGui::TextWrapped("%s", m_settingErrors["Display"].c_str());
             ImGui::PopStyleColor();
         }
+
+        bool vsync = project.vsync();
+        if (ImGui::Checkbox("Vsync", &vsync))
+        {
+            m_settingErrors["Vsync"] = settings.setVsync(vsync);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Desktop windows only, consoles ignore it.");
 
         std::pair<int, int> size = project.logicalSize(m_editor.platform());
         ImGui::TextDisabled("On the %s the game draws in %dx%d, which is the frame the viewport shows.", fried::editor::platformLabel(m_editor.platform()).c_str(),
@@ -355,16 +378,19 @@ namespace imgui_backend
         }
     }
 
-    void Panels::buildSection(Platform platform)
+    BuildTarget Panels::selectedTarget(Platform platform)
+    {
+        std::vector<BuildTarget> targets = fried::editor::ProjectBuild::targetsOf(platform);
+        int &choice = m_buildTargetChoice[platform];
+        choice = std::clamp(choice, 0, std::max(0, (int)targets.size() - 1));
+        return targets[choice];
+    }
+
+    // The settings of a build, kept below both columns so they stay in view whatever the page holds.
+    void Panels::buildSettingsStrip(Platform platform)
     {
         fried::editor::ProjectBuild &build = m_editor.projectBuild();
         std::vector<BuildTarget> targets = fried::editor::ProjectBuild::targetsOf(platform);
-        if (targets.empty())
-        {
-            return;
-        }
-
-        ImGui::SeparatorText("Build");
         int &choice = m_buildTargetChoice[platform];
         choice = std::clamp(choice, 0, (int)targets.size() - 1);
         if (targets.size() > 1)
@@ -407,6 +433,19 @@ namespace imgui_backend
         {
             build.setSettings(target, settings);
         }
+    }
+
+    void Panels::buildSection(Platform platform)
+    {
+        fried::editor::ProjectBuild &build = m_editor.projectBuild();
+        std::vector<BuildTarget> targets = fried::editor::ProjectBuild::targetsOf(platform);
+        if (targets.empty())
+        {
+            return;
+        }
+
+        ImGui::SeparatorText("Build");
+        BuildTarget target = selectedTarget(platform);
 
         std::string status = build.status(target);
         bool isReady = build.isReady(target);

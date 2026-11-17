@@ -105,6 +105,11 @@ namespace fried::editor
         return apply(named("The title ID", Project::checkVitaTitleId(value)), [&](Project &project) { project.setVitaTitleId(value); });
     }
 
+    std::string ProjectSettings::setVsync(bool value)
+    {
+        return apply(std::string(), [&](Project &project) { project.setVsync(value); });
+    }
+
     std::string ProjectSettings::setDisplay(const DisplaySettings &value)
     {
         std::string problem;
