@@ -138,6 +138,10 @@ namespace imgui_backend
                     panels.fileDropped(event.drop.file);
                     SDL_free(event.drop.file);
                 }
+                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                {
+                    editor.refreshAssets();
+                }
                 if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
                 {
                     if (editor.commands().isClean())

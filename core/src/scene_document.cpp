@@ -11,6 +11,8 @@ namespace fried::editor
 
     namespace
     {
+        unsigned long s_versionCounter = 0;
+
         // Sets or erases one key.
         void assign(Json &node, const std::string &key, const std::optional<Json> &value)
         {
@@ -127,6 +129,7 @@ namespace fried::editor
             return false;
         }
         next.m_name = next.m_data.value("name", "");
+        next.m_version = ++s_versionCounter;
         next.m_onChange = std::move(m_onChange);
         *this = std::move(next);
         m_isModified = false;
@@ -300,7 +303,7 @@ namespace fried::editor
         {
             m_data.erase("camera");
         }
-        changed({DocumentChange::Kind::Structure});
+        changed({DocumentChange::Kind::Camera});
     }
 
     bool SceneDocument::insertNode(const std::string &parentId, int index, const Json &inserted)
@@ -330,7 +333,7 @@ namespace fried::editor
         }
         list->insert(list->begin() + index, inserted);
         reindex();
-        changed({DocumentChange::Kind::Structure, inserted.value("id", "")});
+        changed({DocumentChange::Kind::Added, inserted.value("id", ""), "", inserted, parentId, index});
         return true;
     }
 
@@ -359,7 +362,7 @@ namespace fried::editor
             find(*parentId)->erase("children");
         }
         reindex();
-        changed({DocumentChange::Kind::Structure, id});
+        changed({DocumentChange::Kind::Removed, id, "", Json(), *parentId, *index});
         return true;
     }
 
@@ -390,7 +393,7 @@ namespace fried::editor
         }
         reindex();
         m_onChange = std::move(handler);
-        changed({DocumentChange::Kind::Structure, id});
+        changed({DocumentChange::Kind::Moved, id, "", Json(), parentId, index});
         return true;
     }
 
@@ -439,6 +442,7 @@ namespace fried::editor
     void SceneDocument::changed(const DocumentChange &change)
     {
         m_isModified = true;
+        m_version = ++s_versionCounter;
         if (m_onChange)
         {
             m_onChange(change);

@@ -15,17 +15,27 @@ namespace fried::editor
     {
         enum class Kind
         {
-            // Nodes were added, removed, moved or changed type, so the whole scene has to be shown again.
+            // A node changed class, so the whole scene has to be shown again.
             Structure,
 
+            // A node, with its children as m_value, was put in the tree at m_index under m_parentId.
+            Added,
+            Removed,
+            Moved,
+
             // One value changed, which can be applied in place.
-            Field
+            Field,
+
+            // Which node is the scene's camera changed, which nothing shown depends on.
+            Camera
         };
 
         Kind m_kind = Kind::Structure;
         std::string m_nodeId;
         std::string m_field;
         nlohmann::json m_value;
+        std::string m_parentId;
+        int m_index = 0;
     };
 
     // A scene file in memory, the only copy of it the editor edits. A scene is a tree of nodes: each has a type, an id, and fields, and may have children. Every edit is a method here, which is what undo is written against, and each one reports itself.
@@ -83,6 +93,9 @@ namespace fried::editor
         // Gives a node other contents, and says what they were. Its children stay.
         bool replaceNode(const std::string &id, const nlohmann::json &contents, nlohmann::json *before);
 
+        // Changes with every edit and is never the same for two documents, so what is derived from a document can tell whether it is out of date.
+        unsigned long version() const { return m_version; }
+
         bool isModified() const { return m_isModified; }
         void markSaved() { m_isModified = false; }
 
@@ -106,6 +119,7 @@ namespace fried::editor
         nlohmann::json m_data;
         std::string m_name;
         bool m_isModified = false;
+        unsigned long m_version = 0;
         std::unordered_map<std::string, Location> m_index;
         std::vector<std::string> m_order;
     };

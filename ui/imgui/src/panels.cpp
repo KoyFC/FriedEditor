@@ -565,136 +565,145 @@ namespace imgui_backend
         }
         ImGui::Separator();
 
-        const std::vector<fried::editor::HierarchyRow> rows = m_editor.hierarchy();
-        int openDepth = 0;
+        const std::vector<fried::editor::HierarchyRow> &rows = m_editor.hierarchy();
+
+        // The rows under a collapsed node are left out before anything is drawn, and only the rows in view are drawn of the rest, so a scene of thousands of nodes costs what fits on the screen.
+        m_visibleRows.clear();
+        int hiddenBelowDepth = -1;
         for (std::size_t position = 0; position < rows.size(); ++position)
         {
-            const auto &row = rows[position];
-            while (openDepth > row.m_depth)
+            if (hiddenBelowDepth >= 0 && rows[position].m_depth > hiddenBelowDepth)
             {
-                ImGui::TreePop();
-                --openDepth;
+                continue;
             }
-            bool isSelected = m_editor.selected() && *m_editor.selected() == row.m_id;
-            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
-            flags |= isSelected ? ImGuiTreeNodeFlags_Selected : 0;
-            flags |= row.m_hasChildren ? 0 : (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
-            std::string text = row.m_name + (row.m_isCamera ? "   camera" : "");
-            bool isOpen = ImGui::TreeNodeEx(row.m_id.c_str(), flags, "%s", text.c_str());
+            hiddenBelowDepth = -1;
+            m_visibleRows.push_back(position);
+            if (rows[position].m_hasChildren && m_collapsed.count(rows[position].m_id))
+            {
+                hiddenBelowDepth = rows[position].m_depth;
+            }
+        }
 
-            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+        ImGuiListClipper clipper;
+        clipper.Begin((int)m_visibleRows.size());
+        while (clipper.Step())
+        {
+            for (int visible = clipper.DisplayStart; visible < clipper.DisplayEnd; ++visible)
             {
-                m_editor.select(row.m_id);
-            }
-            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
-            {
-                m_renameId = row.m_id;
-                m_renameText = row.m_name;
-                m_isRenameAsked = true;
-            }
-
-            if (ImGui::BeginDragDropSource())
-            {
-                ImGui::SetDragDropPayload(s_nodePayload, row.m_id.c_str(), row.m_id.size() + 1);
-                ImGui::TextUnformatted(row.m_name.c_str());
-                ImGui::EndDragDropSource();
-            }
-            if (ImGui::BeginDragDropTarget())
-            {
-                if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_nodePayload, ImGuiDragDropFlags_AcceptNoDrawDefaultRect))
+                const auto &row = rows[m_visibleRows[visible]];
+                bool isSelected = m_editor.selected() && *m_editor.selected() == row.m_id;
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                flags |= isSelected ? ImGuiTreeNodeFlags_Selected : 0;
+                flags |= row.m_hasChildren ? 0 : ImGuiTreeNodeFlags_Leaf;
+                std::string text = row.m_name + (row.m_isCamera ? "   camera" : "");
+                float indent = row.m_depth * ImGui::GetTreeNodeToLabelSpacing();
+                ImGui::Indent(indent);
+                ImGui::SetNextItemOpen(!m_collapsed.count(row.m_id));
+                bool isOpen = ImGui::TreeNodeEx(row.m_id.c_str(), flags, "%s", text.c_str());
+                ImGui::Unindent(indent);
+                if (row.m_hasChildren)
                 {
-                    std::string dropped((const char *)payload->Data);
-                    ImVec2 low = ImGui::GetItemRectMin();
-                    ImVec2 high = ImGui::GetItemRectMax();
-                    float place = (ImGui::GetMousePos().y - low.y) / std::max(1.0f, high.y - low.y);
-                    const fried::editor::SceneDocument &document = m_editor.document();
-                    if (place < 0.25f)
+                    if (isOpen)
                     {
-                        m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id));
-                    }
-                    else if (place > 0.75f && !(row.m_hasChildren && isOpen))
-                    {
-                        m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id) + 1);
+                        m_collapsed.erase(row.m_id);
                     }
                     else
                     {
-                        m_editor.reparent(dropped, row.m_id, document.childCount(row.m_id));
+                        m_collapsed.insert(row.m_id);
                     }
                 }
-                else if (payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType(s_nodePayload))
-                {
-                    // Shows where the drop would go.
-                    ImVec2 low = ImGui::GetItemRectMin();
-                    ImVec2 high = ImGui::GetItemRectMax();
-                    float place = (ImGui::GetMousePos().y - low.y) / std::max(1.0f, high.y - low.y);
-                    ImDrawList *list = ImGui::GetWindowDrawList();
-                    ImU32 color = IM_COL32(255, 200, 0, 255);
-                    if (place < 0.25f)
-                    {
-                        list->AddLine(ImVec2(low.x, low.y), ImVec2(high.x, low.y), color, 2.0f);
-                    }
-                    else if (place > 0.75f)
-                    {
-                        list->AddLine(ImVec2(low.x, high.y), ImVec2(high.x, high.y), color, 2.0f);
-                    }
-                    else
-                    {
-                        list->AddRect(low, high, color);
-                    }
-                }
-                ImGui::EndDragDropTarget();
-            }
 
-            if (ImGui::BeginPopupContextItem(("node-menu-" + row.m_id).c_str()))
-            {
-                m_editor.select(row.m_id);
-                if (ImGui::BeginMenu("Add Child"))
+                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
                 {
-                    classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, row.m_id); });
-                    ImGui::EndMenu();
+                    m_editor.select(row.m_id);
                 }
-                if (ImGui::BeginMenu("Change Type"))
-                {
-                    classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.changeType(row.m_id, type); });
-                    ImGui::EndMenu();
-                }
-                if (ImGui::MenuItem("Rename"))
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
                 {
                     m_renameId = row.m_id;
                     m_renameText = row.m_name;
                     m_isRenameAsked = true;
                 }
-                if (ImGui::MenuItem("Use as the Camera"))
-                {
-                    m_editor.setCameraToSelected();
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem("Delete"))
-                {
-                    m_editor.removeSelected();
-                }
-                ImGui::EndPopup();
-            }
 
-            if (row.m_hasChildren)
-            {
-                if (isOpen)
+                if (ImGui::BeginDragDropSource())
                 {
-                    ++openDepth;
+                    ImGui::SetDragDropPayload(s_nodePayload, row.m_id.c_str(), row.m_id.size() + 1);
+                    ImGui::TextUnformatted(row.m_name.c_str());
+                    ImGui::EndDragDropSource();
                 }
-                else
+                if (ImGui::BeginDragDropTarget())
                 {
-                    while (position + 1 < rows.size() && rows[position + 1].m_depth > row.m_depth)
+                    ImVec2 low = ImGui::GetItemRectMin();
+                    ImVec2 high = ImGui::GetItemRectMax();
+                    float place = (ImGui::GetMousePos().y - low.y) / std::max(1.0f, high.y - low.y);
+                    if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_nodePayload, ImGuiDragDropFlags_AcceptNoDrawDefaultRect))
                     {
-                        ++position;
+                        std::string dropped((const char *)payload->Data);
+                        const fried::editor::SceneDocument &document = m_editor.document();
+                        if (place < 0.25f)
+                        {
+                            m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id));
+                        }
+                        else if (place > 0.75f && !(row.m_hasChildren && isOpen))
+                        {
+                            m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id) + 1);
+                        }
+                        else
+                        {
+                            m_editor.reparent(dropped, row.m_id, document.childCount(row.m_id));
+                        }
                     }
+                    else if (const ImGuiPayload *held = ImGui::GetDragDropPayload(); held && held->IsDataType(s_nodePayload))
+                    {
+                        // Shows where the drop would go.
+                        ImDrawList *list = ImGui::GetWindowDrawList();
+                        ImU32 color = IM_COL32(255, 200, 0, 255);
+                        if (place < 0.25f)
+                        {
+                            list->AddLine(ImVec2(low.x, low.y), ImVec2(high.x, low.y), color, 2.0f);
+                        }
+                        else if (place > 0.75f)
+                        {
+                            list->AddLine(ImVec2(low.x, high.y), ImVec2(high.x, high.y), color, 2.0f);
+                        }
+                        else
+                        {
+                            list->AddRect(low, high, color);
+                        }
+                    }
+                    ImGui::EndDragDropTarget();
+                }
+
+                if (ImGui::BeginPopupContextItem(("node-menu-" + row.m_id).c_str()))
+                {
+                    m_editor.select(row.m_id);
+                    if (ImGui::BeginMenu("Add Child"))
+                    {
+                        classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, row.m_id); });
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Change Type"))
+                    {
+                        classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.changeType(row.m_id, type); });
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::MenuItem("Rename"))
+                    {
+                        m_renameId = row.m_id;
+                        m_renameText = row.m_name;
+                        m_isRenameAsked = true;
+                    }
+                    if (ImGui::MenuItem("Use as the Camera"))
+                    {
+                        m_editor.setCameraToSelected();
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Delete"))
+                    {
+                        m_editor.removeSelected();
+                    }
+                    ImGui::EndPopup();
                 }
             }
-        }
-        while (openDepth > 0)
-        {
-            ImGui::TreePop();
-            --openDepth;
         }
 
         if (m_isRenameAsked)
@@ -889,7 +898,7 @@ namespace imgui_backend
         {
             std::string current = field.m_value.is_string() ? field.m_value.get<std::string>() : std::string();
             std::string shown = "(none)";
-            std::vector<fried::editor::HierarchyRow> rows = m_editor.hierarchy();
+            const std::vector<fried::editor::HierarchyRow> &rows = m_editor.hierarchy();
             for (const auto &row : rows)
             {
                 if (row.m_id == current)

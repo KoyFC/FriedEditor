@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace imgui_backend
@@ -82,6 +83,8 @@ namespace imgui_backend
         fried::editor::Platform m_issuesPlatform = fried::editor::Platform::Pc;
         std::string m_issuesMessage;
         std::map<ImGuiID, std::string> m_textEdits;
+        std::unordered_set<std::string> m_collapsed;
+        std::vector<std::size_t> m_visibleRows;
         std::string m_renameId;
         std::string m_renameText;
         bool m_isRenameAsked = false;

@@ -218,6 +218,12 @@ namespace fried::editor
         m_session.m_onError = [this](const std::string &message) {
             m_message = message;
             m_isRenderInFlight = false;
+            // An edit the player could not make leaves it out of step with the document, so it is shown the whole scene once more. Only after such an edit, so a scene it cannot load does not ask again.
+            if (m_mayResync)
+            {
+                m_mayResync = false;
+                m_needsLoad = true;
+            }
             if (m_session.state() == PlayerSession::State::Closed)
             {
                 m_status = Status::Failed;
@@ -442,17 +448,23 @@ namespace fried::editor
         changed();
     }
 
-    std::vector<HierarchyRow> Editor::hierarchy() const
+    const std::vector<HierarchyRow> &Editor::hierarchy() const
     {
-        std::vector<HierarchyRow> rows;
+        if (m_hierarchyVersion == m_document.version() && m_hierarchyVersion != 0)
+        {
+            return m_hierarchyRows;
+        }
+        m_hierarchyRows.clear();
+        m_hierarchyRows.reserve(m_document.nodeCount());
         std::optional<std::string> camera = m_document.cameraId();
         for (const std::string &id : m_document.nodeIds())
         {
-            std::optional<Json> name = m_document.nodeField(id, "name");
-            rows.push_back({id, name && name->is_string() ? name->get<std::string>() : id, camera == id, m_document.depthOf(id),
-                            m_document.childCount(id) > 0});
+            const Json *node = m_document.node(id);
+            std::string name = node && node->contains("name") && (*node)["name"].is_string() ? (*node)["name"].get<std::string>() : id;
+            m_hierarchyRows.push_back({id, std::move(name), camera == id, m_document.depthOf(id), m_document.childCount(id) > 0});
         }
-        return rows;
+        m_hierarchyVersion = m_document.version();
+        return m_hierarchyRows;
     }
 
     bool Editor::isClassOf(const std::string &type, const std::string &ancestor) const
@@ -591,9 +603,18 @@ namespace fried::editor
         }
     }
 
-    std::vector<ClassView> Editor::inspector() const
+    const std::vector<ClassView> &Editor::inspector() const
     {
-        std::vector<ClassView> views;
+        if (m_inspectorVersion == m_document.version() && m_inspectorVersion != 0 && m_inspectorSelected == m_selected
+            && m_inspectorSchemaSize == m_session.schema().size())
+        {
+            return m_inspectorViews;
+        }
+        std::vector<ClassView> &views = m_inspectorViews;
+        views.clear();
+        m_inspectorVersion = m_document.version();
+        m_inspectorSelected = m_selected;
+        m_inspectorSchemaSize = m_session.schema().size();
         const Json *node = m_selected ? m_document.node(*m_selected) : nullptr;
         if (!node)
         {
@@ -640,12 +661,17 @@ namespace fried::editor
         m_commands->execute(std::make_unique<SetNodeFields>(id, fields), merge);
     }
 
-    std::vector<AssetEntry> Editor::assets() const
+    const std::vector<AssetEntry> &Editor::assets() const
     {
-        std::vector<AssetEntry> entries = listAssets("game", m_project.assetsDirectory());
-        std::vector<AssetEntry> engine = listAssets("engine", m_enginePath + "/assets");
-        entries.insert(entries.end(), engine.begin(), engine.end());
-        return entries;
+        auto now = std::chrono::steady_clock::now();
+        if (m_assetsAt == std::chrono::steady_clock::time_point() || now - m_assetsAt > std::chrono::seconds(2))
+        {
+            m_assetsCache = listAssets("game", m_project.assetsDirectory());
+            std::vector<AssetEntry> engine = listAssets("engine", m_enginePath + "/assets");
+            m_assetsCache.insert(m_assetsCache.end(), engine.begin(), engine.end());
+            m_assetsAt = now;
+        }
+        return m_assetsCache;
     }
 
     std::string Editor::assetFile(const std::string &root, const std::string &path) const
@@ -1065,16 +1091,59 @@ namespace fried::editor
 
     void Editor::documentChanged(const DocumentChange &change)
     {
-        if (change.m_kind == DocumentChange::Kind::Field && !change.m_value.is_null())
+        using Kind = DocumentChange::Kind;
+        // The player is told of an edit as it is made only while it is ready and no whole scene is waiting to be sent, which would include the edit.
+        bool isLive = m_status == Status::Ready && !m_needsLoad;
+        switch (change.m_kind)
         {
-            if (m_status == Status::Ready)
+        case Kind::Field:
+            if (change.m_value.is_null())
+            {
+                m_needsLoad = true;
+            }
+            else if (m_status == Status::Ready)
             {
                 m_session.setField(change.m_nodeId, change.m_field, change.m_value);
             }
-        }
-        else
-        {
+            break;
+        case Kind::Added:
+            if (isLive)
+            {
+                m_mayResync = true;
+                m_session.addNode(change.m_parentId, change.m_index, change.m_value);
+            }
+            else
+            {
+                m_needsLoad = true;
+            }
+            break;
+        case Kind::Removed:
+            if (isLive)
+            {
+                m_mayResync = true;
+                m_session.removeNode(change.m_nodeId);
+            }
+            else
+            {
+                m_needsLoad = true;
+            }
+            break;
+        case Kind::Moved:
+            if (isLive)
+            {
+                m_mayResync = true;
+                m_session.moveNode(change.m_nodeId, change.m_parentId, change.m_index);
+            }
+            else
+            {
+                m_needsLoad = true;
+            }
+            break;
+        case Kind::Camera:
+            break;
+        case Kind::Structure:
             m_needsLoad = true;
+            break;
         }
         m_needsRender = true;
     }

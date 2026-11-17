@@ -3,6 +3,7 @@ add_executable(core_tests
     asset_browser_test.cpp
     command_stack_test.cpp
     editor_state_test.cpp
+    large_scene_test.cpp
     editor_test.cpp
     expression_test.cpp
     game_runner_test.cpp

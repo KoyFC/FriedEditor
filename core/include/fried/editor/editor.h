@@ -172,7 +172,8 @@ namespace fried::editor
         const std::optional<std::string> &selected() const { return m_selected; }
         void select(const std::optional<std::string> &id);
 
-        std::vector<HierarchyRow> hierarchy() const;
+        // Worked out again only after the document changed.
+        const std::vector<HierarchyRow> &hierarchy() const;
 
         // Adds a node of a class as the last child of a node, or at the top of the scene with no parent, and selects it. A node that is placed by a position starts at the center of the view.
         void addNode(const std::string &type, const std::optional<std::string> &parentId = std::nullopt);
@@ -188,8 +189,8 @@ namespace fried::editor
         void rename(const std::string &id, const std::string &name);
         void renameSelected(const std::string &name);
 
-        // The selected node's class sections, the node's own class first.
-        std::vector<ClassView> inspector() const;
+        // The selected node's class sections, the node's own class first. Worked out again only after the document or the selection changed.
+        const std::vector<ClassView> &inspector() const;
 
         // Every class the player knows, each after the class it extends, which is what a menu of node types is made from.
         const std::vector<ClassSchema> &classes() const { return m_session.schema(); }
@@ -205,8 +206,9 @@ namespace fried::editor
         // Moves the pivot, and the offsets with it so that the control stays where it is.
         void setPivot(double x, double y);
 
-        // The files of both asset roots, and where one is on disk.
-        std::vector<AssetEntry> assets() const;
+        // The files of both asset roots, listed again when asked to or after a couple of seconds, and where one is on disk.
+        const std::vector<AssetEntry> &assets() const;
+        void refreshAssets() { m_assetsAt = std::chrono::steady_clock::time_point(); }
         std::string assetFile(const std::string &root, const std::string &path) const;
 
         // An image dropped on a node that has a texture becomes its texture, and anywhere else a new Sprite. A font becomes a new Label.
@@ -307,6 +309,16 @@ namespace fried::editor
         int m_requestedWidth = 0;
         int m_requestedHeight = 0;
         std::chrono::steady_clock::time_point m_wantedSince;
+
+        mutable std::vector<HierarchyRow> m_hierarchyRows;
+        mutable unsigned long m_hierarchyVersion = 0;
+        mutable std::vector<ClassView> m_inspectorViews;
+        mutable unsigned long m_inspectorVersion = 0;
+        mutable std::optional<std::string> m_inspectorSelected;
+        mutable std::size_t m_inspectorSchemaSize = 0;
+        mutable std::vector<AssetEntry> m_assetsCache;
+        mutable std::chrono::steady_clock::time_point m_assetsAt;
+        bool m_mayResync = false;
 
         bool m_needsLoad = false;
         bool m_needsCamera = false;

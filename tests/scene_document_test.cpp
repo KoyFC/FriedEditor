@@ -106,7 +106,13 @@ TEST_CASE("nodes are inserted, moved and removed by id, and each edit reports it
     CHECK(document.nodeIds() == ids({"b", "a", "a1", "a2"}));
 
     REQUIRE(changes.size() == 3);
-    CHECK(changes[0].m_kind == DocumentChange::Kind::Structure);
+    CHECK(changes[0].m_kind == DocumentChange::Kind::Moved);
+    CHECK(changes[0].m_nodeId == "b");
+    CHECK(changes[1].m_kind == DocumentChange::Kind::Removed);
+    CHECK(changes[1].m_parentId.empty());
+    CHECK(changes[1].m_index == 1);
+    CHECK(changes[2].m_kind == DocumentChange::Kind::Added);
+    CHECK(changes[2].m_value["children"].size() == 2);
     CHECK(document.isModified());
     CHECK(document.uniqueId("a") == "a-2");
     CHECK(document.uniqueId("c") == "c");

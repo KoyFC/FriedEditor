@@ -180,6 +180,30 @@ namespace fried::editor
         }
     }
 
+    void PlayerSession::addNode(const std::string &parentId, int index, const nlohmann::json &node)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "addNode"}, {"parent", parentId}, {"index", index}, {"node", node}});
+        }
+    }
+
+    void PlayerSession::removeNode(const std::string &nodeId)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "removeNode"}, {"id", nodeId}});
+        }
+    }
+
+    void PlayerSession::moveNode(const std::string &nodeId, const std::string &parentId, int index)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "moveNode"}, {"id", nodeId}, {"parent", parentId}, {"index", index}});
+        }
+    }
+
     const ClassSchema *PlayerSession::classNamed(const std::string &name) const
     {
         for (const ClassSchema &schema : m_schema)

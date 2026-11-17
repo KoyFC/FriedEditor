@@ -93,6 +93,11 @@ namespace fried::editor
 
         void load(const nlohmann::json &scene, int viewWidth, int viewHeight);
         void setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value);
+
+        // Changes the player's tree in place. The empty parent is the top of the scene, and the index is the place among the new siblings once the node has left its old one.
+        void addNode(const std::string &parentId, int index, const nlohmann::json &node);
+        void removeNode(const std::string &nodeId);
+        void moveNode(const std::string &nodeId, const std::string &parentId, int index);
         void setEditorCamera(double x, double y, double zoom);
         void resize(int width, int height);
         void render();
