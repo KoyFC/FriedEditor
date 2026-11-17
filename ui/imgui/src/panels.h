@@ -62,6 +62,8 @@ namespace imgui_backend
         void iconSection(fried::editor::Platform platform);
         void packagingSection(fried::editor::Platform platform);
         void buildSection(fried::editor::Platform platform);
+        void buildSettingsStrip(fried::editor::Platform platform);
+        fried::core::BuildTarget selectedTarget(fried::editor::Platform platform);
         void settingText(const char *label, const std::string &value, int limit, const std::function<std::string(const std::string &)> &set);
         void applyIcon(fried::editor::Platform platform, const std::string &file, bool isForEveryPlatform);
         bool textArea(const char *label, std::string *value);
