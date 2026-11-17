@@ -110,6 +110,11 @@ namespace fried::editor
         return apply(std::string(), [&](Project &project) { project.setVsync(value); });
     }
 
+    std::string ProjectSettings::setDefaultTargetFramerate(int value)
+    {
+        return apply(value < 0 ? "The target framerate cannot be negative." : std::string(), [&](Project &project) { project.setDefaultTargetFramerate(value); });
+    }
+
     std::string ProjectSettings::setDisplay(const DisplaySettings &value)
     {
         std::string problem;

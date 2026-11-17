@@ -215,6 +215,20 @@ namespace imgui_backend
         ImGui::SameLine();
         ImGui::TextDisabled("Desktop windows only, consoles ignore it.");
 
+        ImGui::BeginDisabled(vsync);
+        int framerate = project.defaultTargetFramerate();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Default target framerate");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(scaled(100));
+        if (ImGui::InputInt("##defaultTargetFramerate", &framerate, 0) )
+        {
+            framerate = std::max(framerate, 0);
+            m_settingErrors["Framerate"] = settings.setDefaultTargetFramerate(framerate);
+        }
+        ImGui::EndDisabled();
+        ImGui::TextDisabled("Only used while vsync is off, as the rate the game starts at (0 is no limit). The game can change it afterwards, for example from a settings menu.");
+
         std::pair<int, int> size = project.logicalSize(m_editor.platform());
         ImGui::TextDisabled("On the %s the game draws in %dx%d, which is the frame the viewport shows.", fried::editor::platformLabel(m_editor.platform()).c_str(),
                             size.first, size.second);

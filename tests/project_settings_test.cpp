@@ -136,6 +136,17 @@ TEST_CASE("vsync is saved as it is turned off and on")
     CHECK(project.read("project.fried").find("vsync") == std::string::npos);
 }
 
+TEST_CASE("the default target framerate is saved and refuses a negative one")
+{
+    TemporaryProject project("framerate");
+    ProjectSettings settings(project.m_project);
+    CHECK(settings.setDefaultTargetFramerate(-1) == "The target framerate cannot be negative.");
+    CHECK(settings.setDefaultTargetFramerate(144).empty());
+    CHECK(project.read("project.fried").find("\"defaultTargetFramerate\": 144") != std::string::npos);
+    CHECK(settings.setDefaultTargetFramerate(0).empty());
+    CHECK(project.read("project.fried").find("defaultTargetFramerate") == std::string::npos);
+}
+
 TEST_CASE("the start scene is one of the project's scene files")
 {
     TemporaryProject project("scenes");
