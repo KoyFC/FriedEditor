@@ -4,6 +4,7 @@
 #include "pointer.h"
 #include "style.h"
 
+#include "fried/editor/editor_state.h"
 #include "fried/editor/expression.h"
 #include "fried/editor/version.h"
 
@@ -15,6 +16,7 @@
 #include <SDL.h>
 #include <GL/gl.h>
 
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 
@@ -115,6 +117,7 @@ namespace imgui_backend
         io.IniFilename = s_layout.c_str();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange;
         applyStyle(editor.enginePath() + "/assets/NunitoSans.ttf");
+        setUiScale(fried::editor::EditorState::uiScale());
         ImGui_ImplSDL2_InitForOpenGL(window, context);
         ImGui_ImplOpenGL3_Init("#version 330");
 
@@ -266,7 +269,25 @@ namespace imgui_backend
                     }
                     ImGui::EndMenu();
                 }
-                ImGui::SameLine(ImGui::GetWindowWidth() - 260);
+                if (ImGui::BeginMenu("View"))
+                {
+                    if (ImGui::BeginMenu("Interface scale"))
+                    {
+                        for (int percent : {75, 100, 125, 150, 175, 200, 250, 300})
+                        {
+                            float scale = percent / 100.0f;
+                            std::string label = std::to_string(percent) + "%";
+                            if (ImGui::MenuItem(label.c_str(), nullptr, std::fabs(uiScale() - scale) < 0.001f))
+                            {
+                                setUiScale(scale);
+                                fried::editor::EditorState::setUiScale(scale);
+                            }
+                        }
+                        ImGui::EndMenu();
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::SameLine(ImGui::GetWindowWidth() - scaled(260));
                 ImGui::TextDisabled("%s%s", editor.project().name().c_str(), editor.commands().isClean() ? "" : "  *");
                 ImGui::EndMainMenuBar();
             }

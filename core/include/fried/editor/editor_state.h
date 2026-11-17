@@ -18,6 +18,10 @@ namespace fried::editor
         static nlohmann::json projectValue(const std::string &projectDirectory, const std::string &key);
         static void setProjectValue(const std::string &projectDirectory, const std::string &key, const nlohmann::json &value);
 
+        // How much the interface is enlarged, 1 when nothing was chosen. It belongs to the user rather than to a project.
+        static float uiScale();
+        static void setUiScale(float value);
+
     private:
         static std::string filePath();
     };

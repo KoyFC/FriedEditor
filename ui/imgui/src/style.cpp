@@ -6,6 +6,26 @@
 
 namespace imgui_backend
 {
+    namespace
+    {
+        ImGuiStyle s_unscaled;
+        float s_scale = 1.0f;
+    }
+
+    void setUiScale(float scale)
+    {
+        s_scale = scale;
+        ImGuiStyle &style = ImGui::GetStyle();
+        style = s_unscaled;
+        style.ScaleAllSizes(scale);
+        style.FontScaleMain = scale;
+    }
+
+    float uiScale()
+    {
+        return s_scale;
+    }
+
     void applyStyle(const std::string &fontPath)
     {
         ImGuiIO &io = ImGui::GetIO();
@@ -87,5 +107,6 @@ namespace imgui_backend
         colors[ImGuiCol_TextSelectedBg] = accentSoft;
         colors[ImGuiCol_DragDropTarget] = accent;
         colors[ImGuiCol_NavCursor] = whiteDim;
+        s_unscaled = style;
     }
 }

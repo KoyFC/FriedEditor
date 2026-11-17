@@ -30,4 +30,14 @@ namespace imgui_backend
 
     // A dark theme with the yolk accent, and the engine's own font when it can be found.
     void applyStyle(const std::string &fontPath);
+
+    // Enlarges the text and every size of the style from the unscaled one, so it can be called again with another value.
+    void setUiScale(float scale);
+    float uiScale();
+
+    // A size in pixels at the scale the interface is shown at.
+    inline float scaled(float pixels)
+    {
+        return pixels * uiScale();
+    }
 }

@@ -204,7 +204,7 @@ namespace
     {
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", name.c_str());
-        ImGui::SameLine(110.0f);
+        ImGui::SameLine(imgui_backend::scaled(110.0f));
         ImGui::SetNextItemWidth(-FLT_MIN);
     }
 }
@@ -222,7 +222,7 @@ namespace imgui_backend
         GameRunner::State game = m_editor.gameState();
         bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
         ImGui::PushStyleColor(ImGuiCol_Button, isGoing ? palette::tomato : palette::leaf);
-        if (ImGui::Button(isGoing ? "Stop" : "Play  F5", ImVec2(76, 0)))
+        if (ImGui::Button(isGoing ? "Stop" : "Play  F5", ImVec2(scaled(76), 0)))
         {
             isGoing ? m_editor.stopGame() : m_editor.play();
         }
@@ -232,7 +232,7 @@ namespace imgui_backend
             ImGui::SameLine();
             ImGui::TextDisabled("building...");
         }
-        ImGui::SameLine(0, 24);
+        ImGui::SameLine(0, scaled(24));
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("Tool");
         ImGui::SameLine();
@@ -260,11 +260,11 @@ namespace imgui_backend
             ImGui::SameLine();
         }
 
-        ImGui::SameLine(0, 24);
+        ImGui::SameLine(0, scaled(24));
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("Platform");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(170);
+        ImGui::SetNextItemWidth(scaled(170));
         if (ImGui::BeginCombo("##platform", fried::editor::platformLabel(m_editor.platform()).c_str()))
         {
             for (fried::editor::Platform platform : fried::editor::s_platforms)
@@ -288,7 +288,7 @@ namespace imgui_backend
 
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize(ImVec2(scaled(760), scaled(440)), ImGuiCond_Appearing);
         bool isOpen = true;
         if (ImGui::Begin((progress.m_title + "###build").c_str(), progress.m_isFinished ? &isOpen : nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
         {
@@ -375,7 +375,7 @@ namespace imgui_backend
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(m_editor.message().c_str());
         std::string right = (m_issues.empty() ? std::string() : std::to_string(m_issues.size()) + " asset issues   ") + (commands.isClean() ? "Saved" : "Unsaved changes");
-        ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - 20);
+        ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - scaled(20));
         ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : palette::yolk, "%s", right.c_str());
     }
 
@@ -721,7 +721,7 @@ namespace imgui_backend
         {
             ImGui::TextDisabled("Name");
             ImGui::SetKeyboardFocusHere();
-            ImGui::SetNextItemWidth(220);
+            ImGui::SetNextItemWidth(scaled(220));
             if (ImGui::InputText("##rename", &m_renameText, ImGuiInputTextFlags_EnterReturnsTrue))
             {
                 m_editor.rename(m_renameId, m_renameText);

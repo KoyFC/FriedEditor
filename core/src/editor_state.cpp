@@ -51,6 +51,45 @@ namespace fried::editor
         setProjectValue(projectDirectory, "lastScene", sceneFile);
     }
 
+    float EditorState::uiScale()
+    {
+        std::string path = filePath();
+        std::ifstream file(path);
+        if (path.empty() || !file)
+        {
+            return 1.0f;
+        }
+        Json state = Json::parse(file, nullptr, false);
+        if (!state.is_object() || !state.contains("uiScale") || !state["uiScale"].is_number())
+        {
+            return 1.0f;
+        }
+        float scale = state["uiScale"].get<float>();
+        return scale >= 0.5f && scale <= 4.0f ? scale : 1.0f;
+    }
+
+    void EditorState::setUiScale(float value)
+    {
+        std::string path = filePath();
+        if (path.empty())
+        {
+            return;
+        }
+        Json state = Json::object();
+        {
+            std::ifstream file(path);
+            Json read = file ? Json::parse(file, nullptr, false) : Json();
+            if (read.is_object())
+            {
+                state = read;
+            }
+        }
+        state["uiScale"] = value;
+        std::error_code ignored;
+        fs::create_directories(fs::path(path).parent_path(), ignored);
+        std::ofstream(path) << state.dump(2) << "\n";
+    }
+
     Json EditorState::projectValue(const std::string &projectDirectory, const std::string &key)
     {
         std::string path = filePath();

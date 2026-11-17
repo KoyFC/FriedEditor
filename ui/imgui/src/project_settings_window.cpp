@@ -15,9 +15,9 @@ namespace
     using fried::core::BuildTarget;
     using fried::editor::Platform;
 
-    constexpr float s_listWidth = 170;
-    constexpr float s_labelWidth = 150;
-    constexpr float s_iconPreviewSide = 128;
+    constexpr float s_listBase = 170;
+    constexpr float s_labelBase = 150;
+    constexpr float s_iconPreviewBase = 128;
     constexpr double s_issuesLifetime = 3.0;
 
     // The label on the left and the widget filling the rest, which is how a settings page reads.
@@ -25,7 +25,7 @@ namespace
     {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(label);
-        ImGui::SameLine(s_labelWidth);
+        ImGui::SameLine(imgui_backend::scaled(s_labelBase));
         ImGui::SetNextItemWidth(-FLT_MIN);
     }
 
@@ -42,7 +42,7 @@ namespace imgui_backend
         m_isSettingsShown = false;
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(820, 600), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(scaled(820), scaled(600)), ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse))
         {
             m_isSettingsShown = true;
@@ -54,7 +54,7 @@ namespace imgui_backend
                 int rows = targetCount > 1 ? 4 : 3;
                 stripHeight = rows * ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().WindowPadding.y * 2 + ImGui::GetStyle().ItemSpacing.y;
             }
-            ImGui::BeginChild("##pages", ImVec2(s_listWidth, -stripHeight), ImGuiChildFlags_Borders);
+            ImGui::BeginChild("##pages", ImVec2(scaled(s_listBase), -stripHeight), ImGuiChildFlags_Borders);
             if (ImGui::Selectable("Project", m_settingsPage == 0))
             {
                 m_settingsPage = 0;
@@ -108,13 +108,13 @@ namespace imgui_backend
         {
             const std::string &typed = m_textEdits[ImGui::GetID(id.c_str())];
             int length = lettersIn(typed);
-            ImGui::SetCursorPosX(s_labelWidth);
+            ImGui::SetCursorPosX(scaled(s_labelBase));
             ImGui::TextColored(length > limit ? palette::tomato : palette::whiteDim, "%d of %d characters", length, limit);
         }
         auto problem = m_settingErrors.find(label);
         if (problem != m_settingErrors.end() && !problem->second.empty())
         {
-            ImGui::SetCursorPosX(s_labelWidth);
+            ImGui::SetCursorPosX(scaled(s_labelBase));
             ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
             ImGui::TextWrapped("%s", problem->second.c_str());
             ImGui::PopStyleColor();
@@ -285,7 +285,7 @@ namespace imgui_backend
         {
             if (const Texture *texture = m_images.get(file))
             {
-                float scale = std::min(s_iconPreviewSide / texture->width(), s_iconPreviewSide / texture->height());
+                float scale = std::min(scaled(s_iconPreviewBase) / texture->width(), scaled(s_iconPreviewBase) / texture->height());
                 // A small icon is shown at a whole number of times its size, so its pixels stay square.
                 scale = scale >= 1.0f ? std::floor(scale) : scale;
                 ImGui::Image(texture->id(), ImVec2(texture->width() * scale, texture->height() * scale));
@@ -295,7 +295,7 @@ namespace imgui_backend
         }
         if (!hasIcon)
         {
-            ImGui::Button("No icon yet", ImVec2(s_iconPreviewSide, s_iconPreviewSide));
+            ImGui::Button("No icon yet", ImVec2(scaled(s_iconPreviewBase), scaled(s_iconPreviewBase)));
             ImGui::SameLine();
         }
         ImGui::EndGroup();
@@ -453,7 +453,7 @@ namespace imgui_backend
         ImGui::PushStyleColor(ImGuiCol_Text, isReady ? palette::leaf : palette::tomato);
         ImGui::TextWrapped("%s", status.c_str());
         ImGui::PopStyleColor();
-        ImGui::SetCursorPosX(s_labelWidth);
+        ImGui::SetCursorPosX(scaled(s_labelBase));
         if (ImGui::SmallButton("Look again"))
         {
             build.refreshToolchains();
@@ -507,7 +507,7 @@ namespace imgui_backend
         fried::editor::BuildProgress progress = m_editor.buildProgress();
         bool isBusy = progress.m_isVisible && !progress.m_isFinished;
         ImGui::BeginDisabled(!isReady || isBusy);
-        if (ImGui::Button(("Build for " + fried::core::buildTargetName(target)).c_str(), ImVec2(220, 0)))
+        if (ImGui::Button(("Build for " + fried::core::buildTargetName(target)).c_str(), ImVec2(scaled(220), 0)))
         {
             std::string error;
             m_buildMessage = m_editor.buildProject(target, &error) ? std::string() : error;
