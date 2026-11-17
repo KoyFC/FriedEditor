@@ -257,3 +257,21 @@ TEST_CASE("a build runs its steps in the project's folder and can be dismissed w
     CHECK(build.state() == ProjectBuild::State::Idle);
     CHECK(build.runner().lines().empty());
 }
+
+TEST_CASE("the game a build made is the executable or package in its build folder")
+{
+    TemporaryProject project("built");
+    ProjectBuild build(project.m_project);
+    CHECK(build.builtFile().empty());
+
+    std::filesystem::create_directories(project.m_root / "build" / "cpp");
+    std::filesystem::create_directories(project.m_root / "build" / "CMakeFiles");
+    project.write("build/cpp/Main.cpp", "");
+    project.write("build/CMakeFiles/notes.exe", "");
+    project.write("build/libengine.a", "");
+    CHECK(build.builtFile().empty());
+
+    project.write("build/sample", "binary");
+    std::filesystem::permissions(project.m_root / "build" / "sample", std::filesystem::perms::owner_exec, std::filesystem::perm_options::add);
+    CHECK(std::filesystem::path(build.builtFile()).filename() == "sample");
+}

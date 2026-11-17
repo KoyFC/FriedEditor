@@ -6,6 +6,7 @@
 #include "fried/core/build.h"
 #include "fried/core/step_runner.h"
 
+#include <filesystem>
 #include <functional>
 #include <map>
 #include <string>
@@ -96,6 +97,9 @@ namespace fried::editor
         // Forgets a build that has ended, so it is no longer shown.
         void dismiss();
 
+        // The newest game file the last build of the target left in its build folder, which is the executable or the package of the platform. Empty when there is none.
+        std::string builtFile() const;
+
         State state() const { return m_runner.state(); }
         bool isRunning() const { return m_runner.state() == State::Running; }
         fried::core::BuildTarget target() const { return m_target; }
@@ -108,6 +112,7 @@ namespace fried::editor
         fried::core::Toolchains m_toolchains;
         fried::core::StepRunner m_runner;
         fried::core::BuildTarget m_target = fried::core::BuildTarget::Pc;
+        std::filesystem::file_time_type m_startedAt = std::filesystem::file_time_type::min();
 
         // What was read or set this run, so the remembered file is read once a target, and which also serves where nothing is remembered between runs.
         mutable std::map<fried::core::BuildTarget, BuildSettings> m_settings;

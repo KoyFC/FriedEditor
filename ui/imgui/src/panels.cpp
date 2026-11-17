@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 
 using fried::editor::AssetKind;
@@ -209,6 +210,57 @@ namespace
     }
 }
 
+namespace
+{
+    std::string quoted(const std::string &text)
+    {
+        std::string result = "'";
+        for (char letter : text)
+        {
+            result += letter == '\'' ? std::string("'\\''") : std::string(1, letter);
+        }
+        return result + "'";
+    }
+
+    std::string fileUrl(const std::string &path)
+    {
+        static const char *s_hex = "0123456789ABCDEF";
+        std::string url = "file://";
+        for (unsigned char letter : path)
+        {
+            if (std::isalnum(letter) || letter == '/' || letter == '-' || letter == '_' || letter == '.' || letter == '~')
+            {
+                url += (char)letter;
+            }
+            else
+            {
+                url += '%';
+                url += s_hex[letter >> 4];
+                url += s_hex[letter & 15];
+            }
+        }
+        return url;
+    }
+
+    // Opens the file's folder in the file manager with the file selected, and just the folder when the manager cannot select.
+    void revealFile(const std::string &path)
+    {
+#if defined(_WIN32)
+        std::string command = "explorer /select,\"" + std::filesystem::path(path).make_preferred().string() + "\"";
+        std::system(command.c_str());
+#elif defined(__APPLE__)
+        std::system(("open -R " + quoted(path)).c_str());
+#else
+        std::string command = "dbus-send --session --print-reply --dest=org.freedesktop.FileManager1 /org/freedesktop/FileManager1 "
+                              "org.freedesktop.FileManager1.ShowItems array:string:" + quoted(fileUrl(path)) + " string:\"\" >/dev/null 2>&1";
+        if (std::system(command.c_str()) != 0)
+        {
+            SDL_OpenURL(fileUrl(std::filesystem::path(path).parent_path().string()).c_str());
+        }
+#endif
+    }
+}
+
 namespace imgui_backend
 {
     Panels::Panels(Editor &editor)
@@ -347,6 +399,14 @@ namespace imgui_backend
             if (progress.m_isFinished && ImGui::Button("Close"))
             {
                 isOpen = false;
+            }
+            if (!progress.m_builtFile.empty())
+            {
+                ImGui::SameLine();
+                if (ImGui::Button("Show in folder"))
+                {
+                    revealFile(progress.m_builtFile);
+                }
             }
             if (progress.m_lines != nullptr && !progress.m_lines->empty())
             {

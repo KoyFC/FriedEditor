@@ -88,6 +88,9 @@ namespace fried::editor
         int m_steps = 0;
         std::string m_message;
 
+        // The game the build made, for a build that ended well. Empty when there is nothing to show.
+        std::string m_builtFile;
+
         // What the build has printed, which keeps growing while it runs. Null when there is only the message.
         const std::vector<fried::core::OutputLine> *m_lines = nullptr;
     };

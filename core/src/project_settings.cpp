@@ -288,8 +288,49 @@ namespace fried::editor
             return false;
         }
         m_target = target;
+        m_startedAt = fs::file_time_type::clock::now();
         m_runner.start(fried::core::subprocessSteps(build, m_project.directory()));
         return true;
+    }
+
+    std::string ProjectBuild::builtFile() const
+    {
+        static const std::vector<std::string> s_packageExtensions = {".exe", ".vpk", ".nro", ".3dsx", ".nds", ".g3a", ".html"};
+        fs::path directory = fs::path(m_project.directory()) / settings(m_target).m_directory;
+        std::error_code error;
+        fs::path newest;
+        fs::file_time_type newestTime;
+        for (fs::recursive_directory_iterator entry(directory, fs::directory_options::skip_permission_denied, error), end; !error && entry != end; entry.increment(error))
+        {
+            std::string name = entry->path().filename().string();
+            if (entry->is_directory(error))
+            {
+                if (name == "CMakeFiles" || name == "cpp" || name == "_deps" || entry.depth() >= 2)
+                {
+                    entry.disable_recursion_pending();
+                }
+                continue;
+            }
+            if (!entry->is_regular_file(error))
+            {
+                continue;
+            }
+            std::string extension = entry->path().extension().string();
+            bool isPackage = contains(s_packageExtensions, extension);
+            // A desktop executable on Linux has no extension and sits at the top of the build folder.
+            bool isExecutable = extension.empty() && entry.depth() == 0 && (fs::status(entry->path(), error).permissions() & fs::perms::owner_exec) != fs::perms::none;
+            if (!isPackage && !isExecutable)
+            {
+                continue;
+            }
+            fs::file_time_type time = entry->last_write_time(error);
+            if (!error && time >= m_startedAt && (newest.empty() || time > newestTime))
+            {
+                newest = entry->path();
+                newestTime = time;
+            }
+        }
+        return newest.string();
     }
 
     void ProjectBuild::dismiss()

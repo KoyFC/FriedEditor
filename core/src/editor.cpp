@@ -114,6 +114,7 @@ namespace fried::editor
             progress.m_steps = (int)runner.stepCount();
             progress.m_stepLabel = runner.stepLabel();
             progress.m_message = runner.failure();
+            progress.m_builtFile = progress.m_isFinished && !progress.m_isFailed ? m_projectBuild.builtFile() : std::string();
             progress.m_lines = &runner.lines();
         }
         else if (m_isFailureShown)
