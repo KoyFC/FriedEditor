@@ -51,7 +51,7 @@ namespace imgui_backend
             float stripHeight = 0;
             if (targetCount > 0)
             {
-                int rows = targetCount > 1 ? 4 : 3;
+                int rows = targetCount > 1 ? 5 : 4;
                 stripHeight = rows * ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().WindowPadding.y * 2 + ImGui::GetStyle().ItemSpacing.y;
             }
             ImGui::BeginChild("##pages", ImVec2(scaled(s_listBase), -stripHeight), ImGuiChildFlags_Borders);
@@ -433,6 +433,27 @@ namespace imgui_backend
         {
             build.setSettings(target, settings);
         }
+
+        fried::editor::BuildProgress progress = m_editor.buildProgress();
+        bool isBusy = progress.m_isVisible && !progress.m_isFinished;
+        std::string label = "Build for " + fried::core::buildTargetName(target);
+        float buttonWidth = scaled(220);
+        if (!m_buildMessage.empty())
+        {
+            ImGui::AlignTextToFramePadding();
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+            ImGui::TextUnformatted(m_buildMessage.c_str());
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+        }
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0f, ImGui::GetContentRegionAvail().x - buttonWidth));
+        ImGui::BeginDisabled(!build.isReady(target) || isBusy);
+        if (ImGui::Button(label.c_str(), ImVec2(buttonWidth, 0)))
+        {
+            std::string error;
+            m_buildMessage = m_editor.buildProject(target, &error) ? std::string() : error;
+        }
+        ImGui::EndDisabled();
     }
 
     void Panels::buildSection(Platform platform)
@@ -501,23 +522,6 @@ namespace imgui_backend
                 }
                 ImGui::PopID();
             }
-        }
-
-        ImGui::Spacing();
-        fried::editor::BuildProgress progress = m_editor.buildProgress();
-        bool isBusy = progress.m_isVisible && !progress.m_isFinished;
-        ImGui::BeginDisabled(!isReady || isBusy);
-        if (ImGui::Button(("Build for " + fried::core::buildTargetName(target)).c_str(), ImVec2(scaled(220), 0)))
-        {
-            std::string error;
-            m_buildMessage = m_editor.buildProject(target, &error) ? std::string() : error;
-        }
-        ImGui::EndDisabled();
-        if (!m_buildMessage.empty())
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
-            ImGui::TextWrapped("%s", m_buildMessage.c_str());
-            ImGui::PopStyleColor();
         }
     }
 
