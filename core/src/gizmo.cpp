@@ -12,6 +12,7 @@ namespace fried::editor
         constexpr unsigned int s_green = 0xff50d060;
         constexpr unsigned int s_blue = 0xff5090ff;
         constexpr unsigned int s_ring = 0xffffd24a;
+        constexpr unsigned int s_plane = 0xccffd24a;
 
         double roundTo(double value, double step)
         {
@@ -30,6 +31,7 @@ namespace fried::editor
             double originY = viewport.worldToFrameY(transform.m_y);
             list.push_back({Kind::MoveX, originX + s_arrowLength, originY, s_handleHalfSize, originX, originY});
             list.push_back({Kind::MoveY, originX, originY + s_arrowLength, s_handleHalfSize, originX, originY});
+            list.push_back({Kind::MoveXY, originX + s_planeOffset, originY + s_planeOffset, s_planeHalfSize, originX, originY});
         }
         else if (mode == GizmoMode::Scale)
         {
@@ -81,13 +83,29 @@ namespace fried::editor
             case Kind::MoveX:
             case Kind::MoveY:
             {
-                unsigned int color = handle.m_kind == Kind::MoveX ? s_red : s_green;
+                bool isX = handle.m_kind == Kind::MoveX;
+                unsigned int color = isX ? s_red : s_green;
                 list.push_back({DrawCommand::Kind::Line, handle.m_originX, handle.m_originY, handle.m_x - handle.m_originX, handle.m_y - handle.m_originY,
                                 color});
-                list.push_back({DrawCommand::Kind::FilledRect, handle.m_x - handle.m_size, handle.m_y - handle.m_size, handle.m_size * 2,
-                                handle.m_size * 2, color});
+
+                // The head points away from the origin, with its base on the handle's far side and its tip a half size past it.
+                double size = handle.m_size;
+                DrawCommand head;
+                head.m_kind = DrawCommand::Kind::FilledTriangle;
+                head.m_rgba = color;
+                head.m_x = isX ? handle.m_x + size * 1.5 : handle.m_x;
+                head.m_y = isX ? handle.m_y : handle.m_y + size * 1.5;
+                head.m_x2 = handle.m_x - size;
+                head.m_y2 = handle.m_y - size;
+                head.m_x3 = isX ? handle.m_x - size : handle.m_x + size;
+                head.m_y3 = isX ? handle.m_y + size : handle.m_y - size;
+                list.push_back(head);
                 break;
             }
+            case Kind::MoveXY:
+                list.push_back({DrawCommand::Kind::FilledRect, handle.m_x - handle.m_size, handle.m_y - handle.m_size, handle.m_size * 2,
+                                handle.m_size * 2, s_plane});
+                break;
             case Kind::Rotate:
             {
                 const int segments = 48;
@@ -135,6 +153,10 @@ namespace fried::editor
             fields["x"] = std::round(m_start.m_x + worldX - m_startWorldX);
             break;
         case Kind::MoveY:
+            fields["y"] = std::round(m_start.m_y + worldY - m_startWorldY);
+            break;
+        case Kind::MoveXY:
+            fields["x"] = std::round(m_start.m_x + worldX - m_startWorldX);
             fields["y"] = std::round(m_start.m_y + worldY - m_startWorldY);
             break;
         case Kind::Rotate:

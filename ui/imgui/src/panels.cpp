@@ -119,6 +119,8 @@ namespace
             case Handle::MoveY:
             case Handle::ScaleY:
                 return ImGuiMouseCursor_ResizeNS;
+            case Handle::MoveXY:
+                return ImGuiMouseCursor_ResizeAll;
             case Handle::ScaleBoth:
                 return ImGuiMouseCursor_ResizeNWSE;
             case Handle::Rotate:
@@ -427,6 +429,10 @@ namespace imgui_backend
                 break;
             case DrawCommand::Kind::FilledRect:
                 draw->AddRectFilled(from, ImVec2(from.x + size.x, from.y + size.y), color, 2.0f);
+                break;
+            case DrawCommand::Kind::FilledTriangle:
+                draw->AddTriangleFilled(from, ImVec2(corner.x + (float)(command.m_x2 * scale), corner.y + (float)(command.m_y2 * scale)),
+                                        ImVec2(corner.x + (float)(command.m_x3 * scale), corner.y + (float)(command.m_y3 * scale)), color);
                 break;
             default:
                 draw->AddRect(from, ImVec2(from.x + size.x, from.y + size.y), color, 0, 0, 1.5f);

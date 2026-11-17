@@ -32,6 +32,7 @@ namespace fried::editor
         {
             MoveX,
             MoveY,
+            MoveXY,
             Rotate,
             ScaleX,
             ScaleY,
@@ -54,6 +55,8 @@ namespace fried::editor
     public:
         static constexpr double s_arrowLength = 70;
         static constexpr double s_handleHalfSize = 6;
+        static constexpr double s_planeOffset = 26;
+        static constexpr double s_planeHalfSize = 9;
         static constexpr double s_ringTolerance = 7;
 
         static std::vector<GizmoHandle> handles(GizmoMode mode, const Viewport &viewport, const ObjectBounds &bounds, const TransformValues &transform);

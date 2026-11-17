@@ -3,6 +3,8 @@
 #include "fried/editor/commands.h"
 #include "fried/editor/gizmo.h"
 
+#include <cmath>
+
 using namespace fried::editor;
 
 namespace
@@ -24,7 +26,7 @@ TEST_CASE("each mode puts its own handles on the object")
     transform.m_x = 100;
     transform.m_y = 100;
 
-    CHECK(Gizmo::handles(GizmoMode::Move, viewport, bounds, transform).size() == 2);
+    CHECK(Gizmo::handles(GizmoMode::Move, viewport, bounds, transform).size() == 3);
     CHECK(Gizmo::handles(GizmoMode::Scale, viewport, bounds, transform).size() == 3);
     auto ring = Gizmo::handles(GizmoMode::Rotate, viewport, bounds, transform);
     REQUIRE(ring.size() == 1);
@@ -50,6 +52,61 @@ TEST_CASE("a handle is hit on its square, and the ring only near its line")
     auto ring = Gizmo::handles(GizmoMode::Rotate, viewport, bounds, transform);
     CHECK(Gizmo::hit(ring, ring[0].m_x + ring[0].m_size, ring[0].m_y).has_value());
     CHECK_FALSE(Gizmo::hit(ring, ring[0].m_x, ring[0].m_y).has_value());
+}
+
+TEST_CASE("the square between the arrows is hit on its own and drags both axes")
+{
+    Viewport viewport = view();
+    ObjectBounds bounds = {"a", 100, 100, 80, 40};
+    TransformValues transform;
+    transform.m_x = 100;
+    transform.m_y = 100;
+
+    auto moves = Gizmo::handles(GizmoMode::Move, viewport, bounds, transform);
+    GizmoHandle plane = moves[2];
+    REQUIRE(plane.m_kind == GizmoHandle::Kind::MoveXY);
+    CHECK(plane.m_x > plane.m_originX);
+    CHECK(plane.m_y > plane.m_originY);
+    CHECK(plane.m_x < moves[0].m_x);
+    CHECK(plane.m_y < moves[1].m_y);
+    auto hit = Gizmo::hit(moves, plane.m_x, plane.m_y);
+    REQUIRE(hit.has_value());
+    CHECK(hit->m_kind == GizmoHandle::Kind::MoveXY);
+
+    GizmoDrag drag(plane, viewport, bounds, transform, plane.m_x, plane.m_y);
+    auto fields = drag.update(viewport, plane.m_x + 10 * viewport.zoom(), plane.m_y - 5 * viewport.zoom());
+    CHECK(fields.at("x") == 110);
+    CHECK(fields.at("y") == 95);
+    CHECK(fields.size() == 2);
+}
+
+TEST_CASE("an arrow ends in a triangle that points away from the origin")
+{
+    Viewport viewport = view();
+    ObjectBounds bounds = {"a", 100, 100, 80, 40};
+    TransformValues transform;
+    transform.m_x = 100;
+    transform.m_y = 100;
+
+    auto moves = Gizmo::handles(GizmoMode::Move, viewport, bounds, transform);
+    for (const GizmoHandle &arrow : {moves[0], moves[1]})
+    {
+        DrawList list = Gizmo::draw({arrow});
+        const DrawCommand *head = nullptr;
+        for (const DrawCommand &command : list)
+        {
+            CHECK(command.m_kind != DrawCommand::Kind::FilledRect);
+            if (command.m_kind == DrawCommand::Kind::FilledTriangle)
+            {
+                head = &command;
+            }
+        }
+        REQUIRE(head != nullptr);
+        double tipDistance = std::hypot(head->m_x - arrow.m_originX, head->m_y - arrow.m_originY);
+        double baseDistance = std::hypot(head->m_x2 - arrow.m_originX, head->m_y2 - arrow.m_originY);
+        CHECK(tipDistance > Gizmo::s_arrowLength);
+        CHECK(tipDistance > baseDistance);
+    }
 }
 
 TEST_CASE("dragging an arrow moves along its axis only")

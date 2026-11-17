@@ -184,7 +184,7 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
         REQUIRE(box->m_origin.has_value());
         editor.select(std::string(id));
         std::vector<GizmoHandle> handles = editor.handlesFor(editor.viewport());
-        REQUIRE(handles.size() == 2);
+        REQUIRE(handles.size() == 3);
         CHECK(handles[0].m_originX == doctest::Approx(editor.viewport().worldToFrameX(box->m_origin->first)));
         CHECK(handles[0].m_originY == doctest::Approx(editor.viewport().worldToFrameY(box->m_origin->second)));
     }

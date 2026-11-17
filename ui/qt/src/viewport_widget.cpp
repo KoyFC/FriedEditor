@@ -80,6 +80,10 @@ void ViewportWidget::paintEvent(QPaintEvent *)
         case DrawCommand::Kind::FilledRect:
             painter.fillRect(QRectF(command.m_x, command.m_y, command.m_width, command.m_height), color);
             break;
+        case DrawCommand::Kind::FilledTriangle:
+            painter.setBrush(color);
+            painter.drawPolygon(QPolygonF({QPointF(command.m_x, command.m_y), QPointF(command.m_x2, command.m_y2), QPointF(command.m_x3, command.m_y3)}));
+            break;
         default:
             painter.setBrush(Qt::NoBrush);
             painter.drawRect(QRectF(command.m_x, command.m_y, command.m_width, command.m_height));

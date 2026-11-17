@@ -15,7 +15,8 @@ namespace fried::editor
         {
             Rect,
             FilledRect,
-            Line
+            Line,
+            FilledTriangle
         };
 
         Kind m_kind = Kind::Rect;
@@ -24,6 +25,12 @@ namespace fried::editor
         double m_width = 0;
         double m_height = 0;
         unsigned int m_rgba = 0xffffffff;
+
+        // A triangle is the point at m_x and m_y and these two, all in frame pixels.
+        double m_x2 = 0;
+        double m_y2 = 0;
+        double m_x3 = 0;
+        double m_y3 = 0;
     };
 
     using DrawList = std::vector<DrawCommand>;
