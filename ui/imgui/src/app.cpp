@@ -16,6 +16,7 @@
 #include <SDL.h>
 #include <GL/gl.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -35,6 +36,8 @@ namespace imgui_backend
             std::filesystem::create_directories(directory, ignored);
             return (directory / "layout.ini").string();
         }
+
+        constexpr int s_scalePercents[] = {75, 100, 125, 150, 175, 200, 250, 300};
 
         // The first time there is no saved layout, so the panels are put where an editor has them.
         void buildLayout(ImGuiID dockspace, ImVec2 size)
@@ -75,6 +78,20 @@ namespace imgui_backend
             ImGui::End();
             return isOpen;
         }
+    }
+
+    float nextUiScale(float current, int step)
+    {
+        int count = (int)(sizeof(s_scalePercents) / sizeof(s_scalePercents[0]));
+        int index = 0;
+        for (int candidate = 0; candidate < count; ++candidate)
+        {
+            if (std::fabs(s_scalePercents[candidate] / 100.0f - current) < std::fabs(s_scalePercents[index] / 100.0f - current))
+            {
+                index = candidate;
+            }
+        }
+        return s_scalePercents[std::clamp(index + step, 0, count - 1)] / 100.0f;
     }
 
     int run(Editor &editor)
@@ -136,6 +153,18 @@ namespace imgui_backend
             {
                 ImGui_ImplSDL2_ProcessEvent(&event);
                 pointer.handleEvent(event);
+                if (event.type == SDL_KEYDOWN && (event.key.keysym.mod & KMOD_CTRL))
+                {
+                    // By the character rather than the key, as "+" is a key of its own on some layouts.
+                    SDL_Keycode key = event.key.keysym.sym;
+                    int step = key == SDLK_PLUS || key == SDLK_EQUALS || key == SDLK_KP_PLUS ? 1 : key == SDLK_MINUS || key == SDLK_KP_MINUS ? -1 : 0;
+                    if (step != 0)
+                    {
+                        float next = nextUiScale(uiScale(), step);
+                        setUiScale(next);
+                        fried::editor::EditorState::setUiScale(next);
+                    }
+                }
                 if (event.type == SDL_DROPFILE)
                 {
                     panels.fileDropped(event.drop.file);
@@ -263,7 +292,7 @@ namespace imgui_backend
                     {
                         commands.undo();
                     }
-                    if (ImGui::MenuItem(redo.c_str(), "Ctrl+Y", false, commands.canRedo()))
+                    if (ImGui::MenuItem(redo.c_str(), "Ctrl+Shift+Z", false, commands.canRedo()))
                     {
                         commands.redo();
                     }
@@ -273,7 +302,7 @@ namespace imgui_backend
                 {
                     if (ImGui::BeginMenu("Interface scale"))
                     {
-                        for (int percent : {75, 100, 125, 150, 175, 200, 250, 300})
+                        for (int percent : s_scalePercents)
                         {
                             float scale = percent / 100.0f;
                             std::string label = std::to_string(percent) + "%";
