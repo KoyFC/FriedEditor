@@ -743,12 +743,12 @@ namespace fried::editor
 
     std::vector<AssetIssue> Editor::issues() const
     {
-        return validateAssets(m_platform, m_project.assetsDirectory());
+        return validateAssets(m_platform, m_project.directory());
     }
 
     bool Editor::fixIssue(const AssetIssue &issue, std::string *error)
     {
-        if (!applyFix(issue, m_project.assetsDirectory(), m_project.directory() + "/.fried-editor/originals", error))
+        if (!applyFix(issue, m_project.directory(), m_project.directory() + "/.fried-editor/originals", error))
         {
             return false;
         }

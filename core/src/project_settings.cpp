@@ -284,7 +284,7 @@ namespace fried::editor
 
     std::vector<AssetIssue> ProjectBuild::issues(BuildTarget target) const
     {
-        return validateAssets(fried::core::platformOf(target), m_project.assetsDirectory());
+        return validateAssets(fried::core::platformOf(target), m_project.directory());
     }
 
     bool ProjectBuild::start(BuildTarget target, std::string *error)
