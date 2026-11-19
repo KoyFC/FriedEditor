@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include "opengl.h"
 #include "panels.h"
 #include "pointer.h"
 #include "style.h"
@@ -14,7 +15,6 @@
 #include <imgui_internal.h>
 
 #include <SDL.h>
-#include <GL/gl.h>
 
 #include <algorithm>
 #include <cmath>

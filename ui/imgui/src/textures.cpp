@@ -1,18 +1,10 @@
 #include "textures.h"
 
+#include "opengl.h"
+
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
 #include <stb/stb_image.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
-#include <GL/gl.h>
-
-// The gl.h that Windows ships stops at OpenGL 1.1, and this is from 1.2.
-#ifndef GL_CLAMP_TO_EDGE
-#define GL_CLAMP_TO_EDGE 0x812F
-#endif
 
 namespace imgui_backend
 {
