@@ -1,0 +1,135 @@
+name: Release
+
+# Release manually from the Actions tab. The version is the one in CMakeLists.txt, so the editor and its download say the same.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest runner still offered, so the binary keeps working on older distributions
+          - platform: linux
+            runner: ubuntu-22.04
+          - platform: windows
+            runner: windows-2022
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Read the version
+        run: |
+          version=$(sed -n 's/^project(fried_editor VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Install SDL2 and OpenGL
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libsdl2-dev libgl1-mesa-dev imagemagick
+
+      - name: Download SDL2
+        if: matrix.platform == 'windows'
+        env:
+          SDL2_VERSION: 2.32.10
+          SDL2_SHA256: af347939395a58b365846aaea27391e69f9ec9d4dd650d6ac40802159b418a6e
+        run: |
+          curl -fsSLO "https://github.com/libsdl-org/SDL/releases/download/release-$SDL2_VERSION/SDL2-devel-$SDL2_VERSION-VC.zip"
+          echo "$SDL2_SHA256  SDL2-devel-$SDL2_VERSION-VC.zip" | sha256sum --check --strict
+          unzip -q "SDL2-devel-$SDL2_VERSION-VC.zip"
+          echo "SDL2_DIR=$(cygpath -m "$PWD")/SDL2-$SDL2_VERSION/cmake" >> "$GITHUB_ENV"
+          echo "SDL2_DLL=$(cygpath -m "$PWD")/SDL2-$SDL2_VERSION/lib/x64/SDL2.dll" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${SDL2_DIR:+-DSDL2_DIR="$SDL2_DIR"}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package the AppImage
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp build/app_imgui/fried_editor AppDir/usr/bin/
+          cp packaging/linux/fried-editor.desktop AppDir/usr/share/applications/
+
+          # A stand-in until the editor has artwork of its own; replace this line with the real icon.
+          convert -size 256x256 xc:"#3c3c3c" AppDir/usr/share/icons/hicolor/256x256/apps/fried-editor.png
+
+          curl -fsSLO https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+
+          # Unpacking the tool instead of mounting it keeps FUSE out of the runner.
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export OUTPUT="FriedEditor-$VERSION-x86_64.AppImage"
+
+          # Stripping fails on any library the runner built with a section its own strip
+          # predates, and all it buys is a smaller download.
+          export NO_STRIP=1
+
+          # SDL2 goes inside. libGL does not: it belongs to the machine's graphics driver,
+          # which is why AppImage's exclude list leaves it out.
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+
+      - name: Package the zip
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          mkdir package
+          copy build\app_imgui\Release\fried_editor.exe package\
+          copy $env:SDL2_DLL package\
+          Compress-Archive -Path package\* -DestinationPath "FriedEditor-$env:VERSION-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fried-editor-${{ matrix.platform }}
+          path: FriedEditor-*
+          if-no-files-found: error
+
+  release:
+    name: draft
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Creating a release writes to the repository
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^project(fried_editor VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+
+          # The Project Manager pins these, so they are published beside the files.
+          (cd assets && sha256sum FriedEditor-* > SHA256SUMS)
+          ls -l assets
+          gh release create "v$version" assets/* \
+            --repo ${{ github.repository }} \
+            --target ${{ github.sha }} \
+            --title "Fried Editor $version" \
+            --generate-notes \
+            --draft

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Fried Editor
+Comment=Edit the scenes of Fried Engine games
+Exec=fried_editor
+Icon=fried-editor
+Categories=Development;IDE;
+Terminal=false
