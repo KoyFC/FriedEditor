@@ -29,9 +29,11 @@ namespace imgui_backend
 
         std::string layoutFile()
         {
-            const char *config = std::getenv("XDG_CONFIG_HOME");
-            std::filesystem::path directory = config && *config ? std::filesystem::path(config) : std::filesystem::path(std::getenv("HOME") ? std::getenv("HOME") : ".") / ".config";
-            directory /= "fried-editor";
+            std::filesystem::path directory = fried::editor::configDirectory();
+            if (directory.empty())
+            {
+                directory = ".";
+            }
             std::error_code ignored;
             std::filesystem::create_directories(directory, ignored);
             return (directory / "layout.ini").string();

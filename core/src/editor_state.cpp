@@ -13,6 +13,27 @@ using Json = nlohmann::json;
 
 namespace fried::editor
 {
+    std::string configDirectory()
+    {
+        auto variable = [](const char *name) {
+            const char *value = std::getenv(name);
+            return value && *value ? std::string(value) : std::string();
+        };
+
+#ifdef _WIN32
+        std::string appData = variable("APPDATA");
+        return appData.empty() ? std::string() : (fs::path(appData) / "fried-editor").string();
+#else
+        std::string config = variable("XDG_CONFIG_HOME");
+        if (!config.empty())
+        {
+            return (fs::path(config) / "fried-editor").string();
+        }
+        std::string home = variable("HOME");
+        return home.empty() ? std::string() : (fs::path(home) / ".config" / "fried-editor").string();
+#endif
+    }
+
     std::string EditorState::filePath()
     {
         const char *override = std::getenv("FRIED_EDITOR_CONFIG");
@@ -20,24 +41,12 @@ namespace fried::editor
         {
             return std::string();
         }
-        fs::path directory;
-        if (override && *override)
-        {
-            directory = override;
-        }
-        else if (const char *config = std::getenv("XDG_CONFIG_HOME"); config && *config)
-        {
-            directory = fs::path(config) / "fried-editor";
-        }
-        else if (const char *home = std::getenv("HOME"); home && *home)
-        {
-            directory = fs::path(home) / ".config" / "fried-editor";
-        }
-        else
+        std::string directory = override && *override ? std::string(override) : configDirectory();
+        if (directory.empty())
         {
             return std::string();
         }
-        return (directory / "state.json").string();
+        return (fs::path(directory) / "state.json").string();
     }
 
     std::string EditorState::lastScene(const std::string &projectDirectory)

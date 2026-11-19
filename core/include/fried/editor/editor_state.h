@@ -26,6 +26,9 @@ namespace fried::editor
         static std::string filePath();
     };
 
+    // Where the editor keeps its settings: %APPDATA%\fried-editor on Windows, and $XDG_CONFIG_HOME/fried-editor or ~/.config/fried-editor elsewhere. Empty when none of those can be worked out.
+    std::string configDirectory();
+
     // The last lines of a text file, which is how a build's log is shown while it is still being written.
     std::string tailOfFile(const std::string &path, int lines);
 }
