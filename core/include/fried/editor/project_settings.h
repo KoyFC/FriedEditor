@@ -81,6 +81,9 @@ namespace fried::editor
         // Looks the machine over again, for a toolchain installed while the editor was open.
         void refreshToolchains();
 
+        // Builds with these instead of what the machine has, so a test can describe a machine.
+        void useToolchains(const fried::core::Toolchains &toolchains) { m_toolchains = toolchains; }
+
         // "Ready", or why the target cannot be built on this machine.
         std::string status(fried::core::BuildTarget target) const;
         bool isReady(fried::core::BuildTarget target) const;

@@ -288,6 +288,7 @@ namespace fried::editor
         ProjectSettings m_settings{m_project};
         ProjectBuild m_projectBuild{m_project};
         std::string m_enginePath;
+        fried::core::Toolchains m_toolchains;
         std::string m_scenePath;
         SceneDocument m_document;
         std::unique_ptr<CommandStack> m_commands;

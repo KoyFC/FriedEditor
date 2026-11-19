@@ -1,29 +1,61 @@
 #include "fried/editor/player_builder.h"
 
+#include "fried/core/build.h"
+
 #include <filesystem>
 
 namespace fs = std::filesystem;
 
 namespace fried::editor
 {
-    std::vector<SubprocessOptions> PlayerBuilder::engineSteps(const std::string &enginePath, const std::string &logFile)
+    namespace
     {
-        std::string playerDirectory = enginePath + "/editor/player";
-        return {
-            {{"haxe", "build.hxml"}, {}, playerDirectory, logFile},
-            {{"cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"}, {}, playerDirectory, logFile},
-            {{"cmake", "--build", "build", "-j"}, {}, playerDirectory, logFile},
-        };
+        // The Haxe compile in its folder, then the CMake steps this machine builds with, which run with the same PATH.
+        std::vector<SubprocessOptions> haxeThenCmake(const std::vector<std::string> &haxe, const std::string &haxeDirectory,
+                                                     const std::vector<fried::core::BuildStep> &cmake, const std::string &cmakeDirectory,
+                                                     const std::string &logFile, const fried::core::Toolchains &toolchains, std::string *error)
+        {
+            if (cmake.empty())
+            {
+                return {};
+            }
+            if (toolchains.m_haxe.empty())
+            {
+                *error = "haxe is not on the PATH, so the editor player cannot be built. Install Haxe and hxcpp.";
+                return {};
+            }
+
+            std::vector<SubprocessOptions> steps = {{haxe, cmake.front().m_environment, haxeDirectory, logFile}};
+            for (SubprocessOptions &step : fried::core::subprocessSteps(cmake, cmakeDirectory))
+            {
+                step.m_logFile = logFile;
+                steps.push_back(step);
+            }
+            return steps;
+        }
     }
 
-    std::vector<SubprocessOptions> PlayerBuilder::projectSteps(const std::string &enginePath, const std::string &projectDirectory, const std::string &logFile)
+    fried::core::Toolchains machineToolchains()
     {
-        std::string buildDirectory = projectDirectory + "/build/editor-player";
-        return {
-            {{"haxe", "editor.hxml"}, {}, projectDirectory, logFile},
-            {{"cmake", "-S", enginePath + "/editor/project-player", "-B", buildDirectory, "-DFRIED_PROJECT_DIR=" + projectDirectory, "-DCMAKE_BUILD_TYPE=Release"}, {}, projectDirectory, logFile},
-            {{"cmake", "--build", buildDirectory, "-j"}, {}, projectDirectory, logFile},
-        };
+        fried::core::Toolchains toolchains = fried::core::detectToolchains(fried::core::managerTools());
+        toolchains.m_visualStudioCmake = fried::core::visualStudioCmake();
+        return toolchains;
+    }
+
+    std::vector<SubprocessOptions> PlayerBuilder::engineSteps(const std::string &enginePath, const std::string &logFile, const fried::core::Toolchains &toolchains,
+                                                              std::string *error)
+    {
+        std::string playerDirectory = enginePath + "/editor/player";
+        std::vector<fried::core::BuildStep> cmake = fried::core::Build::cmakeSteps(playerDirectory, playerDirectory + "/build", fried::core::BuildType::Release, {}, toolchains, error);
+        return haxeThenCmake({"haxe", "build.hxml"}, playerDirectory, cmake, playerDirectory, logFile, toolchains, error);
+    }
+
+    std::vector<SubprocessOptions> PlayerBuilder::projectSteps(const std::string &enginePath, const std::string &projectDirectory, const std::string &logFile,
+                                                               const fried::core::Toolchains &toolchains, std::string *error)
+    {
+        std::vector<fried::core::BuildStep> cmake = fried::core::Build::cmakeSteps(enginePath + "/editor/project-player", projectDirectory + "/build/editor-player",
+                                                                                   fried::core::BuildType::Release, {"-DFRIED_PROJECT_DIR=" + projectDirectory}, toolchains, error);
+        return haxeThenCmake({"haxe", "editor.hxml"}, projectDirectory, cmake, projectDirectory, logFile, toolchains, error);
     }
 
     PlayerBuilder::PlayerBuilder(std::vector<SubprocessOptions> steps)
@@ -46,9 +78,9 @@ namespace fried::editor
         }
     }
 
-    std::string playerExecutablePath(const std::string &enginePath)
+    std::string playerExecutablePath(const std::string &enginePath, const fried::core::Toolchains &toolchains)
     {
-        return enginePath + "/editor/player/build/fried_editor_player";
+        return fried::core::Build::executablePath(enginePath + "/editor/player/build", "fried_editor_player", fried::core::BuildType::Release, toolchains);
     }
 }
 
@@ -60,13 +92,13 @@ namespace fried::editor
         return fs::exists(projectDirectory + "/editor.hxml", ignored);
     }
 
-    std::string playerExecutablePath(const std::string &enginePath, const std::string &projectDirectory)
+    std::string playerExecutablePath(const std::string &enginePath, const std::string &projectDirectory, const fried::core::Toolchains &toolchains)
     {
         if (hasProjectPlayer(projectDirectory))
         {
-            return projectDirectory + "/build/editor-player/fried_project_editor_player";
+            return fried::core::Build::executablePath(projectDirectory + "/build/editor-player", "fried_project_editor_player", fried::core::BuildType::Release, toolchains);
         }
-        return playerExecutablePath(enginePath);
+        return playerExecutablePath(enginePath, toolchains);
     }
 
     namespace
@@ -86,10 +118,10 @@ namespace fried::editor
         }
     }
 
-    bool isPlayerStale(const std::string &enginePath, const std::string &projectDirectory)
+    bool isPlayerStale(const std::string &enginePath, const std::string &projectDirectory, const fried::core::Toolchains &toolchains)
     {
         std::error_code ignored;
-        std::string executable = playerExecutablePath(enginePath, projectDirectory);
+        std::string executable = playerExecutablePath(enginePath, projectDirectory, toolchains);
         if (!fs::exists(executable, ignored))
         {
             return true;

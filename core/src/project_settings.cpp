@@ -1,6 +1,7 @@
 #include "fried/editor/project_settings.h"
 
 #include "fried/editor/editor_state.h"
+#include "fried/editor/player_builder.h"
 
 #include "fried/core/icon.h"
 
@@ -241,12 +242,9 @@ namespace fried::editor
                                      Json{{"type", fried::core::buildTypeName(settings.m_type)}, {"directory", settings.m_directory}, {"logToFile", settings.m_logToFile}});
     }
 
-    // The Emscripten SDK the Project Manager downloads is found where the manager keeps it.
     void ProjectBuild::refreshToolchains()
     {
-        fried::core::ManagedTools managed;
-        managed.m_emscriptenSdk = fried::core::managerToolsDirectory() + "/emsdk";
-        m_toolchains = fried::core::detectToolchains(managed);
+        m_toolchains = machineToolchains();
     }
 
     std::string ProjectBuild::status(BuildTarget target) const

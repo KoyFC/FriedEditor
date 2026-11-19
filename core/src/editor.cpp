@@ -29,6 +29,7 @@ namespace fried::editor
             return false;
         }
         m_enginePath = enginePath;
+        m_toolchains = machineToolchains();
         m_settings.m_onSaved = [this] { projectChanged(); };
 
         std::vector<std::string> scenes = scenePaths();
@@ -63,7 +64,7 @@ namespace fried::editor
         m_viewport.setFrameSize(s_frameWidth, s_frameHeight);
         m_viewport.setCamera(s_frameWidth / 2.0, s_frameHeight / 2.0, 1.0);
 
-        if (isPlayerStale(m_enginePath, m_project.directory()))
+        if (isPlayerStale(m_enginePath, m_project.directory(), m_toolchains))
         {
             rebuildPlayer();
         }
@@ -188,9 +189,20 @@ namespace fried::editor
     void Editor::rebuildPlayer()
     {
         m_isFailureShown = false;
-        m_builder = std::make_unique<PlayerBuilder>(hasProjectPlayer(m_project.directory())
-            ? PlayerBuilder::projectSteps(m_enginePath, m_project.directory(), playerLogFile())
-            : PlayerBuilder::engineSteps(m_enginePath, playerLogFile()));
+        m_toolchains = machineToolchains();
+        std::string error;
+        std::vector<SubprocessOptions> steps = hasProjectPlayer(m_project.directory())
+            ? PlayerBuilder::projectSteps(m_enginePath, m_project.directory(), playerLogFile(), m_toolchains, &error)
+            : PlayerBuilder::engineSteps(m_enginePath, playerLogFile(), m_toolchains, &error);
+        if (steps.empty())
+        {
+            m_status = Status::Failed;
+            m_message = error;
+            showFailure("The editor player cannot be built", error, nullptr);
+            changed();
+            return;
+        }
+        m_builder = std::make_unique<PlayerBuilder>(std::move(steps));
         m_status = Status::BuildingPlayer;
         m_message = "Building the editor player, the log is " + playerLogFile();
         changed();
@@ -233,7 +245,7 @@ namespace fried::editor
         };
 
         std::string error;
-        if (!m_session.launch(playerExecutablePath(m_enginePath, m_project.directory()), m_enginePath, m_project.directory(), s_frameWidth, s_frameHeight, &error))
+        if (!m_session.launch(playerExecutablePath(m_enginePath, m_project.directory(), m_toolchains), m_enginePath, m_project.directory(), s_frameWidth, s_frameHeight, &error))
         {
             m_status = Status::Failed;
             m_message = error;
@@ -261,7 +273,8 @@ namespace fried::editor
             return;
         }
         std::string log = (fs::temp_directory_path() / "fried-editor-game.log").string();
-        if (m_game.start(m_project.directory(), log, &error))
+        m_toolchains = machineToolchains();
+        if (m_game.start(m_project.directory(), log, m_toolchains, &error))
         {
             m_message = "Building the game, the log is " + log;
         }

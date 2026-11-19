@@ -30,12 +30,11 @@ namespace fried::editor
         return std::string();
     }
 
-    std::vector<SubprocessOptions> GameRunner::steps(const std::string &projectDirectory, const std::string &logFile)
+    std::vector<SubprocessOptions> GameRunner::steps(const std::string &projectDirectory, const std::string &logFile, const fried::core::Toolchains &toolchains,
+                                                     std::string *error)
     {
-        std::string error;
         std::vector<fried::core::BuildStep> build = fried::core::Build::steps(fried::core::BuildTarget::Pc, fried::core::BuildType::Debug, false, projectDirectory,
-                                                                            fried::core::Build::defaultDirectory(fried::core::BuildTarget::Pc),
-                                                                            fried::core::detectToolchains({}), &error);
+                                                                            fried::core::Build::defaultDirectory(fried::core::BuildTarget::Pc), toolchains, error);
         std::vector<SubprocessOptions> steps = fried::core::subprocessSteps(build, projectDirectory);
         for (SubprocessOptions &step : steps)
         {
@@ -44,12 +43,12 @@ namespace fried::editor
         return steps;
     }
 
-    std::string GameRunner::executablePath(const std::string &projectDirectory)
+    std::string GameRunner::executablePath(const std::string &projectDirectory, const fried::core::Toolchains &toolchains)
     {
-        return projectDirectory + "/build/" + targetName(projectDirectory);
+        return fried::core::Build::executablePath(projectDirectory + "/build", targetName(projectDirectory), fried::core::BuildType::Debug, toolchains);
     }
 
-    bool GameRunner::start(const std::string &projectDirectory, const std::string &logFile, std::string *error)
+    bool GameRunner::start(const std::string &projectDirectory, const std::string &logFile, const fried::core::Toolchains &toolchains, std::string *error)
     {
         if (m_state == State::Building || m_state == State::Running)
         {
@@ -62,10 +61,18 @@ namespace fried::editor
             m_failure = *error;
             return false;
         }
+        std::vector<SubprocessOptions> build = steps(projectDirectory, logFile, toolchains, error);
+        if (build.empty())
+        {
+            m_state = State::Failed;
+            m_failure = *error;
+            return false;
+        }
         m_projectDirectory = projectDirectory;
         m_logFile = logFile;
+        m_toolchains = toolchains;
         m_failure.clear();
-        m_builder = std::make_unique<PlayerBuilder>(steps(projectDirectory, logFile));
+        m_builder = std::make_unique<PlayerBuilder>(std::move(build));
         m_state = State::Building;
         return true;
     }
@@ -85,7 +92,7 @@ namespace fried::editor
             {
                 m_builder.reset();
                 std::string error;
-                m_game = startSubprocess({{executablePath(m_projectDirectory)}, {}, m_projectDirectory + "/build", m_logFile}, &error);
+                m_game = startSubprocess({{executablePath(m_projectDirectory, m_toolchains)}, {}, m_projectDirectory + "/build", m_logFile}, &error);
                 if (m_game)
                 {
                     m_state = State::Running;

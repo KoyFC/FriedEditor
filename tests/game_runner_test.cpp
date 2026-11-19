@@ -1,4 +1,5 @@
 #include "environment.h"
+#include "machines.h"
 #include "fried/editor/game_runner.h"
 
 #include <doctest/doctest.h>
@@ -19,17 +20,18 @@ TEST_CASE("the game runner reads the target from the project's CMakeLists")
     std::ofstream(directory / "CMakeLists.txt") << "project(x)\nfried_add_game( my_game )\n";
 
     CHECK(GameRunner::targetName(directory.string()) == "my_game");
-    CHECK(GameRunner::executablePath(directory.string()) == directory.string() + "/build/my_game");
+    CHECK(GameRunner::executablePath(directory.string(), linuxMachine()) == directory.string() + "/build/my_game");
+    CHECK(GameRunner::executablePath(directory.string(), windowsMachineWithVisualStudio()) == directory.string() + "/build/Debug/my_game.exe");
 
-    auto steps = GameRunner::steps(directory.string(), "");
+    std::string error;
+    auto steps = GameRunner::steps(directory.string(), "", linuxMachine(), &error);
     REQUIRE(steps.size() == 3);
     CHECK(steps[0].m_arguments[0] == "haxe");
     CHECK(steps[2].m_workDirectory == directory.string());
 
-    std::string error;
     GameRunner runner;
     fs::remove(directory / "CMakeLists.txt");
-    CHECK_FALSE(runner.start(directory.string(), "", &error));
+    CHECK_FALSE(runner.start(directory.string(), "", linuxMachine(), &error));
     CHECK(runner.state() == GameRunner::State::Failed);
     fs::remove_all(directory);
 }
@@ -47,7 +49,7 @@ TEST_CASE("the game runner builds and runs the sandbox")
     std::string sandbox = std::string(engine) + "/sandbox";
     GameRunner runner;
     std::string error;
-    REQUIRE(runner.start(sandbox, (fs::temp_directory_path() / "fried-game-runner-test.log").string(), &error));
+    REQUIRE(runner.start(sandbox, (fs::temp_directory_path() / "fried-game-runner-test.log").string(), fried::editor::machineToolchains(), &error));
     for (int i = 0; i < 3000 && runner.state() == GameRunner::State::Building; ++i)
     {
         runner.pump();
@@ -74,21 +76,24 @@ TEST_CASE("a player is stale when a source is newer than it, and a project with 
     using fried::editor::isPlayerStale;
     using fried::editor::playerExecutablePath;
 
-    CHECK(isPlayerStale(engine, project));
+    fried::core::Toolchains machine = linuxMachine();
+    CHECK(isPlayerStale(engine, project, machine));
 
     std::ofstream(root / "engine" / "src" / "a.hx") << "x";
     std::ofstream(root / "engine" / "editor" / "player" / "build" / "fried_editor_player") << "x";
     auto built = fs::last_write_time(root / "engine" / "src" / "a.hx") + std::chrono::seconds(10);
     fs::last_write_time(root / "engine" / "editor" / "player" / "build" / "fried_editor_player", built);
-    CHECK_FALSE(isPlayerStale(engine, project));
+    CHECK_FALSE(isPlayerStale(engine, project, machine));
 
     fs::last_write_time(root / "engine" / "src" / "a.hx", built + std::chrono::seconds(10));
-    CHECK(isPlayerStale(engine, project));
+    CHECK(isPlayerStale(engine, project, machine));
 
     CHECK_FALSE(hasProjectPlayer(project));
     std::ofstream(root / "project" / "editor.hxml") << "x";
     CHECK(hasProjectPlayer(project));
-    CHECK(playerExecutablePath(engine, project) == project + "/build/editor-player/fried_project_editor_player");
-    CHECK(isPlayerStale(engine, project));
+    CHECK(playerExecutablePath(engine, project, machine) == project + "/build/editor-player/fried_project_editor_player");
+    CHECK(playerExecutablePath(engine, project, windowsMachineWithVisualStudio()) == project + "/build/editor-player/Release/fried_project_editor_player.exe");
+    CHECK(playerExecutablePath(engine, "/no/editor-hxml", windowsMachineWithVisualStudio()) == engine + "/editor/player/build/Release/fried_editor_player.exe");
+    CHECK(isPlayerStale(engine, project, machine));
     fs::remove_all(root);
 }

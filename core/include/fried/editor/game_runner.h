@@ -24,14 +24,15 @@ namespace fried::editor
         // The target name the project's CMakeLists.txt gives fried_add_game. Empty when there is none.
         static std::string targetName(const std::string &projectDirectory);
 
-        // The steps that build the game for the PC in the project's build/ folder, which are the Project Manager's.
-        static std::vector<SubprocessOptions> steps(const std::string &projectDirectory, const std::string &logFile);
+        // The steps that build the game for the PC in the project's build/ folder, which are the Project Manager's. Empty when the machine cannot build, with the reason in error.
+        static std::vector<SubprocessOptions> steps(const std::string &projectDirectory, const std::string &logFile, const fried::core::Toolchains &toolchains,
+                                                    std::string *error);
 
         // Where the build leaves the game's executable.
-        static std::string executablePath(const std::string &projectDirectory);
+        static std::string executablePath(const std::string &projectDirectory, const fried::core::Toolchains &toolchains);
 
         // Starts building. Does nothing while a game is being built or is running.
-        bool start(const std::string &projectDirectory, const std::string &logFile, std::string *error);
+        bool start(const std::string &projectDirectory, const std::string &logFile, const fried::core::Toolchains &toolchains, std::string *error);
 
         // Advances the build, then watches the game. Returns the state.
         State pump();
@@ -54,6 +55,7 @@ namespace fried::editor
     private:
         std::string m_projectDirectory;
         std::string m_logFile;
+        fried::core::Toolchains m_toolchains;
         std::unique_ptr<PlayerBuilder> m_builder;
         std::unique_ptr<Subprocess> m_game;
         State m_state = State::Idle;

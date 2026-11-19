@@ -1,4 +1,5 @@
 #include "environment.h"
+#include "machines.h"
 #include "doctest/doctest.h"
 
 #include "fried/editor/project_settings.h"
@@ -215,6 +216,7 @@ TEST_CASE("a target's build settings start at its own folder and are kept once s
     using fried::core::BuildTarget;
     TemporaryProject project("build-settings");
     ProjectBuild build(project.m_project);
+    build.useToolchains(linuxMachine());
 
     CHECK(build.settings(BuildTarget::Pc).m_directory == "build");
     CHECK(build.settings(BuildTarget::Vita).m_directory == "build/vita");
@@ -265,6 +267,7 @@ TEST_CASE("a build runs its steps in the project's folder and can be dismissed w
     using fried::core::BuildTarget;
     TemporaryProject project("build-run");
     ProjectBuild build(project.m_project);
+    build.useToolchains(linuxMachine());
 
     // The build's first step is haxe, which fails here for want of a build.hxml, or cannot start at all where haxe is not installed.
     std::string error;
