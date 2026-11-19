@@ -1,5 +1,7 @@
 #include "doctest/doctest.h"
 
+#include "shell.h"
+
 #include "fried/editor/message_channel.h"
 
 #include <chrono>
@@ -118,7 +120,7 @@ TEST_CASE("a channel notices that the other end has gone")
 TEST_CASE("a subprocess reports its exit code, with variables added to its environment")
 {
     std::string error;
-    auto process = startSubprocess({{"sh", "-c", "exit $FRIED_TEST_CODE"}, {{"FRIED_TEST_CODE", "3"}}, "", ""}, &error);
+    auto process = startSubprocess({exitingWithVariable("FRIED_TEST_CODE"), {{"FRIED_TEST_CODE", "3"}}, "", ""}, &error);
     REQUIRE(process);
     for (int attempt = 0; attempt < 200 && process->isRunning(); ++attempt)
     {

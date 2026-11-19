@@ -1,3 +1,4 @@
+#include "shell.h"
 #include "doctest/doctest.h"
 
 #include "fried/editor/player_builder.h"
@@ -135,10 +136,10 @@ TEST_CASE("a build runs its steps in order and stops at the first that fails")
         return builder.pump();
     };
 
-    PlayerBuilder good({{{"sh", "-c", "exit 0"}, {}, "", ""}, {{"sh", "-c", "exit 0"}, {}, "", ""}});
+    PlayerBuilder good({{exitingWith("0"), {}, "", ""}, {exitingWith("0"), {}, "", ""}});
     CHECK(finish(good) == PlayerBuilder::State::Succeeded);
 
-    PlayerBuilder bad({{{"sh", "-c", "exit 0"}, {}, "", ""}, {{"sh", "-c", "exit 4"}, {}, "", ""}, {{"sh", "-c", "exit 0"}, {}, "", ""}});
+    PlayerBuilder bad({{exitingWith("0"), {}, "", ""}, {exitingWith("4"), {}, "", ""}, {exitingWith("0"), {}, "", ""}});
     CHECK(finish(bad) == PlayerBuilder::State::Failed);
     CHECK(bad.failure().find("step 2 of 3") != std::string::npos);
 }

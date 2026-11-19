@@ -299,7 +299,10 @@ TEST_CASE("the game a build made is the executable or package in its build folde
     project.write("build/libengine.a", "");
     CHECK(build.builtFile().empty());
 
+#ifndef _WIN32
+    // An executable has no extension on Linux, and a file has no execute permission to look for on Windows.
     project.write("build/sample", "binary");
     std::filesystem::permissions(project.m_root / "build" / "sample", std::filesystem::perms::owner_exec, std::filesystem::perm_options::add);
     CHECK(std::filesystem::path(build.builtFile()).filename() == "sample");
+#endif
 }
