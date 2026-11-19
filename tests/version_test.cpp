@@ -2,7 +2,11 @@
 
 #include "fried/editor/version.h"
 
-TEST_CASE("the version is the one the project declares")
+#include <string>
+
+TEST_CASE("the version is the one the build was given, as numbers separated by dots")
 {
-    CHECK(fried::editor::version() == "0.1.0");
+    std::string version = fried::editor::version();
+    CHECK_FALSE(version.empty());
+    CHECK(version.find_first_not_of("0123456789.") == std::string::npos);
 }

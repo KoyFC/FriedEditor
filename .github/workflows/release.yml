@@ -1,8 +1,12 @@
 name: Release
 
-# Release manually from the Actions tab. The version is the one in CMakeLists.txt, so the editor and its download say the same.
+# Release manually from the Actions tab
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version being built, e.g. 0.1.0"
+        required: true
 
 jobs:
   build:
@@ -27,11 +31,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Read the version
-        run: |
-          version=$(sed -n 's/^project(fried_editor VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
-          test -n "$version"
-          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Set the version
+        run: echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
 
       - name: Install SDL2 and OpenGL
         if: matrix.platform == 'linux'
@@ -52,7 +53,7 @@ jobs:
           echo "SDL2_DLL=$(cygpath -m "$PWD")/SDL2-$SDL2_VERSION/lib/x64/SDL2.dll" >> "$GITHUB_ENV"
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${SDL2_DIR:+-DSDL2_DIR="$SDL2_DIR"}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFRIED_EDITOR_VERSION="$VERSION" ${SDL2_DIR:+-DSDL2_DIR="$SDL2_DIR"}
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -121,15 +122,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version=$(sed -n 's/^project(fried_editor VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
-          test -n "$version"
-
           # The Project Manager pins these, so they are published beside the files.
           (cd assets && sha256sum FriedEditor-* > SHA256SUMS)
           ls -l assets
-          gh release create "v$version" assets/* \
+          gh release create "v${{ inputs.version }}" assets/* \
             --repo ${{ github.repository }} \
             --target ${{ github.sha }} \
-            --title "Fried Editor $version" \
+            --title "Fried Editor ${{ inputs.version }}" \
             --generate-notes \
             --draft

@@ -10,6 +10,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# The version the editor reports, which a release sets to the one it is published as.
+set(FRIED_EDITOR_VERSION "${PROJECT_VERSION}" CACHE STRING "The version the editor reports")
+
 include(cmake/CoreIsUiFree.cmake)
 fried_editor_check_core_is_ui_free(${CMAKE_CURRENT_SOURCE_DIR}/core ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 

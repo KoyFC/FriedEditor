@@ -30,4 +30,4 @@ target_include_directories(fried_editor_core PUBLIC
 target_link_libraries(fried_editor_core PUBLIC fried_core)
 target_compile_features(fried_editor_core PUBLIC cxx_std_17)
 
-target_compile_definitions(fried_editor_core PRIVATE FRIED_EDITOR_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(fried_editor_core PRIVATE FRIED_EDITOR_VERSION="${FRIED_EDITOR_VERSION}")
