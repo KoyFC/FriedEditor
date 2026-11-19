@@ -1,6 +1,4 @@
 find_package(OpenGL REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 
 add_library(imgui STATIC
     ${PROJECT_SOURCE_DIR}/third_party/imgui/imgui.cpp
@@ -12,7 +10,7 @@ add_library(imgui STATIC
     ${PROJECT_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
 )
 target_include_directories(imgui PUBLIC ${PROJECT_SOURCE_DIR}/third_party/imgui)
-target_link_libraries(imgui PUBLIC PkgConfig::SDL2 OpenGL::GL ${CMAKE_DL_LIBS})
+target_link_libraries(imgui PUBLIC ${FRIED_SDL2_TARGET} OpenGL::GL ${CMAKE_DL_LIBS})
 
 add_library(fried_editor_imgui STATIC
     src/app.cpp
