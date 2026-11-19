@@ -1,3 +1,4 @@
+#include "environment.h"
 #include "doctest/doctest.h"
 
 #include "fried/editor/editor.h"
@@ -22,12 +23,12 @@ namespace
         StateFolder()
         {
             fs::remove_all(m_path);
-            setenv("FRIED_EDITOR_CONFIG", m_path.string().c_str(), 1);
+            setEnvironment("FRIED_EDITOR_CONFIG", m_path.string().c_str());
         }
 
         ~StateFolder()
         {
-            setenv("FRIED_EDITOR_CONFIG", "none", 1);
+            setEnvironment("FRIED_EDITOR_CONFIG", "none");
             fs::remove_all(m_path);
         }
     };
@@ -48,7 +49,7 @@ TEST_CASE("the last scene of each project is remembered")
 
 TEST_CASE("nothing is remembered when the state is turned off")
 {
-    setenv("FRIED_EDITOR_CONFIG", "none", 1);
+    setEnvironment("FRIED_EDITOR_CONFIG", "none");
     EditorState::setLastScene("/projects/a", "level.scene.json");
     CHECK(EditorState::lastScene("/projects/a").empty());
 }

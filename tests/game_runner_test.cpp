@@ -1,3 +1,4 @@
+#include "environment.h"
 #include "fried/editor/game_runner.h"
 
 #include <doctest/doctest.h>
@@ -40,9 +41,9 @@ TEST_CASE("the game runner builds and runs the sandbox")
     {
         return;
     }
-    setenv("SDL_VIDEODRIVER", "dummy", 1);
-    setenv("SDL_AUDIODRIVER", "dummy", 1);
-    setenv("SDL_RENDER_DRIVER", "software", 1);
+    setEnvironment("SDL_VIDEODRIVER", "dummy");
+    setEnvironment("SDL_AUDIODRIVER", "dummy");
+    setEnvironment("SDL_RENDER_DRIVER", "software");
     std::string sandbox = std::string(engine) + "/sandbox";
     GameRunner runner;
     std::string error;

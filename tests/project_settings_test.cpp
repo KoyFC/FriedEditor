@@ -1,3 +1,4 @@
+#include "environment.h"
 #include "doctest/doctest.h"
 
 #include "fried/editor/project_settings.h"
@@ -244,7 +245,7 @@ TEST_CASE("the settings of a build are remembered for the project between runs")
     using fried::core::BuildTarget;
     TemporaryProject project("build-remembered");
     fs::path config = project.m_root / "config";
-    setenv("FRIED_EDITOR_CONFIG", config.string().c_str(), 1);
+    setEnvironment("FRIED_EDITOR_CONFIG", config.string().c_str());
     {
         ProjectBuild build(project.m_project);
         BuildSettings settings;
@@ -256,7 +257,7 @@ TEST_CASE("the settings of a build are remembered for the project between runs")
     CHECK(again.settings(BuildTarget::NintendoDs).m_type == fried::core::BuildType::Release);
     CHECK(again.settings(BuildTarget::NintendoDs).m_directory == "build/shipping");
     CHECK(again.settings(BuildTarget::Nintendo3ds).m_directory == "build/3ds");
-    setenv("FRIED_EDITOR_CONFIG", "none", 1);
+    setEnvironment("FRIED_EDITOR_CONFIG", "none");
 }
 
 TEST_CASE("a build runs its steps in the project's folder and can be dismissed when it ends")

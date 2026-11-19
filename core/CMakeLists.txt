@@ -16,10 +16,11 @@ add_library(fried_editor_core STATIC
     src/version.cpp
 )
 
-if(UNIX)
-    target_sources(fried_editor_core PRIVATE
-        src/posix/sockets.cpp
-    )
+if(WIN32)
+    target_sources(fried_editor_core PRIVATE src/windows/sockets.cpp)
+    target_link_libraries(fried_editor_core PUBLIC ws2_32)
+elseif(UNIX)
+    target_sources(fried_editor_core PRIVATE src/posix/sockets.cpp)
 endif()
 
 target_include_directories(fried_editor_core PUBLIC
