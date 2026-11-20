@@ -65,6 +65,20 @@ TEST_CASE("panning the 3D view moves the target against the pointer")
     CHECK(view.targetY() > 0);
 }
 
+TEST_CASE("a line behind the camera is dropped and one that crosses is cut")
+{
+    Viewport3D view;
+    view.setFrameSize(200, 100);
+    view.set(0, 0, 0, 10, 0, 0);
+
+    DrawList list;
+    view.addLine(list, 0, 0, -20, 1, 0, -30, 0xffffffff);
+    CHECK(list.empty());
+    view.addLine(list, 0, 0, -20, 0, 0, 5, 0xffffffff);
+    REQUIRE(list.size() == 1);
+    CHECK(list[0].m_x == doctest::Approx(100));
+}
+
 TEST_CASE("the ground grid has lines that stop at the near plane")
 {
     Viewport3D view;

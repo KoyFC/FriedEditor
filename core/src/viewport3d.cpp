@@ -137,61 +137,61 @@ namespace fried::editor
         return std::make_pair(m_frameWidth / 2.0 + viewX * focalLength / depth, m_frameHeight / 2.0 - viewY * focalLength / depth);
     }
 
-    DrawList Viewport3D::grid() const
+    void Viewport3D::addLine(DrawList &list, double ax, double ay, double az, double bx, double by, double bz, unsigned int color) const
     {
-        DrawList list;
         double forward[3], right[3], up[3];
         axes(forward, right, up);
         double cameraX = x();
         double cameraY = y();
         double cameraZ = z();
         double focalLength = (m_frameHeight / 2.0) / std::tan(m_fieldOfView * s_degrees / 2.0);
-
-        auto line = [&](double ax, double ay, double az, double bx, double by, double bz, unsigned int color) {
-            double points[2][3] = {{ax, ay, az}, {bx, by, bz}};
-            double view[2][3];
-            for (int end = 0; end < 2; ++end)
+        double points[2][3] = {{ax, ay, az}, {bx, by, bz}};
+        double view[2][3];
+        for (int end = 0; end < 2; ++end)
+        {
+            double dx = points[end][0] - cameraX;
+            double dy = points[end][1] - cameraY;
+            double dz = points[end][2] - cameraZ;
+            view[end][0] = right[0] * dx + right[1] * dy + right[2] * dz;
+            view[end][1] = up[0] * dx + up[1] * dy + up[2] * dz;
+            view[end][2] = forward[0] * dx + forward[1] * dy + forward[2] * dz;
+        }
+        if (view[0][2] < s_near && view[1][2] < s_near)
+        {
+            return;
+        }
+        for (int end = 0; end < 2; ++end)
+        {
+            if (view[end][2] < s_near)
             {
-                double dx = points[end][0] - cameraX;
-                double dy = points[end][1] - cameraY;
-                double dz = points[end][2] - cameraZ;
-                view[end][0] = right[0] * dx + right[1] * dy + right[2] * dz;
-                view[end][1] = up[0] * dx + up[1] * dy + up[2] * dz;
-                view[end][2] = forward[0] * dx + forward[1] * dy + forward[2] * dz;
-            }
-            if (view[0][2] < s_near && view[1][2] < s_near)
-            {
-                return;
-            }
-            for (int end = 0; end < 2; ++end)
-            {
-                if (view[end][2] < s_near)
+                int other = 1 - end;
+                double along = (s_near - view[end][2]) / (view[other][2] - view[end][2]);
+                for (int axis = 0; axis < 3; ++axis)
                 {
-                    int other = 1 - end;
-                    double along = (s_near - view[end][2]) / (view[other][2] - view[end][2]);
-                    for (int axis = 0; axis < 3; ++axis)
-                    {
-                        view[end][axis] += (view[other][axis] - view[end][axis]) * along;
-                    }
+                    view[end][axis] += (view[other][axis] - view[end][axis]) * along;
                 }
             }
-            double fromX = m_frameWidth / 2.0 + view[0][0] * focalLength / view[0][2];
-            double fromY = m_frameHeight / 2.0 - view[0][1] * focalLength / view[0][2];
-            double toX = m_frameWidth / 2.0 + view[1][0] * focalLength / view[1][2];
-            double toY = m_frameHeight / 2.0 - view[1][1] * focalLength / view[1][2];
-            list.push_back({DrawCommand::Kind::Line, fromX, fromY, toX - fromX, toY - fromY, color});
-        };
+        }
+        double fromX = m_frameWidth / 2.0 + view[0][0] * focalLength / view[0][2];
+        double fromY = m_frameHeight / 2.0 - view[0][1] * focalLength / view[0][2];
+        double toX = m_frameWidth / 2.0 + view[1][0] * focalLength / view[1][2];
+        double toY = m_frameHeight / 2.0 - view[1][1] * focalLength / view[1][2];
+        list.push_back({DrawCommand::Kind::Line, fromX, fromY, toX - fromX, toY - fromY, color});
+    }
 
+    DrawList Viewport3D::grid() const
+    {
+        DrawList list;
         for (int offset = -s_gridExtent; offset <= s_gridExtent; ++offset)
         {
             if (offset != 0)
             {
-                line(offset, 0, -s_gridExtent, offset, 0, s_gridExtent, s_gridColor);
-                line(-s_gridExtent, 0, offset, s_gridExtent, 0, offset, s_gridColor);
+                addLine(list, offset, 0, -s_gridExtent, offset, 0, s_gridExtent, s_gridColor);
+                addLine(list, -s_gridExtent, 0, offset, s_gridExtent, 0, offset, s_gridColor);
             }
         }
-        line(-s_gridExtent, 0, 0, s_gridExtent, 0, 0, s_xAxisColor);
-        line(0, 0, -s_gridExtent, 0, 0, s_gridExtent, s_zAxisColor);
+        addLine(list, -s_gridExtent, 0, 0, s_gridExtent, 0, 0, s_xAxisColor);
+        addLine(list, 0, 0, -s_gridExtent, 0, 0, s_gridExtent, s_zAxisColor);
         return list;
     }
 }

@@ -48,6 +48,9 @@ namespace fried::editor
         // The ground's lines from -10 to 10 on x and z, the x axis red and the z axis blue, cut where they pass behind the camera.
         DrawList grid() const;
 
+        // A line between two points of the world, cut where it passes behind the camera, or nothing when all of it does.
+        void addLine(DrawList &list, double ax, double ay, double az, double bx, double by, double bz, unsigned int color) const;
+
         static constexpr double s_near = 0.1;
 
     private:

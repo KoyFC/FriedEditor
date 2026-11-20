@@ -524,6 +524,26 @@ namespace fried::editor
                 list.push_back({DrawCommand::Kind::Rect, box->m_x, box->m_y, box->m_width, box->m_height, 0xffffc800});
             }
         }
+        for (const Frustum &frustum : m_frame.m_frusta)
+        {
+            // The selected camera's view is drawn brighter than the others.
+            unsigned int color = m_selected && *m_selected == frustum.m_id ? 0xffffc800 : 0xc0e0e0e0;
+            const std::vector<double> &c = frustum.m_corners;
+            auto edge = [&](int from, int to) {
+                m_frameView3D.addLine(list, c[from * 3], c[from * 3 + 1], c[from * 3 + 2], c[to * 3], c[to * 3 + 1], c[to * 3 + 2], color);
+            };
+            for (int plane = 0; plane < 8; plane += 4)
+            {
+                for (int corner = 0; corner < 4; ++corner)
+                {
+                    edge(plane + corner, plane + (corner + 1) % 4);
+                }
+            }
+            for (int corner = 0; corner < 4; ++corner)
+            {
+                edge(corner, 4 + corner);
+            }
+        }
         DrawList arrows = Gizmo3D::draw(handles3D());
         list.insert(list.end(), arrows.begin(), arrows.end());
         return list;

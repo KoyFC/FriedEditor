@@ -120,6 +120,18 @@ TEST_CASE("a session greets the player, learns the schema and relays requests")
     CHECK(received.m_bounds3D[0].m_worldZ == 3);
     REQUIRE(received.m_bounds3D[0].m_axes.size() == 3);
     CHECK(received.m_bounds3D[0].m_axes[1].second == 30);
+
+    nlohmann::json frustum = {{"id", "eye"}, {"corners", nlohmann::json::array()}};
+    for (int number = 0; number < 24; ++number)
+    {
+        frustum["corners"].push_back(number);
+    }
+    received = Frame();
+    REQUIRE(player.send({{"type", "frame"}, {"width", 1}, {"height", 1}, {"frusta", nlohmann::json::array({frustum})}}));
+    pumpUntil(session, [&] { return received.m_width != 0; });
+    REQUIRE(received.m_frusta.size() == 1);
+    CHECK(received.m_frusta[0].m_id == "eye");
+    CHECK(received.m_frusta[0].m_corners[23] == 23);
     CHECK(reported.empty());
 }
 

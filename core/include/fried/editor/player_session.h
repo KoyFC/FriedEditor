@@ -73,6 +73,13 @@ namespace fried::editor
         std::vector<std::pair<double, double>> m_axes;
     };
 
+    // What a Camera3D sees, as eight corners in the world: the four of its near plane and then the four of a plane in front of it that stands for the far end, each going round the plane.
+    struct Frustum
+    {
+        std::string m_id;
+        std::vector<double> m_corners;
+    };
+
     struct Frame
     {
         int m_width = 0;
@@ -80,6 +87,7 @@ namespace fried::editor
         std::vector<unsigned char> m_rgba;
         std::vector<ObjectBounds> m_bounds;
         std::vector<ObjectBounds3D> m_bounds3D;
+        std::vector<Frustum> m_frusta;
     };
 
     // The editor's side of the link to the editor player: it waits for the player to connect, asks for what the editor needs and hands back the answers.

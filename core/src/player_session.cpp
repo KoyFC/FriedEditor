@@ -174,6 +174,19 @@ namespace fried::editor
                 }
                 frame.m_bounds3D.push_back(std::move(box));
             }
+            for (const auto &entry : listOf(header, "frusta"))
+            {
+                Frustum frustum;
+                frustum.m_id = entry.value("id", "");
+                for (const auto &number : listOf(entry, "corners"))
+                {
+                    frustum.m_corners.push_back(number.is_number() ? number.get<double>() : 0.0);
+                }
+                if (frustum.m_corners.size() == 24)
+                {
+                    frame.m_frusta.push_back(std::move(frustum));
+                }
+            }
             if (m_onFrame)
             {
                 m_onFrame(frame);
