@@ -288,6 +288,7 @@ namespace fried::editor
         DrawList overlay3D() const;
         std::optional<std::string> hit3D(double frameX, double frameY) const;
         const ObjectBounds3D *bounds3DOf(const std::string &id) const;
+        std::vector<AxisHandle> handles3D() const;
         void projectChanged();
         void showFailure(const std::string &title, const std::string &message, const std::vector<fried::core::OutputLine> *lines);
         void documentChanged(const DocumentChange &change);
@@ -370,7 +371,8 @@ namespace fried::editor
                 Object,
                 Handle,
                 Pan,
-                Look
+                Look,
+                Handle3D
             };
             Kind m_kind = Kind::None;
             std::string m_id;
@@ -382,10 +384,14 @@ namespace fried::editor
             double m_appliedY = 0;
             double m_originX = 0;
             double m_originY = 0;
+            double m_startFrameX = 0;
+            double m_startFrameY = 0;
             double m_lastFrameX = 0;
             double m_lastFrameY = 0;
             bool m_hasMoved = false;
             std::optional<GizmoDrag> m_handle;
+            std::optional<AxisHandle> m_axisHandle;
+            double m_startValue = 0;
         } m_drag;
     };
 }

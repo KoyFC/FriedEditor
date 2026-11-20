@@ -84,4 +84,31 @@ namespace fried::editor
         double m_startWorldY;
         double m_startAngle;
     };
+
+    // One axis of the 3D move gizmo on the frame: from the node's origin toward where one more unit of that field lands.
+    struct AxisHandle
+    {
+        // 0 is the node's x, 1 its y and 2 its z.
+        int m_axis = 0;
+        double m_originX = 0;
+        double m_originY = 0;
+        double m_tipX = 0;
+        double m_tipY = 0;
+        // The pixels one unit of the field moves by on the frame, which a drag along the arrow is measured against.
+        double m_unitX = 0;
+        double m_unitY = 0;
+    };
+
+    // The arrows on a selected Node3D. They follow its parent's axes, since its x, y and z are in the parent's space, so they are screen maths on what the player reports.
+    class Gizmo3D
+    {
+    public:
+        static std::vector<AxisHandle> handles(const ObjectBounds3D &bounds);
+        static std::optional<AxisHandle> hit(const std::vector<AxisHandle> &handles, double frameX, double frameY);
+        static DrawList draw(const std::vector<AxisHandle> &handles);
+
+        // How far the field moves for a drag from one point of the frame to another along the arrow.
+        static double delta(const AxisHandle &handle, double fromX, double fromY, double toX, double toY);
+        static const char *fieldOf(int axis);
+    };
 }

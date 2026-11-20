@@ -171,3 +171,31 @@ TEST_CASE("a handle drag is one step to undo")
     stack.undo();
     CHECK_FALSE(document.nodeField("a", "scaleX").has_value());
 }
+
+TEST_CASE("the 3D gizmo has an arrow for each axis that faces the camera and a drag along one measures units")
+{
+    ObjectBounds3D bounds;
+    bounds.m_originX = 100;
+    bounds.m_originY = 100;
+    bounds.m_axes = {{110, 100}, {100, 90}, {100, 100}};
+
+    auto handles = Gizmo3D::handles(bounds);
+    REQUIRE(handles.size() == 2);
+    CHECK(handles[0].m_axis == 0);
+    CHECK(handles[0].m_tipX == doctest::Approx(100 + Gizmo::s_arrowLength));
+    CHECK(handles[1].m_axis == 1);
+    CHECK(handles[1].m_tipY == doctest::Approx(100 - Gizmo::s_arrowLength));
+
+    CHECK(Gizmo3D::delta(handles[0], 100, 100, 125, 107) == doctest::Approx(2.5));
+    CHECK(Gizmo3D::delta(handles[1], 100, 100, 130, 80) == doctest::Approx(2.0));
+
+    auto hit = Gizmo3D::hit(handles, 140, 101);
+    REQUIRE(hit.has_value());
+    CHECK(hit->m_axis == 0);
+    CHECK_FALSE(Gizmo3D::hit(handles, 140, 140).has_value());
+    CHECK_FALSE(Gizmo3D::draw(handles).empty());
+    CHECK(std::string(Gizmo3D::fieldOf(2)) == "z");
+
+    bounds.m_axes.clear();
+    CHECK(Gizmo3D::handles(bounds).empty());
+}

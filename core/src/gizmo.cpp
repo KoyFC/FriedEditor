@@ -186,4 +186,79 @@ namespace fried::editor
         }
         return fields;
     }
+
+    std::vector<AxisHandle> Gizmo3D::handles(const ObjectBounds3D &bounds)
+    {
+        std::vector<AxisHandle> list;
+        if (bounds.m_axes.size() != 3)
+        {
+            return list;
+        }
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            double unitX = bounds.m_axes[axis].first - bounds.m_originX;
+            double unitY = bounds.m_axes[axis].second - bounds.m_originY;
+            double length = std::hypot(unitX, unitY);
+            if (length < 1.0)
+            {
+                continue;
+            }
+            AxisHandle handle;
+            handle.m_axis = axis;
+            handle.m_originX = bounds.m_originX;
+            handle.m_originY = bounds.m_originY;
+            handle.m_tipX = bounds.m_originX + unitX / length * Gizmo::s_arrowLength;
+            handle.m_tipY = bounds.m_originY + unitY / length * Gizmo::s_arrowLength;
+            handle.m_unitX = unitX;
+            handle.m_unitY = unitY;
+            list.push_back(handle);
+        }
+        return list;
+    }
+
+    std::optional<AxisHandle> Gizmo3D::hit(const std::vector<AxisHandle> &handles, double frameX, double frameY)
+    {
+        std::optional<AxisHandle> found;
+        double nearest = 0;
+        for (const AxisHandle &handle : handles)
+        {
+            double lineX = handle.m_tipX - handle.m_originX;
+            double lineY = handle.m_tipY - handle.m_originY;
+            double along = ((frameX - handle.m_originX) * lineX + (frameY - handle.m_originY) * lineY) / (lineX * lineX + lineY * lineY);
+            along = std::clamp(along, 0.0, 1.0);
+            double distance = std::hypot(frameX - (handle.m_originX + lineX * along), frameY - (handle.m_originY + lineY * along));
+            double tipDistance = std::max(std::abs(frameX - handle.m_tipX), std::abs(frameY - handle.m_tipY));
+            bool isHit = distance <= Gizmo::s_ringTolerance || tipDistance <= Gizmo::s_handleHalfSize;
+            if (isHit && (!found || distance < nearest))
+            {
+                found = handle;
+                nearest = distance;
+            }
+        }
+        return found;
+    }
+
+    DrawList Gizmo3D::draw(const std::vector<AxisHandle> &handles)
+    {
+        DrawList list;
+        for (const AxisHandle &handle : handles)
+        {
+            unsigned int color = handle.m_axis == 0 ? s_red : (handle.m_axis == 1 ? s_green : s_blue);
+            list.push_back({DrawCommand::Kind::Line, handle.m_originX, handle.m_originY, handle.m_tipX - handle.m_originX, handle.m_tipY - handle.m_originY, color});
+            double half = Gizmo::s_handleHalfSize;
+            list.push_back({DrawCommand::Kind::FilledRect, handle.m_tipX - half, handle.m_tipY - half, half * 2, half * 2, color});
+        }
+        return list;
+    }
+
+    double Gizmo3D::delta(const AxisHandle &handle, double fromX, double fromY, double toX, double toY)
+    {
+        double length = handle.m_unitX * handle.m_unitX + handle.m_unitY * handle.m_unitY;
+        return length > 0 ? ((toX - fromX) * handle.m_unitX + (toY - fromY) * handle.m_unitY) / length : 0.0;
+    }
+
+    const char *Gizmo3D::fieldOf(int axis)
+    {
+        return axis == 0 ? "x" : (axis == 1 ? "y" : "z");
+    }
 }

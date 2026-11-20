@@ -458,6 +458,7 @@ namespace fried::editor
         if (mode != m_viewMode)
         {
             m_viewMode = mode;
+            m_gizmoMode = GizmoMode::Move;
             m_drag = Drag();
             cameraChanged();
         }
@@ -523,7 +524,21 @@ namespace fried::editor
                 list.push_back({DrawCommand::Kind::Rect, box->m_x, box->m_y, box->m_width, box->m_height, 0xffffc800});
             }
         }
+        DrawList arrows = Gizmo3D::draw(handles3D());
+        list.insert(list.end(), arrows.begin(), arrows.end());
         return list;
+    }
+
+    std::vector<AxisHandle> Editor::handles3D() const
+    {
+        if (m_selected)
+        {
+            if (const ObjectBounds3D *box = bounds3DOf(*m_selected))
+            {
+                return Gizmo3D::handles(*box);
+            }
+        }
+        return {};
     }
 
     bool Editor::save(std::string *error)
@@ -1293,6 +1308,8 @@ namespace fried::editor
         m_drag = Drag();
         m_drag.m_lastFrameX = frameX;
         m_drag.m_lastFrameY = frameY;
+        m_drag.m_startFrameX = frameX;
+        m_drag.m_startFrameY = frameY;
         if (m_viewMode == ViewMode::TwoD && pointer == Pointer::Look)
         {
             pointer = Pointer::Pan;
@@ -1309,6 +1326,15 @@ namespace fried::editor
         }
         if (m_viewMode == ViewMode::ThreeD)
         {
+            if (auto handle = Gizmo3D::hit(handles3D(), frameX, frameY))
+            {
+                std::optional<Json> value = m_document.nodeField(*m_selected, Gizmo3D::fieldOf(handle->m_axis));
+                m_drag.m_kind = Drag::Kind::Handle3D;
+                m_drag.m_id = *m_selected;
+                m_drag.m_axisHandle = *handle;
+                m_drag.m_startValue = value && value->is_number() ? value->get<double>() : 0.0;
+                return;
+            }
             select(hit3D(frameX, frameY));
             return;
         }
@@ -1374,10 +1400,22 @@ namespace fried::editor
             target.m_kind = PointerTarget::Kind::Handle;
             target.m_handle = m_drag.m_handle->kind();
             return target;
+        case Drag::Kind::Handle3D:
+            target.m_kind = PointerTarget::Kind::Handle;
+            target.m_handle = GizmoHandle::Kind::MoveXY;
+            return target;
         case Drag::Kind::None:
             break;
         }
-        if (auto handle = Gizmo::hit(currentHandles(), frameX, frameY))
+        if (m_viewMode == ViewMode::ThreeD)
+        {
+            if (Gizmo3D::hit(handles3D(), frameX, frameY))
+            {
+                target.m_kind = PointerTarget::Kind::Handle;
+                target.m_handle = GizmoHandle::Kind::MoveXY;
+            }
+        }
+        else if (auto handle = Gizmo::hit(currentHandles(), frameX, frameY))
         {
             target.m_kind = PointerTarget::Kind::Handle;
             target.m_handle = handle->m_kind;
@@ -1406,6 +1444,13 @@ namespace fried::editor
             m_drag.m_lastFrameX = frameX;
             m_drag.m_lastFrameY = frameY;
             cameraChanged();
+        }
+        else if (m_drag.m_kind == Drag::Kind::Handle3D)
+        {
+            double moved = Gizmo3D::delta(*m_drag.m_axisHandle, m_drag.m_startFrameX, m_drag.m_startFrameY, frameX, frameY);
+            double value = std::round((m_drag.m_startValue + moved) * 100) / 100;
+            setTransformFields(m_drag.m_id, {{Gizmo3D::fieldOf(m_drag.m_axisHandle->m_axis), value}}, m_drag.m_hasMoved);
+            m_drag.m_hasMoved = true;
         }
         else if (m_drag.m_kind == Drag::Kind::Handle)
         {
