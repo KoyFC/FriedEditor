@@ -1,0 +1,46 @@
+site_name: Fried Editor
+site_url: https://koyfc.github.io/FriedEditor/
+site_description: "The scene editor for Fried Engine, with a viewport, a hierarchy and an inspector for the scenes of a game."
+repo_url: https://github.com/KoyFC/FriedEditor
+repo_name: KoyFC/FriedEditor
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/brightness-7, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/brightness-4, name: Light mode }
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc: { permalink: true }
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - installing.md
+  - Using:
+      - using/opening-a-project.md
+      - using/viewport.md
+      - using/hierarchy-and-inspector.md
+      - using/assets-and-issues.md
+      - using/play.md
+      - using/project-settings.md
+  - architecture/index.md
+  - Development:
+      - development/index.md
+      - development/roadmap.md
