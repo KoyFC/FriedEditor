@@ -214,6 +214,7 @@ namespace fried::editor
         m_session.m_onReady = [this] {
             m_status = Status::Ready;
             m_message = "Playing on " + platformLabel(m_platform);
+            chooseViewMode();
             m_needsLoad = true;
             m_needsCamera = true;
             m_needsRender = true;
@@ -223,6 +224,9 @@ namespace fried::editor
             m_frame = frame;
             m_frameView = m_inFlightView;
             m_frameView.setFrameSize(frame.m_width, frame.m_height);
+            m_frameView3D = m_inFlightView3D;
+            m_frameView3D.setFrameSize(frame.m_width, frame.m_height);
+            m_viewport3D.setFrameSize(frame.m_width, frame.m_height);
             ++m_frameSerial;
             m_viewport.setFrameSize(frame.m_width, frame.m_height);
             m_isRenderInFlight = false;
@@ -383,7 +387,10 @@ namespace fried::editor
         {
             m_needsCamera = false;
             m_session.setEditorCamera(m_viewport.cameraX(), m_viewport.cameraY(), m_viewport.zoom());
+            m_session.setEditorCamera3D(m_viewport3D.x(), m_viewport3D.y(), m_viewport3D.z(), m_viewport3D.rotationX(), m_viewport3D.rotationY(),
+                                        m_viewport3D.fieldOfView());
             m_sentView = m_viewport;
+            m_sentView3D = m_viewport3D;
             m_needsRender = true;
         }
         if (m_needsRender && !m_isRenderInFlight)
@@ -391,6 +398,7 @@ namespace fried::editor
             m_needsRender = false;
             m_isRenderInFlight = true;
             m_inFlightView = m_sentView;
+            m_inFlightView3D = m_sentView3D;
             m_session.render();
         }
     }
@@ -426,9 +434,96 @@ namespace fried::editor
         m_scenePath = path;
         EditorState::setLastScene(m_project.directory(), fs::path(path).filename().string());
         m_selected.reset();
+        chooseViewMode();
         m_needsLoad = true;
         changed();
         return true;
+    }
+
+    void Editor::chooseViewMode()
+    {
+        m_viewMode = ViewMode::TwoD;
+        for (const std::string &id : m_document.nodeIds())
+        {
+            if (isClassOf(m_document.typeOf(id), "Node3D"))
+            {
+                m_viewMode = ViewMode::ThreeD;
+                break;
+            }
+        }
+    }
+
+    void Editor::setViewMode(ViewMode mode)
+    {
+        if (mode != m_viewMode)
+        {
+            m_viewMode = mode;
+            m_drag = Drag();
+            cameraChanged();
+        }
+    }
+
+    void Editor::fly(double forward, double right, double up, double seconds, bool fast)
+    {
+        if (m_viewMode != ViewMode::ThreeD)
+        {
+            return;
+        }
+        double speed = std::max(m_viewport3D.distance(), 2.0) * (fast ? 3.0 : 1.0);
+        m_viewport3D.fly(forward * speed * seconds, right * speed * seconds, up * speed * seconds);
+        cameraChanged();
+    }
+
+    void Editor::focusSelected()
+    {
+        if (m_viewMode != ViewMode::ThreeD || !m_selected)
+        {
+            return;
+        }
+        if (const ObjectBounds3D *box = bounds3DOf(*m_selected))
+        {
+            m_viewport3D.focus(box->m_worldX, box->m_worldY, box->m_worldZ);
+            cameraChanged();
+        }
+    }
+
+    const ObjectBounds3D *Editor::bounds3DOf(const std::string &id) const
+    {
+        for (const ObjectBounds3D &box : m_frame.m_bounds3D)
+        {
+            if (box.m_id == id)
+            {
+                return &box;
+            }
+        }
+        return nullptr;
+    }
+
+    std::optional<std::string> Editor::hit3D(double frameX, double frameY) const
+    {
+        const ObjectBounds3D *nearest = nullptr;
+        for (const ObjectBounds3D &box : m_frame.m_bounds3D)
+        {
+            if (frameX >= box.m_x && frameX < box.m_x + box.m_width && frameY >= box.m_y && frameY < box.m_y + box.m_height
+                && (!nearest || box.m_depth < nearest->m_depth))
+            {
+                nearest = &box;
+            }
+        }
+        return nearest ? std::optional<std::string>(nearest->m_id) : std::nullopt;
+    }
+
+    DrawList Editor::overlay3D() const
+    {
+        DrawList list = m_frameView3D.grid();
+        if (m_selected)
+        {
+            if (const ObjectBounds3D *box = bounds3DOf(*m_selected))
+            {
+                list.push_back({DrawCommand::Kind::Rect, box->m_x, box->m_y, box->m_width, box->m_height, 0xffffc800});
+            }
+        }
+        return list;
     }
 
     bool Editor::save(std::string *error)
@@ -544,6 +639,12 @@ namespace fried::editor
         {
             node["x"] = std::round(m_viewport.cameraX());
             node["y"] = std::round(m_viewport.cameraY());
+        }
+        else if (isClassOf(type, "Node3D"))
+        {
+            node["x"] = std::round(m_viewport3D.targetX() * 100) / 100;
+            node["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
+            node["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
         }
         std::string parent = parentId ? *parentId : "";
         if (m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node)))
@@ -1082,6 +1183,10 @@ namespace fried::editor
 
     DrawList Editor::overlay() const
     {
+        if (m_viewMode == ViewMode::ThreeD)
+        {
+            return overlay3D();
+        }
         std::optional<std::pair<double, double>> gameCamera;
         if (auto id = m_document.cameraId())
         {
@@ -1188,9 +1293,23 @@ namespace fried::editor
         m_drag = Drag();
         m_drag.m_lastFrameX = frameX;
         m_drag.m_lastFrameY = frameY;
+        if (m_viewMode == ViewMode::TwoD && pointer == Pointer::Look)
+        {
+            pointer = Pointer::Pan;
+        }
         if (pointer == Pointer::Pan)
         {
             m_drag.m_kind = Drag::Kind::Pan;
+            return;
+        }
+        if (pointer == Pointer::Look)
+        {
+            m_drag.m_kind = Drag::Kind::Look;
+            return;
+        }
+        if (m_viewMode == ViewMode::ThreeD)
+        {
+            select(hit3D(frameX, frameY));
             return;
         }
 
@@ -1245,6 +1364,7 @@ namespace fried::editor
         switch (m_drag.m_kind)
         {
         case Drag::Kind::Pan:
+        case Drag::Kind::Look:
             target.m_kind = PointerTarget::Kind::Pan;
             return target;
         case Drag::Kind::Object:
@@ -1271,9 +1391,18 @@ namespace fried::editor
 
     void Editor::pointerMove(double frameX, double frameY)
     {
-        if (m_drag.m_kind == Drag::Kind::Pan)
+        if (m_drag.m_kind == Drag::Kind::Pan || m_drag.m_kind == Drag::Kind::Look)
         {
-            m_viewport.panByFrame(frameX - m_drag.m_lastFrameX, frameY - m_drag.m_lastFrameY);
+            double deltaX = frameX - m_drag.m_lastFrameX;
+            double deltaY = frameY - m_drag.m_lastFrameY;
+            if (m_viewMode == ViewMode::ThreeD)
+            {
+                m_drag.m_kind == Drag::Kind::Look ? m_viewport3D.look(deltaX, deltaY) : m_viewport3D.pan(deltaX, deltaY);
+            }
+            else
+            {
+                m_viewport.panByFrame(deltaX, deltaY);
+            }
             m_drag.m_lastFrameX = frameX;
             m_drag.m_lastFrameY = frameY;
             cameraChanged();
@@ -1299,7 +1428,14 @@ namespace fried::editor
 
     void Editor::wheel(double frameX, double frameY, double steps)
     {
-        m_viewport.zoomAt(frameX, frameY, std::pow(1.1, steps));
+        if (m_viewMode == ViewMode::ThreeD)
+        {
+            m_viewport3D.dolly(steps);
+        }
+        else
+        {
+            m_viewport.zoomAt(frameX, frameY, std::pow(1.1, steps));
+        }
         cameraChanged();
     }
 }

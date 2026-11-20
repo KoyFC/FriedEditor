@@ -154,6 +154,26 @@ namespace fried::editor
                 }
                 frame.m_bounds.push_back(std::move(box));
             }
+            for (const auto &entry : listOf(header, "bounds3D"))
+            {
+                ObjectBounds3D box;
+                box.m_id = entry.value("id", "");
+                box.m_x = entry.value("x", 0.0);
+                box.m_y = entry.value("y", 0.0);
+                box.m_width = entry.value("width", 0.0);
+                box.m_height = entry.value("height", 0.0);
+                box.m_depth = entry.value("depth", 0.0);
+                box.m_originX = entry.value("originX", 0.0);
+                box.m_originY = entry.value("originY", 0.0);
+                box.m_worldX = entry.value("worldX", 0.0);
+                box.m_worldY = entry.value("worldY", 0.0);
+                box.m_worldZ = entry.value("worldZ", 0.0);
+                for (const auto &axis : listOf(entry, "axes"))
+                {
+                    box.m_axes.emplace_back(axis.value("x", 0.0), axis.value("y", 0.0));
+                }
+                frame.m_bounds3D.push_back(std::move(box));
+            }
             if (m_onFrame)
             {
                 m_onFrame(frame);
@@ -235,6 +255,14 @@ namespace fried::editor
         if (m_channel)
         {
             m_channel->send({{"type", "setEditorCamera"}, {"x", x}, {"y", y}, {"zoom", zoom}});
+        }
+    }
+
+    void PlayerSession::setEditorCamera3D(double x, double y, double z, double rotationX, double rotationY, double fieldOfView)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "setEditorCamera3D"}, {"x", x}, {"y", y}, {"z", z}, {"rotationX", rotationX}, {"rotationY", rotationY}, {"fieldOfView", fieldOfView}});
         }
     }
 

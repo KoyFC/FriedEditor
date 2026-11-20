@@ -122,6 +122,13 @@ Known limit: a position that depends on the screen's size, such as the right edg
 - [x] The player reports each node's origin in the world, so a child's move handle is drawn on the child and not at the world's origin
 - [x] The player changes its tree in place for adding, removing and moving, and the hierarchy and inspector are cached and clipped for scenes of thousands of nodes: on 5,000 nodes a move with its undo and redo takes about 12 ms and writing the file 2 ms
 
+### 15. 3D scenes (FriedEngine and FriedEditor)
+
+- [x] `Node3D`, `Camera3D`, `DirectionalLight` and `MeshInstance` with built-in shapes; a scene's `camera` names a `Camera` or a `Camera3D`
+- [x] Protocol 3: a frame gives each `Node3D`'s box, depth, origin and axes on the frame, and the editor sends its own 3D camera
+- [x] A 2D/3D switch, chosen by the scene's nodes, with a free camera (hold the right button, then WASD), pan, dolly, focus, a ground grid and selection by click
+- [ ] A move gizmo for a `Node3D` along its parent's axes; rotation and scale are edited in the inspector
+
 ## Later
 
-A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, a `screen` field for dual-screen platforms, 3D nodes, per-platform asset variants.
+A second UI backend (Dear ImGui), a binary cooked scene format, prefabs, a `screen` field for dual-screen platforms, per-platform asset variants.

@@ -216,17 +216,21 @@ namespace imgui_backend
                 {
                     editor.play();
                 }
-                else if (!isControl && ImGui::IsKeyPressed(ImGuiKey_W, false))
+                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_W, false))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Move);
                 }
-                else if (!isControl && ImGui::IsKeyPressed(ImGuiKey_E, false))
+                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_E, false))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Rotate);
                 }
-                else if (!isControl && ImGui::IsKeyPressed(ImGuiKey_R, false))
+                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_R, false))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Scale);
+                }
+                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_F, false))
+                {
+                    editor.focusSelected();
                 }
                 else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
                 {

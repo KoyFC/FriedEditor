@@ -13,6 +13,7 @@ add_library(fried_editor_core STATIC
     src/project_settings.cpp
     src/scene_document.cpp
     src/viewport.cpp
+    src/viewport3d.cpp
     src/version.cpp
 )
 

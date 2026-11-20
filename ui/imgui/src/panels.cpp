@@ -286,6 +286,29 @@ namespace imgui_backend
         }
         ImGui::SameLine(0, scaled(24));
         ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled("View");
+        ImGui::SameLine();
+        for (fried::editor::Editor::ViewMode view : {fried::editor::Editor::ViewMode::TwoD, fried::editor::Editor::ViewMode::ThreeD})
+        {
+            bool isActive = m_editor.viewMode() == view;
+            if (isActive)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
+            }
+            if (ImGui::Button(view == fried::editor::Editor::ViewMode::TwoD ? "2D" : "3D"))
+            {
+                m_editor.setViewMode(view);
+            }
+            if (isActive)
+            {
+                ImGui::PopStyleColor(2);
+            }
+            ImGui::SameLine();
+        }
+
+        ImGui::SameLine(0, scaled(24));
+        ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("Tool");
         ImGui::SameLine();
         struct Mode
@@ -301,9 +324,18 @@ namespace imgui_backend
                 ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
                 ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
             }
+            bool isDisabled = m_editor.viewMode() == fried::editor::Editor::ViewMode::ThreeD && mode.m_mode != GizmoMode::Move;
+            if (isDisabled)
+            {
+                ImGui::BeginDisabled();
+            }
             if (ImGui::Button(mode.m_label))
             {
                 m_editor.setGizmoMode(mode.m_mode);
+            }
+            if (isDisabled)
+            {
+                ImGui::EndDisabled();
             }
             if (isActive)
             {
@@ -502,7 +534,7 @@ namespace imgui_backend
         draw->PopClipRect();
 
         // The editor works in the frame's own pixels.
-        if (m_dragKind == 2)
+        if (m_dragKind >= 2)
         {
             m_panPosition = ImVec2(m_panPosition.x + m_heldMotion.x, m_panPosition.y + m_heldMotion.y);
         }
@@ -520,8 +552,8 @@ namespace imgui_backend
             {
                 if (m_dragKind == 0 && ImGui::IsMouseClicked(button))
                 {
-                    m_dragKind = button == 0 ? 1 : 2;
-                    m_editor.pointerDown(frameX, frameY, button == 0 ? Editor::Pointer::Primary : Editor::Pointer::Pan);
+                    m_dragKind = button + 1;
+                    m_editor.pointerDown(frameX, frameY, button == 0 ? Editor::Pointer::Primary : (button == 1 ? Editor::Pointer::Look : Editor::Pointer::Pan));
                 }
             }
             if (ImGui::GetIO().MouseWheel != 0)
@@ -529,9 +561,21 @@ namespace imgui_backend
                 m_editor.wheel(frameX, frameY, ImGui::GetIO().MouseWheel);
             }
         }
+        if (m_dragKind == 2)
+        {
+            // Holding the right button makes the camera a free one that the keys fly.
+            auto held = [](ImGuiKey key) { return ImGui::IsKeyDown(key) ? 1.0 : 0.0; };
+            double forward = held(ImGuiKey_W) - held(ImGuiKey_S);
+            double right = held(ImGuiKey_D) - held(ImGuiKey_A);
+            double up = held(ImGuiKey_E) - held(ImGuiKey_Q);
+            if (forward != 0 || right != 0 || up != 0)
+            {
+                m_editor.fly(forward, right, up, ImGui::GetIO().DeltaTime, ImGui::GetIO().KeyShift);
+            }
+        }
         if (m_dragKind != 0)
         {
-            int button = m_dragKind == 1 ? 0 : (ImGui::IsMouseDown(1) ? 1 : 2);
+            int button = m_dragKind - 1;
             if (ImGui::IsMouseDown(button))
             {
                 m_editor.pointerMove(frameX, frameY);
@@ -927,7 +971,7 @@ namespace imgui_backend
                                   Json{{"r", channel(color.x)}, {"g", channel(color.y)}, {"b", channel(color.z)}, {"a", channel(color.w)}});
             }
         }
-        else if (kind == "flip")
+        else if (!field.m_schema.m_values.empty())
         {
             std::string current = field.m_value.is_string() ? field.m_value.get<std::string>() : std::string();
             ImGui::SetNextItemWidth(-FLT_MIN);

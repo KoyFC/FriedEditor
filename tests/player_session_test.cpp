@@ -107,6 +107,19 @@ TEST_CASE("a session greets the player, learns the schema and relays requests")
     REQUIRE(received.m_bounds[0].m_origin.has_value());
     CHECK(received.m_bounds[0].m_origin->first == 288.5);
     CHECK(received.m_bounds[0].m_origin->second == -4);
+
+    nlohmann::json solid = {{"id", "ball"}, {"x", 10}, {"y", 20}, {"width", 30}, {"height", 40}, {"depth", 5.5}, {"originX", 25}, {"originY", 40},
+                            {"worldX", 1}, {"worldY", 2}, {"worldZ", 3},
+                            {"axes", nlohmann::json::array({{{"x", 35}, {"y", 40}}, {{"x", 25}, {"y", 30}}, {{"x", 26}, {"y", 41}}})}};
+    received = Frame();
+    REQUIRE(player.send({{"type", "frame"}, {"width", 1}, {"height", 1}, {"bounds3D", nlohmann::json::array({solid})}}));
+    pumpUntil(session, [&] { return received.m_width != 0; });
+    REQUIRE(received.m_bounds3D.size() == 1);
+    CHECK(received.m_bounds3D[0].m_id == "ball");
+    CHECK(received.m_bounds3D[0].m_depth == 5.5);
+    CHECK(received.m_bounds3D[0].m_worldZ == 3);
+    REQUIRE(received.m_bounds3D[0].m_axes.size() == 3);
+    CHECK(received.m_bounds3D[0].m_axes[1].second == 30);
     CHECK(reported.empty());
 }
 

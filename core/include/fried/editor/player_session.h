@@ -55,12 +55,31 @@ namespace fried::editor
         std::optional<std::pair<double, double>> m_origin;
     };
 
+    // Where a Node3D lands on the frame, as the player measures it through the editor's 3D camera.
+    struct ObjectBounds3D
+    {
+        std::string m_id;
+        double m_x = 0;
+        double m_y = 0;
+        double m_width = 0;
+        double m_height = 0;
+        double m_depth = 0;
+        double m_originX = 0;
+        double m_originY = 0;
+        double m_worldX = 0;
+        double m_worldY = 0;
+        double m_worldZ = 0;
+        // Where one more unit of the node's x, y and z lands, or empty when one of them is behind the camera.
+        std::vector<std::pair<double, double>> m_axes;
+    };
+
     struct Frame
     {
         int m_width = 0;
         int m_height = 0;
         std::vector<unsigned char> m_rgba;
         std::vector<ObjectBounds> m_bounds;
+        std::vector<ObjectBounds3D> m_bounds3D;
     };
 
     // The editor's side of the link to the editor player: it waits for the player to connect, asks for what the editor needs and hands back the answers.
@@ -74,7 +93,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 2;
+        static constexpr int s_protocol = 3;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);
@@ -102,6 +121,7 @@ namespace fried::editor
         void removeNode(const std::string &nodeId);
         void moveNode(const std::string &nodeId, const std::string &parentId, int index);
         void setEditorCamera(double x, double y, double zoom);
+        void setEditorCamera3D(double x, double y, double z, double rotationX, double rotationY, double fieldOfView);
         void resize(int width, int height);
         void render();
 

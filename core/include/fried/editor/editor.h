@@ -12,6 +12,7 @@
 #include "fried/editor/project_settings.h"
 #include "fried/editor/scene_document.h"
 #include "fried/editor/viewport.h"
+#include "fried/editor/viewport3d.h"
 
 #include <chrono>
 #include <functional>
@@ -118,7 +119,15 @@ namespace fried::editor
         enum class Pointer
         {
             Primary,
-            Pan
+            Pan,
+            Look
+        };
+
+        // Whether the viewport shows the scene's plane or its 3D space. A scene that has a Node3D starts in 3D.
+        enum class ViewMode
+        {
+            TwoD,
+            ThreeD
         };
 
         static constexpr int s_frameWidth = 1280;
@@ -228,6 +237,16 @@ namespace fried::editor
         void setViewSize(int width, int height);
 
         const Viewport &viewport() const { return m_viewport; }
+        const Viewport3D &viewport3D() const { return m_viewport3D; }
+
+        ViewMode viewMode() const { return m_viewMode; }
+        void setViewMode(ViewMode mode);
+
+        // Moves the 3D camera along where it looks, across it and up, for the seconds a key was held. The speed grows with the distance to what the camera looks at, and fast is for a shift held.
+        void fly(double forward, double right, double up, double seconds, bool fast);
+
+        // Turns the 3D view to look at the selected node.
+        void focusSelected();
         const Frame &frame() const { return m_frame; }
 
         // Counts the frames received, so a backend uploads a picture only when there is a new one.
@@ -265,6 +284,10 @@ namespace fried::editor
 
     private:
         void startPlayer();
+        void chooseViewMode();
+        DrawList overlay3D() const;
+        std::optional<std::string> hit3D(double frameX, double frameY) const;
+        const ObjectBounds3D *bounds3DOf(const std::string &id) const;
         void projectChanged();
         void showFailure(const std::string &title, const std::string &message, const std::vector<fried::core::OutputLine> *lines);
         void documentChanged(const DocumentChange &change);
@@ -309,6 +332,11 @@ namespace fried::editor
         Viewport m_frameView;
         Viewport m_sentView;
         Viewport m_inFlightView;
+        ViewMode m_viewMode = ViewMode::TwoD;
+        Viewport3D m_viewport3D;
+        Viewport3D m_frameView3D;
+        Viewport3D m_sentView3D;
+        Viewport3D m_inFlightView3D;
         Frame m_frame;
         unsigned long m_frameSerial = 0;
         GizmoMode m_gizmoMode = GizmoMode::Move;
@@ -341,7 +369,8 @@ namespace fried::editor
                 None,
                 Object,
                 Handle,
-                Pan
+                Pan,
+                Look
             };
             Kind m_kind = Kind::None;
             std::string m_id;

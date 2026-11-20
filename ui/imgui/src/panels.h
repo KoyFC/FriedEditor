@@ -26,7 +26,7 @@ namespace imgui_backend
         void viewport();
 
         // Panning holds the pointer still, so the viewport pans by the movement it is given instead of by where the pointer is.
-        bool isPanning() const { return m_dragKind == 2; }
+        bool isPanning() const { return m_dragKind >= 2; }
         void setHeldMotion(ImVec2 motion) { m_heldMotion = motion; }
 
         // Whether a value was being dragged this frame. It is reset by asking.
