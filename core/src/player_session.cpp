@@ -35,7 +35,7 @@ namespace fried::editor
                                "--game-assets", gamePath + "/assets"};
 
         // No display is needed to draw, which is also what lets it run on any session.
-        options.m_environment = {{"SDL_VIDEODRIVER", "dummy"}, {"SDL_AUDIODRIVER", "dummy"}, {"SDL_RENDER_DRIVER", "software"}};
+        options.m_environment = {{"SDL_VIDEODRIVER", "offscreen"}, {"SDL_AUDIODRIVER", "dummy"}};
         m_process = startSubprocess(options, error);
         return m_process != nullptr;
     }
