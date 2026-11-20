@@ -20,3 +20,7 @@ cmake -S . -B build
 cmake --build build
 ctest --test-dir build
 ```
+
+## License
+
+Fried Editor is released under the MIT License, see [`LICENSE`](LICENSE). Third party components are listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
