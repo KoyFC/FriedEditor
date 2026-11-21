@@ -121,6 +121,7 @@ namespace editor_ui
         bool m_isQuickOpenAsked = false;
         std::string m_quickText;
         int m_quickIndex = 0;
+        std::string m_pickSearch;
         std::string m_hierarchyFilter;
         std::vector<char> m_filterKeep;
         std::string m_filterKeyText;

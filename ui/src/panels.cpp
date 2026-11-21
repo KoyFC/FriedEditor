@@ -1260,6 +1260,8 @@ namespace editor_ui
     bool Panels::referenceField(const FieldView &field, bool isFont)
     {
         std::string text = fried::editor::assetReferenceText(field.m_value, isFont);
+        const float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
+        ImGui::SetNextItemWidth(-(side + ImGui::GetStyle().ItemSpacing.x));
         bool changed = textField(("##" + field.m_schema.m_name).c_str(), &text);
         if (changed)
         {
@@ -1280,6 +1282,103 @@ namespace editor_ui
                 }
             }
             ImGui::EndDragDropTarget();
+        }
+
+        // The picker lists the project's files of the kind the field takes, to choose one without typing its path.
+        ImGui::SameLine();
+        if (Icons::button("pick", Icon::Search, isFont ? "Choose a font from the project" : "Choose an image from the project"))
+        {
+            m_pickSearch.clear();
+            ImGui::OpenPopup("pick-asset");
+        }
+        ImGui::SetNextWindowSize(ImVec2(scaled(340), scaled(380)), ImGuiCond_Appearing);
+        if (ImGui::BeginPopup("pick-asset"))
+        {
+            if (ImGui::IsWindowAppearing())
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            ImGui::InputTextWithHint("##pick-search", isFont ? "Search the fonts" : "Search the images", &m_pickSearch);
+            ImGui::Separator();
+
+            const AssetKind wanted = isFont ? AssetKind::Font : AssetKind::Image;
+            std::vector<const fried::editor::AssetEntry *> matches;
+            for (const fried::editor::AssetEntry &entry : m_editor.assets())
+            {
+                if (entry.m_kind == wanted && (m_pickSearch.empty() || containsIgnoringCase(entry.reference(), m_pickSearch)))
+                {
+                    matches.push_back(&entry);
+                }
+            }
+
+            ImGui::BeginChild("##pick-list", ImVec2(0, 0));
+            std::string current = fried::editor::assetReferenceText(field.m_value, false);
+            const float row = std::max(Icons::size(), scaled(24)) + scaled(4);
+            ImGuiListClipper clipper;
+            clipper.Begin((int)matches.size() + 1, row);
+            while (clipper.Step())
+            {
+                for (int index = clipper.DisplayStart; index < clipper.DisplayEnd; ++index)
+                {
+                    ImGui::PushID(index);
+                    ImVec2 position = ImGui::GetCursorScreenPos();
+                    const fried::editor::AssetEntry *entry = index == 0 ? nullptr : matches[index - 1];
+                    bool isCurrent = entry ? entry->reference() == current : field.m_value.is_null();
+                    bool isChosen = ImGui::Selectable("##choice", isCurrent, ImGuiSelectableFlags_None, ImVec2(0, row));
+                    ImDrawList *list = ImGui::GetWindowDrawList();
+                    float centre = position.y + row / 2;
+                    if (!entry)
+                    {
+                        list->AddText(ImVec2(position.x + scaled(8), centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_TextDisabled), "None");
+                    }
+                    else
+                    {
+                        const Texture *thumbnail = isFont ? nullptr : m_images.get(m_editor.assetFile(entry->m_root, entry->m_path));
+                        float thumb = row - scaled(4);
+                        if (thumbnail)
+                        {
+                            float ratio = std::min(thumb / thumbnail->width(), thumb / thumbnail->height());
+                            ImVec2 size(thumbnail->width() * ratio, thumbnail->height() * ratio);
+                            ImVec2 low(position.x + scaled(4) + (thumb - size.x) / 2, centre - size.y / 2);
+                            list->AddImage(thumbnail->id(), low, ImVec2(low.x + size.x, low.y + size.y));
+                        }
+                        else
+                        {
+                            Icons::draw(list, isFont ? Icon::Font : Icon::Image, ImVec2(position.x + scaled(4) + (thumb - Icons::size()) / 2, centre - Icons::size() / 2));
+                        }
+                        std::string name = entry->m_path.substr(entry->m_path.rfind('/') == std::string::npos ? 0 : entry->m_path.rfind('/') + 1);
+                        float textX = position.x + thumb + scaled(12);
+                        list->AddText(ImVec2(textX, centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+                        list->AddText(ImVec2(textX + ImGui::CalcTextSize(name.c_str()).x + scaled(8), centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_TextDisabled),
+                                      fried::editor::assetFolderOf(*entry).c_str());
+                    }
+                    if (isChosen)
+                    {
+                        if (!entry)
+                        {
+                            m_editor.setField(field.m_schema.m_name, Json());
+                        }
+                        else
+                        {
+                            int size = field.m_value.is_object() ? field.m_value.value("size", 16) : 16;
+                            if (auto reference = fried::editor::assetReferenceFromText(entry->reference() + (isFont ? "@" + std::to_string(size) : ""), isFont))
+                            {
+                                m_editor.setField(field.m_schema.m_name, *reference);
+                            }
+                        }
+                        changed = true;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::PopID();
+                }
+            }
+            if (matches.empty())
+            {
+                ImGui::TextDisabled("%s", isFont ? "The project has no font like that" : "The project has no image like that");
+            }
+            ImGui::EndChild();
+            ImGui::EndPopup();
         }
         return changed;
     }
