@@ -7,3 +7,5 @@ Each row shows an icon for the node's type. A class the engine does not know the
 The inspector has one section for each class of the selected node's chain, its own class first and `Node` last, and a node dragged under a rotated or scaled parent moves by the amount in its own coordinates that follows the pointer, and Ctrl+Z and Ctrl+Y undo and redo.
 
 The layout of the panels is docked and is remembered in `layout.ini` in the editor's settings folder (`~/.config/fried-editor/`, or `%APPDATA%\fried-editor` on Windows).
+
+In the inspector each class of the selected node has a title with its icon, and the fields under it are a name on the left and an editor on the right.

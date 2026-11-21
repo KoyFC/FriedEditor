@@ -58,6 +58,7 @@ namespace editor_ui
         style.WindowBorderSize = 0;
         style.FrameBorderSize = 0;
         style.TabBarBorderSize = 0;
+        style.TabBarOverlineSize = 2;
         style.SeparatorTextBorderSize = 1;
 
         using namespace palette;
@@ -89,7 +90,7 @@ namespace editor_ui
         colors[ImGuiCol_Button] = raised;
         colors[ImGuiCol_ButtonHovered] = raisedHot;
         colors[ImGuiCol_ButtonActive] = line;
-        colors[ImGuiCol_Header] = raised;
+        colors[ImGuiCol_Header] = ImVec4(0.150f, 0.150f, 0.158f, 1.00f);
         colors[ImGuiCol_HeaderHovered] = raisedHot;
         colors[ImGuiCol_HeaderActive] = line;
         colors[ImGuiCol_Separator] = line;
@@ -101,10 +102,10 @@ namespace editor_ui
         colors[ImGuiCol_Tab] = base;
         colors[ImGuiCol_TabHovered] = raised;
         colors[ImGuiCol_TabSelected] = panel;
-        colors[ImGuiCol_TabSelectedOverline] = ImVec4(0, 0, 0, 0);
+        colors[ImGuiCol_TabSelectedOverline] = accent;
         colors[ImGuiCol_TabDimmed] = base;
         colors[ImGuiCol_TabDimmedSelected] = panel;
-        colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0, 0, 0, 0);
+        colors[ImGuiCol_TabDimmedSelectedOverline] = accentSoft;
         colors[ImGuiCol_DockingPreview] = raisedHot;
         colors[ImGuiCol_DockingEmptyBg] = base;
         colors[ImGuiCol_TextSelectedBg] = accentSoft;

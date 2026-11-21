@@ -274,7 +274,7 @@ namespace editor_ui
         GameRunner::State game = m_editor.gameState();
         bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
         ImGui::PushStyleColor(ImGuiCol_Button, isGoing ? palette::tomato : palette::leaf);
-        if (ImGui::Button(isGoing ? "Stop" : "Play  F5", ImVec2(scaled(76), 0)))
+        if (Icons::button("play", isGoing ? Icon::Stop : Icon::Play, isGoing ? "Stop the game" : "Play the scene (F5)"))
         {
             isGoing ? m_editor.stopGame() : m_editor.play();
         }
@@ -313,33 +313,26 @@ namespace editor_ui
         ImGui::SameLine();
         struct Mode
         {
-            const char *m_label;
+            const char *m_id;
+            Icon m_icon;
+            const char *m_tooltip;
             GizmoMode m_mode;
         };
-        for (const Mode &mode : {Mode{"Move  W", GizmoMode::Move}, Mode{"Rotate  E", GizmoMode::Rotate}, Mode{"Scale  R", GizmoMode::Scale}})
+        for (const Mode &mode : {Mode{"move", Icon::ToolMove, "Move (W)", GizmoMode::Move}, Mode{"rotate", Icon::ToolRotate, "Rotate (E)", GizmoMode::Rotate},
+                                 Mode{"scale", Icon::ToolScale, "Scale (R)", GizmoMode::Scale}})
         {
-            bool isActive = m_editor.gizmoMode() == mode.m_mode;
-            if (isActive)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-                ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
-            }
             bool isDisabled = m_editor.viewMode() == fried::editor::Editor::ViewMode::ThreeD && mode.m_mode != GizmoMode::Move;
             if (isDisabled)
             {
                 ImGui::BeginDisabled();
             }
-            if (ImGui::Button(mode.m_label))
+            if (Icons::button(mode.m_id, mode.m_icon, mode.m_tooltip, m_editor.gizmoMode() == mode.m_mode))
             {
                 m_editor.setGizmoMode(mode.m_mode);
             }
             if (isDisabled)
             {
                 ImGui::EndDisabled();
-            }
-            if (isActive)
-            {
-                ImGui::PopStyleColor(2);
             }
             ImGui::SameLine();
         }
@@ -1333,6 +1326,21 @@ namespace editor_ui
         }
     }
 
+    bool Panels::classHeader(const std::string &name)
+    {
+        // The header's own label stays empty so the icon and the name can be drawn after its arrow.
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, scaled(5)));
+        bool isOpen = ImGui::TreeNodeEx("##class", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen, "%s", "");
+        ImGui::PopStyleVar();
+        ImVec2 low = ImGui::GetItemRectMin();
+        ImVec2 high = ImGui::GetItemRectMax();
+        ImDrawList *list = ImGui::GetWindowDrawList();
+        float x = low.x + ImGui::GetTreeNodeToLabelSpacing() + ImGui::GetStyle().FramePadding.x;
+        Icons::draw(list, iconOf(name), ImVec2(x, (low.y + high.y - Icons::size()) / 2));
+        list->AddText(ImVec2(x + Icons::size() + scaled(6), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+        return isOpen;
+    }
+
     void Panels::inspector()
     {
         if (!m_editor.selected())
@@ -1345,7 +1353,7 @@ namespace editor_ui
         {
             ImGui::PushID(view.m_class.c_str());
             ImGui::Spacing();
-            bool isOpen = ImGui::CollapsingHeader(view.m_class.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+            bool isOpen = classHeader(view.m_class);
             if (isOpen && view.m_class == "Control")
             {
                 controlEditor(view);

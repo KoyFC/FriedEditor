@@ -55,6 +55,9 @@ namespace editor_ui
     private:
         // The icon of a node type: its own, or the nearest class it extends that has one.
         Icon iconOf(const std::string &type);
+
+        // The title of a class in the inspector, with its icon. True while it is open.
+        bool classHeader(const std::string &name);
         void openSceneFile(const std::string &path);
         void sceneChangeDialog();
         void controlEditor(const fried::editor::ClassView &view);

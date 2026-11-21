@@ -119,7 +119,9 @@ namespace editor_ui
         ImDrawList *list = ImGui::GetWindowDrawList();
         ImU32 fill = ImGui::GetColorU32(ImGui::IsItemActive() ? ImGuiCol_ButtonActive : isActive ? ImGuiCol_ButtonActive : isHovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
         list->AddRectFilled(position, ImVec2(position.x + side, position.y + side), fill, style.FrameRounding);
-        draw(list, icon, ImVec2(position.x + (side - s_size) / 2, position.y + (side - s_size) / 2));
+        ImVec4 color = isActive ? ImVec4(1.00f, 0.78f, 0.24f, 1.00f) : ImVec4(1, 1, 1, 1);
+        color.w *= style.Alpha;
+        draw(list, icon, ImVec2(position.x + (side - s_size) / 2, position.y + (side - s_size) / 2), ImGui::GetColorU32(color));
         if (isHovered && tooltip && *tooltip)
         {
             ImGui::SetTooltip("%s", tooltip);
