@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fried/editor/editor.h"
+#include "icons.h"
 #include "textures.h"
 
 #include <imgui.h>
@@ -52,6 +53,8 @@ namespace editor_ui
         void fileDropped(const std::string &file);
 
     private:
+        // The icon of a node type: its own, or the nearest class it extends that has one.
+        Icon iconOf(const std::string &type);
         void openSceneFile(const std::string &path);
         void sceneChangeDialog();
         void controlEditor(const fried::editor::ClassView &view);
@@ -87,6 +90,8 @@ namespace editor_ui
         std::map<ImGuiID, std::string> m_textEdits;
         std::unordered_set<std::string> m_collapsed;
         std::vector<std::size_t> m_visibleRows;
+        std::map<std::string, Icon> m_typeIcons;
+        std::size_t m_typeIconsSchema = 0;
         std::string m_renameId;
         std::string m_renameText;
         bool m_isRenameAsked = false;

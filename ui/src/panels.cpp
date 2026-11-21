@@ -641,9 +641,52 @@ namespace editor_ui
         }
     }
 
+    Icon Panels::iconOf(const std::string &type)
+    {
+        // The classes come with the player, so a new player may bring others.
+        if (m_typeIconsSchema != m_editor.classes().size())
+        {
+            m_typeIcons.clear();
+            m_typeIconsSchema = m_editor.classes().size();
+        }
+        auto cached = m_typeIcons.find(type);
+        if (cached != m_typeIcons.end())
+        {
+            return cached->second;
+        }
+        static const std::map<std::string, Icon> s_builtIn = {
+            {"Node", Icon::Node},
+            {"Node2D", Icon::Node2D},
+            {"Node3D", Icon::Node3D},
+            {"Sprite", Icon::Sprite2D},
+            {"Camera", Icon::Camera2D},
+            {"Camera3D", Icon::Camera3D},
+            {"Collider", Icon::CollisionShape2D},
+            {"KinematicBody", Icon::CharacterBody2D},
+            {"MeshInstance", Icon::MeshInstance3D},
+            {"DirectionalLight", Icon::DirectionalLight3D},
+            {"Control", Icon::Control},
+            {"Label", Icon::Label},
+            {"Button", Icon::Button},
+            {"TextureRect", Icon::TextureRect},
+        };
+        Icon icon = Icon::Node;
+        for (const std::string &name : m_editor.classChain(type))
+        {
+            auto found = s_builtIn.find(name);
+            if (found != s_builtIn.end())
+            {
+                icon = found->second;
+                break;
+            }
+        }
+        m_typeIcons[type] = icon;
+        return icon;
+    }
+
     void Panels::hierarchy()
     {
-        if (ImGui::Button("Add"))
+        if (Icons::button("add", Icon::Add, "Add a node"))
         {
             ImGui::OpenPopup("add-node");
         }
@@ -654,22 +697,22 @@ namespace editor_ui
             ImGui::EndPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Delete"))
+        if (Icons::button("delete", Icon::Remove, "Delete the selected node"))
         {
             m_editor.removeSelected();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Up"))
+        if (Icons::button("up", Icon::MoveUp, "Move the node up among its siblings"))
         {
             m_editor.moveSelected(-1);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Down"))
+        if (Icons::button("down", Icon::MoveDown, "Move the node down among its siblings"))
         {
             m_editor.moveSelected(1);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Camera"))
+        if (Icons::button("camera", Icon::Camera2D, "Use the selected node as the scene's camera"))
         {
             m_editor.setCameraToSelected();
         }
@@ -694,23 +737,64 @@ namespace editor_ui
             }
         }
 
+        // Rows are as tall as a button and touch each other, so the stripes behind them tile.
+        const float rowPadding = scaled(4);
+        const float rowHeight = ImGui::GetFontSize() + rowPadding * 2;
+        const float levelWidth = ImGui::GetTreeNodeToLabelSpacing();
+        const float baseX = ImGui::GetCursorScreenPos().x;
+        const ImVec2 windowPosition = ImGui::GetWindowPos();
+        const float windowRight = windowPosition.x + ImGui::GetWindowWidth();
+
         ImGuiListClipper clipper;
-        clipper.Begin((int)m_visibleRows.size());
+        clipper.Begin((int)m_visibleRows.size(), rowHeight);
         while (clipper.Step())
         {
             for (int visible = clipper.DisplayStart; visible < clipper.DisplayEnd; ++visible)
             {
                 const auto &row = rows[m_visibleRows[visible]];
                 bool isSelected = m_editor.selected() && *m_editor.selected() == row.m_id;
-                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_FramePadding;
                 flags |= isSelected ? ImGuiTreeNodeFlags_Selected : 0;
                 flags |= row.m_hasChildren ? 0 : ImGuiTreeNodeFlags_Leaf;
-                std::string text = row.m_name + (row.m_isCamera ? "   camera" : "");
-                float indent = row.m_depth * ImGui::GetTreeNodeToLabelSpacing();
+                float indent = row.m_depth * levelWidth;
+
+                ImDrawList *list = ImGui::GetWindowDrawList();
+                float top = ImGui::GetCursorScreenPos().y;
+                if (visible % 2 == 1)
+                {
+                    list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowRight, top + rowHeight), IM_COL32(255, 255, 255, 9));
+                }
+                for (int level = 0; level < row.m_depth; ++level)
+                {
+                    float x = std::floor(baseX + level * levelWidth + levelWidth / 2);
+                    list->AddLine(ImVec2(x, top), ImVec2(x, top + rowHeight), IM_COL32(255, 255, 255, 28));
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Header, palette::yolkAt(0.22f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, isSelected ? palette::yolkAt(0.30f) : ImVec4(1, 1, 1, 0.07f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, palette::yolkAt(0.36f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, rowPadding));
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0));
                 ImGui::Indent(indent);
                 ImGui::SetNextItemOpen(!m_collapsed.count(row.m_id));
-                bool isOpen = ImGui::TreeNodeEx(row.m_id.c_str(), flags, "%s", text.c_str());
+                bool isOpen = ImGui::TreeNodeEx(row.m_id.c_str(), flags, "%s", "");
                 ImGui::Unindent(indent);
+                ImGui::PopStyleVar(2);
+                ImGui::PopStyleColor(3);
+
+                ImVec2 itemMin = ImGui::GetItemRectMin();
+                float iconSize = Icons::size();
+                float contentX = itemMin.x + levelWidth;
+                if (isSelected)
+                {
+                    list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowPosition.x + scaled(2), top + rowHeight), ImGui::GetColorU32(palette::yolk));
+                }
+                Icons::draw(list, iconOf(row.m_type), ImVec2(contentX, top + (rowHeight - iconSize) / 2));
+                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(ImGuiCol_Text), row.m_name.c_str());
+                if (row.m_isCamera)
+                {
+                    Icons::draw(list, Icon::Camera2D, ImVec2(windowRight - iconSize - scaled(10), top + (rowHeight - iconSize) / 2), ImGui::GetColorU32(palette::yolk));
+                }
                 if (row.m_hasChildren)
                 {
                     if (isOpen)

@@ -28,6 +28,7 @@ namespace fried::editor
     {
         std::string m_id;
         std::string m_name;
+        std::string m_type;
         bool m_isCamera = false;
         int m_depth = 0;
         bool m_hasChildren = false;
@@ -207,6 +208,9 @@ namespace fried::editor
         // Every class the player knows, each after the class it extends, which is what a menu of node types is made from.
         const std::vector<ClassSchema> &classes() const { return m_session.schema(); }
         bool isClassOf(const std::string &type, const std::string &ancestor) const;
+
+        // The class and the ones it extends, its own name first, which is how a class without a look of its own takes its parent's.
+        std::vector<std::string> classChain(const std::string &type) const;
         void setField(const std::string &field, const std::optional<nlohmann::json> &value);
 
         // The selected Control's anchors and box for the backend to draw, when it is one and the player has shown it.

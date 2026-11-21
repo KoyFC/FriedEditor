@@ -86,6 +86,15 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.commands().undo();
     CHECK(editor.hierarchy().size() == 3);
 
+    // A row knows its type, and the classes it extends come after its own name.
+    auto sprite = std::find_if(editor.hierarchy().begin(), editor.hierarchy().end(), [](const HierarchyRow &row) { return row.m_id == "sprite"; });
+    REQUIRE(sprite != editor.hierarchy().end());
+    CHECK(sprite->m_type == "Sprite");
+    std::vector<std::string> chain = editor.classChain(sprite->m_type);
+    REQUIRE(!chain.empty());
+    CHECK(chain.front() == "Sprite");
+    CHECK(std::find(chain.begin(), chain.end(), "Node2D") != chain.end());
+
     editor.addNode("Label");
     CHECK(editor.hierarchy().size() == 4);
     CHECK(editor.inspector().size() == 4);

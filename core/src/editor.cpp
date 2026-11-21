@@ -605,7 +605,7 @@ namespace fried::editor
         {
             const Json *node = m_document.node(id);
             std::string name = node && node->contains("name") && (*node)["name"].is_string() ? (*node)["name"].get<std::string>() : id;
-            m_hierarchyRows.push_back({id, std::move(name), camera == id, m_document.depthOf(id), m_document.childCount(id) > 0});
+            m_hierarchyRows.push_back({id, std::move(name), m_document.typeOf(id), camera == id, m_document.depthOf(id), m_document.childCount(id) > 0});
         }
         m_hierarchyVersion = m_document.version();
         return m_hierarchyRows;
@@ -621,6 +621,16 @@ namespace fried::editor
             }
         }
         return false;
+    }
+
+    std::vector<std::string> Editor::classChain(const std::string &type) const
+    {
+        std::vector<std::string> names;
+        for (const ClassSchema *schema : m_session.classChain(type))
+        {
+            names.push_back(schema->m_name);
+        }
+        return names;
     }
 
     bool Editor::isControl(const std::string &id) const
