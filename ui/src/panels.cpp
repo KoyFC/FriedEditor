@@ -1008,6 +1008,17 @@ namespace editor_ui
                     list->AddLine(ImVec2(x, top), ImVec2(x, top + rowHeight), IM_COL32(255, 255, 255, 28));
                 }
 
+                // The lock is at the end of the row, and a click on it does not select the row.
+                const float lockSize = Icons::size();
+                const ImVec2 lockLow(windowRight - lockSize - scaled(10), top + (rowHeight - lockSize) / 2);
+                const bool isRowHovered = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(ImVec2(windowPosition.x, top), ImVec2(windowRight, top + rowHeight));
+                const bool isLockHovered = isRowHovered && ImGui::IsMouseHoveringRect(ImVec2(lockLow.x - scaled(4), top), ImVec2(windowRight, top + rowHeight));
+                const bool isLocked = m_editor.isLocked(row.m_id);
+                if (isLockHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    m_editor.setLocked(row.m_id, !isLocked);
+                }
+
                 ImGui::PushStyleColor(ImGuiCol_Header, palette::yolkAt(0.22f));
                 ImGui::PushStyleColor(ImGuiCol_HeaderHovered, isSelected ? palette::yolkAt(0.30f) : ImVec4(1, 1, 1, 0.07f));
                 ImGui::PushStyleColor(ImGuiCol_HeaderActive, palette::yolkAt(0.36f));
@@ -1029,9 +1040,21 @@ namespace editor_ui
                 }
                 Icons::draw(list, iconOf(row.m_type), ImVec2(contentX, top + (rowHeight - iconSize) / 2));
                 list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::yolk : ImGui::GetStyleColorVec4(ImGuiCol_Text)), row.m_name.c_str());
+                if (isLocked)
+                {
+                    Icons::draw(list, Icon::Lock, lockLow, ImGui::GetColorU32(palette::yolk));
+                }
+                else if (isRowHovered)
+                {
+                    Icons::draw(list, Icon::Unlock, lockLow, IM_COL32(255, 255, 255, isLockHovered ? 200 : 70));
+                }
+                if (isLockHovered)
+                {
+                    ImGui::SetTooltip("%s", isLocked ? "Unlock: the node can be picked and moved in the view again" : "Lock: the node cannot be picked or moved in the view");
+                }
                 if (row.m_isCamera)
                 {
-                    Icons::draw(list, Icon::Camera2D, ImVec2(windowRight - iconSize - scaled(10), top + (rowHeight - iconSize) / 2), ImGui::GetColorU32(palette::yolk));
+                    Icons::draw(list, Icon::Camera2D, ImVec2(lockLow.x - iconSize - scaled(6), lockLow.y), ImGui::GetColorU32(palette::yolk));
                 }
                 if (row.m_hasChildren && !isFiltering)
                 {
@@ -1045,11 +1068,11 @@ namespace editor_ui
                     }
                 }
 
-                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isLockHovered)
                 {
                     m_editor.select(row.m_id);
                 }
-                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen() && !isLockHovered)
                 {
                     m_renameId = row.m_id;
                     m_renameText = row.m_name;

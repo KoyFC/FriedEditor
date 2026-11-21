@@ -8,6 +8,8 @@ Ctrl+D duplicates the selected node with everything under it, right after it, wi
 
 The field under the buttons filters the tree: it keeps the nodes whose name or type contains the text, in yellow, and the nodes above them so each is seen in its place. Folds are ignored while there is text in it, and clearing it brings the tree back as it was.
 
+A padlock at the end of a row locks the node: it shows when the pointer is over the row, and stays when the node is locked. A locked node is not picked by a click in the view, has no handles and is not moved there, so a background or a floor can be left alone while the nodes over it are worked on; it is still chosen in the hierarchy and edited in the inspector. The locks belong to the editor and are remembered for each scene, and the scene file does not have them, so the game is not changed by them.
+
 The inspector has one section for each class of the selected node's chain, its own class first and `Node` last, and a node dragged under a rotated or scaled parent moves by the amount in its own coordinates that follows the pointer, and Ctrl+Z and Ctrl+Y undo and redo.
 
 The layout of the panels is docked and is remembered in `layout.ini` in the editor's settings folder (`~/.config/fried-editor/`, or `%APPDATA%\fried-editor` on Windows).

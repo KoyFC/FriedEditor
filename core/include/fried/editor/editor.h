@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -285,6 +286,10 @@ namespace fried::editor
         // Brings the selected node to the middle of the view: the 3D camera turns to look at it, and the 2D one moves to it and zooms out if it is larger than the view.
         void focusSelected();
 
+        // A locked node cannot be picked in the view or moved there, but is still chosen in the hierarchy and edited in the inspector. Which are locked is the editor's and not the scene's, so the game never sees it, and it is remembered for each scene.
+        bool isLocked(const std::string &id) const { return m_locked.count(id) > 0; }
+        void setLocked(const std::string &id, bool isLocked);
+
         // The view as it is when a scene is first opened.
         void resetView();
 
@@ -329,6 +334,7 @@ namespace fried::editor
         void startPlayer();
         void chooseViewMode();
         void rememberScene();
+        void loadLocked();
         void restoreView();
         DrawList overlay3D() const;
         std::optional<std::string> hit3D(double frameX, double frameY) const;
@@ -375,6 +381,7 @@ namespace fried::editor
         Platform m_platform = Platform::Pc;
         std::optional<std::string> m_selected;
         nlohmann::json m_clipboard;
+        std::set<std::string> m_locked;
         LogTail m_gameLog;
         std::chrono::steady_clock::time_point m_logPolledAt;
         Viewport m_viewport;

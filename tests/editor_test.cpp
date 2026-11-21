@@ -622,3 +622,57 @@ TEST_CASE("the view is brought to the selected node, zoomed back to a pixel scal
     CHECK(editor.viewport().zoom() == doctest::Approx(1));
     CHECK(editor.viewport().cameraX() == doctest::Approx(editor.viewport().frameWidth() / 2.0));
 }
+
+TEST_CASE("a locked node is not picked or moved in the view, and the lock is remembered for the scene" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    namespace fs = std::filesystem;
+    fs::path state = fs::temp_directory_path() / "fried-editor-lock-test";
+    fs::remove_all(state);
+    setEnvironment("FRIED_EDITOR_CONFIG", state.string().c_str());
+
+    std::string engine = std::getenv("FRIED_ENGINE");
+    std::string sample = FRIED_EDITOR_TEST_DATA "/sample.scene.json";
+    std::string error;
+    {
+        Editor editor;
+        REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+        pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+        REQUIRE(editor.openScene(sample, &error));
+        pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 3; });
+        const Viewport &view = editor.viewport();
+
+        editor.select(std::string("sprite"));
+        editor.setLocked("sprite", true);
+        CHECK(editor.isLocked("sprite"));
+        CHECK(editor.pointerTarget(view.worldToFrameX(352), view.worldToFrameY(224)).m_kind != Editor::PointerTarget::Kind::Handle);
+
+        // Dragging it does not move it, and a click on it does not pick it, but the hierarchy still can.
+        editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
+        editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
+        editor.pointerMove(view.worldToFrameX(320) + 40, view.worldToFrameY(200) + 20);
+        editor.pointerUp();
+        CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+        editor.select(std::nullopt);
+        editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
+        editor.pointerUp();
+        CHECK(editor.selected() != std::optional<std::string>("sprite"));
+        editor.select(std::string("sprite"));
+        CHECK(editor.selected() == std::optional<std::string>("sprite"));
+    }
+    {
+        Editor editor;
+        REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+        REQUIRE(editor.openScene(sample, &error));
+        CHECK(editor.isLocked("sprite"));
+        editor.setLocked("sprite", false);
+        CHECK_FALSE(editor.isLocked("sprite"));
+    }
+    {
+        Editor editor;
+        REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+        REQUIRE(editor.openScene(sample, &error));
+        CHECK_FALSE(editor.isLocked("sprite"));
+    }
+    setEnvironment("FRIED_EDITOR_CONFIG", "none");
+    fs::remove_all(state);
+}

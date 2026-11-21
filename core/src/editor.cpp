@@ -58,6 +58,7 @@ namespace fried::editor
             }
             m_scenePath = chosen;
             rememberScene();
+            loadLocked();
         }
 
         m_commands = std::make_unique<CommandStack>(m_document);
@@ -433,6 +434,60 @@ namespace fried::editor
         }
     }
 
+    void Editor::loadLocked()
+    {
+        m_locked.clear();
+        Json remembered = EditorState::projectValue(m_project.directory(), "locked");
+        std::string name = fs::path(m_scenePath).filename().string();
+        if (remembered.is_object() && remembered.contains(name) && remembered[name].is_array())
+        {
+            for (const Json &id : remembered[name])
+            {
+                if (id.is_string() && m_document.contains(id.get<std::string>()))
+                {
+                    m_locked.insert(id.get<std::string>());
+                }
+            }
+        }
+    }
+
+    void Editor::setLocked(const std::string &id, bool isLocked)
+    {
+        if (!m_document.contains(id) || this->isLocked(id) == isLocked)
+        {
+            return;
+        }
+        if (isLocked)
+        {
+            m_locked.insert(id);
+        }
+        else
+        {
+            m_locked.erase(id);
+        }
+        if (isLocked && m_selected == id)
+        {
+            m_drag = Drag();
+        }
+        Json remembered = EditorState::projectValue(m_project.directory(), "locked");
+        if (!remembered.is_object())
+        {
+            remembered = Json::object();
+        }
+        std::vector<std::string> ids;
+        for (const std::string &locked : m_locked)
+        {
+            if (m_document.contains(locked))
+            {
+                ids.push_back(locked);
+            }
+        }
+        remembered[fs::path(m_scenePath).filename().string()] = Json(ids);
+        EditorState::setProjectValue(m_project.directory(), "locked", remembered);
+        m_needsRender = true;
+        changed();
+    }
+
     void Editor::rememberScene()
     {
         std::string name = fs::path(m_scenePath).filename().string();
@@ -503,6 +558,7 @@ namespace fried::editor
         m_commands->m_onChange = [this] { changed(); };
         m_scenePath = path;
         rememberScene();
+        loadLocked();
         m_selected.reset();
         chooseViewMode();
         m_needsLoad = true;
@@ -679,7 +735,7 @@ namespace fried::editor
         for (const ObjectBounds3D &box : m_frame.m_bounds3D)
         {
             if (frameX >= box.m_x && frameX < box.m_x + box.m_width && frameY >= box.m_y && frameY < box.m_y + box.m_height
-                && (!nearest || box.m_depth < nearest->m_depth))
+                && (!nearest || box.m_depth < nearest->m_depth) && !isLocked(box.m_id))
             {
                 nearest = &box;
             }
@@ -724,7 +780,7 @@ namespace fried::editor
 
     std::vector<AxisHandle> Editor::handles3D() const
     {
-        if (m_selected)
+        if (m_selected && !isLocked(*m_selected))
         {
             if (const ObjectBounds3D *box = bounds3DOf(*m_selected))
             {
@@ -1527,7 +1583,7 @@ namespace fried::editor
 
     std::vector<GizmoHandle> Editor::handlesFor(const Viewport &view) const
     {
-        if (m_selected)
+        if (m_selected && !isLocked(*m_selected))
         {
             for (const ObjectBounds &box : m_frame.m_bounds)
             {
@@ -1730,12 +1786,25 @@ namespace fried::editor
             m_drag.m_startY = values.m_y;
             return;
         }
-        select(Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY));
+        if (m_locked.empty())
+        {
+            select(Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY));
+            return;
+        }
+        std::vector<ObjectBounds> pickable;
+        for (const ObjectBounds &box : m_frame.m_bounds)
+        {
+            if (!isLocked(box.m_id))
+            {
+                pickable.push_back(box);
+            }
+        }
+        select(Viewport::hit(m_viewport, pickable, frameX, frameY));
     }
 
     bool Editor::isOverSelected(double frameX, double frameY) const
     {
-        if (!m_selected)
+        if (!m_selected || isLocked(*m_selected))
         {
             return false;
         }
