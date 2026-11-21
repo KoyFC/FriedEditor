@@ -330,6 +330,16 @@ namespace editor_ui
             }
             wasPlaying = editor.isPlaying();
 
+            // The keyboard is the game's while it has the focus, so the arrows, Space and Tab must not move the interface's own selection.
+            if (editor.isPlaying() && panels.isGameFocused())
+            {
+                io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+            }
+            else
+            {
+                io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+            }
+
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplSDL2_NewFrame();
             ImGui::NewFrame();
