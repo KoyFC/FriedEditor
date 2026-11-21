@@ -1,0 +1,92 @@
+#pragma once
+
+#include "fried/editor/core_types.h"
+#include "fried/editor/message_channel.h"
+#include "fried/editor/transport.h"
+
+#include <nlohmann/json.hpp>
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace fried::editor
+{
+    // What the running game says about itself every half second.
+    struct GameStats
+    {
+        double m_fps = 0.0;
+        // The milliseconds a whole frame takes, waiting included, and the part of it spent updating and drawing.
+        double m_frameMs = 0.0;
+        double m_workMs = 0.0;
+        int m_nodes = 0;
+    };
+
+    // One frame of the game, at the size of its display.
+    struct GameFrame
+    {
+        int m_width = 0;
+        int m_height = 0;
+        std::vector<unsigned char> m_rgba;
+        GameStats m_stats;
+    };
+
+    // The editor's side of the link to the game it is playing: the project's player started in play mode, which runs the game and sends back its frames. The editor tells it which scene to open, the changes the user makes while it runs and the keys and the mouse.
+    class GameSession
+    {
+    public:
+        enum class State
+        {
+            Waiting,
+            Running,
+            Closed
+        };
+
+        // Starts waiting on a loopback port for the game, which is told to open the scene when it says hello: the one it is given, or the project's start scene.
+        bool listen(const std::string &sceneName, const nlohmann::json &scene, bool isFromStartScene, std::string *error);
+        int port() const { return m_listener ? m_listener->port() : 0; }
+
+        // Runs the player in play mode, which connects back. What the game prints goes to the log file.
+        bool launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, const std::string &logFile, std::string *error);
+
+        // Accepts the player and delivers what it has sent to the callbacks. Called often, from the editor's own thread.
+        void pump();
+
+        // Ends the game.
+        void stop();
+
+        State state() const { return m_state; }
+
+        void setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value);
+        void addNode(const std::string &parentId, int index, const nlohmann::json &node);
+        void removeNode(const std::string &nodeId);
+        void moveNode(const std::string &nodeId, const std::string &parentId, int index);
+
+        // The game sends no frames while nothing shows them.
+        void setShowing(bool isShowing);
+
+        // A key by its SDL scancode, and the mouse in the pixels of the game's display.
+        void key(int scancode, bool isDown);
+        void mouseMove(int x, int y);
+        void mouseButton(int button, int x, int y, bool isDown);
+        void mouseWheel(double x, double y);
+
+        std::function<void(const GameFrame &)> m_onFrame;
+        // The game answered a change with an error, or the link broke, in which case the state is Closed.
+        std::function<void(const std::string &)> m_onError;
+
+    private:
+        void handle(const Message &message);
+        void send(const nlohmann::json &message);
+
+        std::unique_ptr<Listener> m_listener;
+        std::unique_ptr<Subprocess> m_process;
+        std::unique_ptr<MessageChannel> m_channel;
+        State m_state = State::Waiting;
+        std::string m_sceneName;
+        nlohmann::json m_scene;
+        bool m_isFromStartScene = false;
+        bool m_isShowing = true;
+    };
+}

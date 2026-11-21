@@ -279,7 +279,7 @@ namespace editor_ui
                 }
                 else if (ImGui::IsKeyPressed(ImGuiKey_F5, false))
                 {
-                    editor.play();
+                    editor.buildAndRun();
                 }
                 else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_W, false))
                 {
@@ -341,7 +341,7 @@ namespace editor_ui
                     }
                     if (ImGui::MenuItem("Play", "F5"))
                     {
-                        editor.play();
+                        editor.buildAndRun();
                     }
                     if (ImGui::MenuItem("Stop game", nullptr, false, editor.gameState() != fried::editor::GameRunner::State::Idle))
                     {

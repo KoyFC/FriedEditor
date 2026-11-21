@@ -8,6 +8,7 @@ add_library(fried_editor_core STATIC
     src/display_name.cpp
     src/fuzzy.cpp
     src/game_runner.cpp
+    src/game_session.cpp
     src/gizmo.cpp
     src/log_tail.cpp
     src/message_channel.cpp

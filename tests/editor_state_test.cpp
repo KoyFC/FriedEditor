@@ -94,7 +94,7 @@ TEST_CASE("the editor reopens the scene it had open, and shows the build while i
     }
     REQUIRE(second.status() == Editor::Status::Ready);
 
-    second.play();
+    second.buildAndRun();
     BuildProgress progress = second.buildProgress();
     CHECK(progress.m_isVisible);
     CHECK(progress.m_canStop);

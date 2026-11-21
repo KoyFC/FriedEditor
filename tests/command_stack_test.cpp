@@ -146,3 +146,26 @@ TEST_CASE("a new edit drops what was undone, and the clean position follows save
 
     CHECK_FALSE(stack.execute(std::make_unique<SetNodeField>("missing", "name", Json("x"))));
 }
+
+TEST_CASE("a hold keeps what was done before out of reach and takes back everything done after it")
+{
+    SceneDocument document = sample();
+    CommandStack stack(document);
+    REQUIRE(stack.execute(std::make_unique<SetNodeField>("a", "x", Json(5))));
+    std::string before = document.dump();
+
+    stack.hold();
+    CHECK(stack.isHeld());
+    CHECK_FALSE(stack.canUndo());
+
+    // A drag that continues the step from before the hold is a step of its own.
+    REQUIRE(stack.execute(std::make_unique<SetNodeField>("a", "x", Json(6)), true));
+    REQUIRE(stack.execute(std::make_unique<SetNodeField>("b", "x", Json(7))));
+    CHECK(stack.canUndo());
+
+    stack.revertHeld();
+    CHECK_FALSE(stack.isHeld());
+    CHECK(document.dump() == before);
+    CHECK_FALSE(stack.canRedo());
+    CHECK(stack.canUndo());
+}

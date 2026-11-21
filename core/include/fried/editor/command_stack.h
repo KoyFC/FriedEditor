@@ -33,13 +33,18 @@ namespace fried::editor
         // Applies the command and makes it the next thing to undo, dropping whatever was undone. With merge, a command that continues the last one is folded into it.
         bool execute(std::unique_ptr<Command> command, bool merge = false);
 
-        bool canUndo() const { return m_position > 0; }
+        bool canUndo() const { return m_position > m_floor; }
         bool canRedo() const { return m_position < m_commands.size(); }
         std::string undoLabel() const { return canUndo() ? m_commands[m_position - 1]->label() : std::string(); }
         std::string redoLabel() const { return canRedo() ? m_commands[m_position]->label() : std::string(); }
 
         void undo();
         void redo();
+
+        // Edits made from now on are temporary: nothing made before can be undone or merged into, and revertHeld() takes back all of them, so the document is what it was when the hold began.
+        void hold();
+        bool isHeld() const { return m_isHeld; }
+        void revertHeld();
 
         // The stack is clean where the document was last saved.
         void markClean();
@@ -54,6 +59,8 @@ namespace fried::editor
         std::vector<std::unique_ptr<Command>> m_commands;
         std::size_t m_position = 0;
         std::size_t m_cleanPosition = 0;
+        std::size_t m_floor = 0;
+        bool m_isHeld = false;
 
         // Set once the step the clean position points at is no longer what was saved, by a merge or by a new edit taking its place.
         bool m_isCleanLost = false;

@@ -20,7 +20,7 @@ namespace fried::editor
         }
         m_commands.resize(m_position);
 
-        bool isMerged = merge && m_position > 0 && m_commands[m_position - 1]->mergeWith(*command);
+        bool isMerged = merge && m_position > m_floor && m_commands[m_position - 1]->mergeWith(*command);
         if (isMerged && m_position == m_cleanPosition)
         {
             m_isCleanLost = true;
@@ -51,6 +51,24 @@ namespace fried::editor
             ++m_position;
             notify();
         }
+    }
+
+    void CommandStack::hold()
+    {
+        m_floor = m_position;
+        m_isHeld = true;
+    }
+
+    void CommandStack::revertHeld()
+    {
+        while (m_position > m_floor)
+        {
+            m_commands[--m_position]->revert(m_document);
+        }
+        m_commands.resize(m_position);
+        m_floor = 0;
+        m_isHeld = false;
+        notify();
     }
 
     void CommandStack::markClean()

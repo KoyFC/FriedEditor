@@ -6,6 +6,7 @@
 #include "fried/editor/editor_state.h"
 #include "fried/editor/gizmo.h"
 #include "fried/editor/game_runner.h"
+#include "fried/editor/game_session.h"
 #include "fried/editor/log_tail.h"
 #include "fried/editor/core_types.h"
 #include "fried/editor/player_builder.h"
@@ -179,10 +180,21 @@ namespace fried::editor
         // Saves the scene and builds the project for a platform. False with the reason in error when it cannot, or while something else is being built.
         bool buildProject(fried::core::BuildTarget target, std::string *error);
 
-        // Saves the scene, builds the project's game for the PC and runs it. Playing again while it runs does nothing.
-        void play();
+        // Saves the scene, builds the project's game for the PC and runs it in a window of its own. Does nothing while it runs.
+        void buildAndRun();
         void stopGame();
         GameRunner::State gameState() const { return m_game.state(); }
+
+        // Runs the project's game inside the editor, from the scene being edited or from the project's start scene. The project's player is built first if its code changed. What is edited while it runs is taken back when it stops, and until then the scene cannot be saved or changed for another.
+        void startPlay(bool isFromStartScene);
+        void stopPlay();
+        bool isPlaying() const { return m_isPlaying; }
+        // True from pressing Play until the game is on screen, which includes building the player.
+        bool isStartingPlay() const { return m_pendingPlay.has_value() || (m_isPlaying && m_play.state() == GameSession::State::Waiting); }
+        GameSession &gameSession() { return m_play; }
+        // The last frame the game sent, and a number that changes with each.
+        const GameFrame &gameFrame() const { return m_gameFrame; }
+        unsigned long long gameFrameSerial() const { return m_gameFrameSerial; }
 
         Platform platform() const { return m_platform; }
         void setPlatform(Platform platform);
@@ -332,6 +344,7 @@ namespace fried::editor
 
     private:
         void startPlayer();
+        void launchPlay(bool isFromStartScene);
         void chooseViewMode();
         void rememberScene();
         void loadLocked();
@@ -372,6 +385,12 @@ namespace fried::editor
         PlayerSession m_session;
         std::unique_ptr<PlayerBuilder> m_builder;
         GameRunner m_game;
+        GameSession m_play;
+        bool m_isPlaying = false;
+        // Set while the player is rebuilt so that the game can start with it, true when it is to start from the project's start scene.
+        std::optional<bool> m_pendingPlay;
+        GameFrame m_gameFrame;
+        unsigned long long m_gameFrameSerial = 0;
         bool m_isFailureShown = false;
         std::string m_failedTitle;
         std::vector<fried::core::OutputLine> m_failedLines;

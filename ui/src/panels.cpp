@@ -421,7 +421,7 @@ namespace editor_ui
         ImGui::SetCursorPosX(std::max(middle, leftEnd + gap));
         if (Icons::button("play", isGoing ? Icon::Stop : Icon::Play, isGoing ? "Stop the game" : "Play the scene (F5)", isGoing))
         {
-            isGoing ? m_editor.stopGame() : m_editor.play();
+            isGoing ? m_editor.stopGame() : m_editor.buildAndRun();
         }
         if (game == GameRunner::State::Building)
         {

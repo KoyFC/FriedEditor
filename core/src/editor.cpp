@@ -26,6 +26,8 @@ namespace fried::editor
 
     bool Editor::open(const std::string &projectDirectory, const std::string &enginePath, std::string *error)
     {
+        stopPlay();
+        m_pendingPlay.reset();
         if (!m_project.load(projectDirectory, error))
         {
             return false;
@@ -179,6 +181,11 @@ namespace fried::editor
 
     bool Editor::buildProject(fried::core::BuildTarget target, std::string *error)
     {
+        if (m_isPlaying)
+        {
+            *error = "Stop the game to build the project.";
+            return false;
+        }
         if (m_builder || m_game.state() == GameRunner::State::Building || m_projectBuild.isRunning())
         {
             *error = "Something else is being built.";
@@ -230,6 +237,12 @@ namespace fried::editor
             m_needsLoad = true;
             m_needsCamera = true;
             m_needsRender = true;
+            if (m_pendingPlay)
+            {
+                bool isFromStartScene = *m_pendingPlay;
+                m_pendingPlay.reset();
+                launchPlay(isFromStartScene);
+            }
             changed();
         };
         m_session.m_onFrame = [this](const Frame &frame) {
@@ -274,8 +287,14 @@ namespace fried::editor
         changed();
     }
 
-    void Editor::play()
+    void Editor::buildAndRun()
     {
+        if (m_isPlaying)
+        {
+            m_message = "Stop the game to build and run it.";
+            changed();
+            return;
+        }
         if (m_game.state() == GameRunner::State::Building || m_game.state() == GameRunner::State::Running)
         {
             return;
@@ -307,6 +326,85 @@ namespace fried::editor
     void Editor::stopGame()
     {
         m_game.stop();
+        m_message = "Stopped the game";
+        changed();
+    }
+
+    void Editor::startPlay(bool isFromStartScene)
+    {
+        if (m_isPlaying || m_pendingPlay || m_builder || m_status != Status::Ready || m_game.state() == GameRunner::State::Building)
+        {
+            return;
+        }
+        if (!hasProjectPlayer(m_project.directory()))
+        {
+            m_message = "The project has no editor.hxml, so its game cannot run inside the editor. Build and run it instead.";
+            changed();
+            return;
+        }
+        m_isFailureShown = false;
+        m_toolchains = machineToolchains();
+        if (isPlayerStale(m_enginePath, m_project.directory(), m_toolchains))
+        {
+            // The game has to be the code on disk, and a player that is running cannot be replaced on every system, so the editor's own goes first.
+            m_pendingPlay = isFromStartScene;
+            m_session = PlayerSession();
+            rebuildPlayer();
+            return;
+        }
+        launchPlay(isFromStartScene);
+    }
+
+    void Editor::launchPlay(bool isFromStartScene)
+    {
+        std::string log = (fs::temp_directory_path() / "fried-editor-game.log").string();
+        m_gameLog.follow(log);
+        m_gameLog.clear();
+
+        m_play = GameSession();
+        m_play.m_onFrame = [this](const GameFrame &frame) {
+            m_gameFrame = frame;
+            ++m_gameFrameSerial;
+            changed();
+        };
+        m_play.m_onError = [this](const std::string &message) {
+            m_message = message;
+            changed();
+        };
+
+        std::string name = fs::path(m_scenePath).filename().string();
+        const std::string suffix = ".scene.json";
+        if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
+        {
+            name.resize(name.size() - suffix.size());
+        }
+        std::string error;
+        if (!m_play.listen(name, m_document.data(), isFromStartScene, &error)
+            || !m_play.launch(playerExecutablePath(m_enginePath, m_project.directory(), m_toolchains), m_enginePath, m_project.directory(), log, &error))
+        {
+            m_message = error;
+            showFailure("The game cannot start", error, nullptr);
+            changed();
+            return;
+        }
+        m_commands->hold();
+        m_isPlaying = true;
+        m_gameFrame = GameFrame();
+        m_message = "Playing the game";
+        changed();
+    }
+
+    void Editor::stopPlay()
+    {
+        m_pendingPlay.reset();
+        if (!m_isPlaying)
+        {
+            return;
+        }
+        m_isPlaying = false;
+        m_play.stop();
+        // What was edited while it ran goes with it, and the edit player, which was told of each change, is told of the undoing.
+        m_commands->revertHeld();
         m_message = "Stopped the game";
         changed();
     }
@@ -369,11 +467,21 @@ namespace fried::editor
             changed();
         }
 
+        if (m_isPlaying)
+        {
+            m_play.pump();
+            if (m_play.state() == GameSession::State::Closed)
+            {
+                stopPlay();
+            }
+        }
+
         if (m_builder)
         {
             PlayerBuilder::State state = m_builder->pump();
             if (state == PlayerBuilder::State::Failed)
             {
+                m_pendingPlay.reset();
                 m_status = Status::Failed;
                 m_message = m_builder->failure() + " The log is " + playerLogFile();
                 showFailure("Building the editor player failed", m_builder->failure(), &m_builder->lines());
@@ -546,6 +654,11 @@ namespace fried::editor
 
     bool Editor::openScene(const std::string &path, std::string *error)
     {
+        if (m_isPlaying)
+        {
+            *error = "Stop the game to open another scene.";
+            return false;
+        }
         SceneDocument loaded;
         if (!loaded.load(path, error))
         {
@@ -793,6 +906,11 @@ namespace fried::editor
 
     bool Editor::save(std::string *error)
     {
+        if (m_isPlaying)
+        {
+            *error = "Stop the game to save the scene.";
+            return false;
+        }
         std::error_code ignored;
         fs::create_directories(fs::path(m_scenePath).parent_path(), ignored);
         if (!m_document.save(m_scenePath, error))
@@ -1655,6 +1773,30 @@ namespace fried::editor
         using Kind = DocumentChange::Kind;
         // The player is told of an edit as it is made only while it is ready and no whole scene is waiting to be sent, which would include the edit.
         bool isLive = m_status == Status::Ready && !m_needsLoad;
+        // A game that is running is told of the same edits, which it applies to the scene it has on screen. A change of class cannot be, and waits for the next run.
+        if (m_isPlaying)
+        {
+            switch (change.m_kind)
+            {
+            case Kind::Field:
+                if (!change.m_value.is_null())
+                {
+                    m_play.setField(change.m_nodeId, change.m_field, change.m_value);
+                }
+                break;
+            case Kind::Added:
+                m_play.addNode(change.m_parentId, change.m_index, change.m_value);
+                break;
+            case Kind::Removed:
+                m_play.removeNode(change.m_nodeId);
+                break;
+            case Kind::Moved:
+                m_play.moveNode(change.m_nodeId, change.m_parentId, change.m_index);
+                break;
+            default:
+                break;
+            }
+        }
         switch (change.m_kind)
         {
         case Kind::Field:

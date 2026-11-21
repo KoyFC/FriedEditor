@@ -11,6 +11,7 @@ add_executable(core_tests
     game_runner_test.cpp
     gizmo_test.cpp
     log_tail_test.cpp
+    game_session_test.cpp
     player_session_test.cpp
     project_settings_test.cpp
     scene_document_test.cpp
