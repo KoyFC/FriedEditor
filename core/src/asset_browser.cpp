@@ -1,6 +1,7 @@
 #include "fried/editor/asset_browser.h"
 
 #include <algorithm>
+#include <set>
 #include <cctype>
 #include <filesystem>
 
@@ -33,6 +34,57 @@ namespace fried::editor
             return AssetKind::Audio;
         }
         return AssetKind::Other;
+    }
+
+    std::string assetFolderOf(const AssetEntry &entry)
+    {
+        std::size_t slash = entry.m_path.rfind('/');
+        return slash == std::string::npos ? entry.m_root : entry.m_root + "/" + entry.m_path.substr(0, slash);
+    }
+
+    std::vector<std::string> assetFolders(const std::vector<AssetEntry> &entries)
+    {
+        std::set<std::string> folders = {"game", "engine"};
+        for (const AssetEntry &entry : entries)
+        {
+            std::string folder = assetFolderOf(entry);
+            while (true)
+            {
+                folders.insert(folder);
+                std::size_t slash = folder.rfind('/');
+                if (slash == std::string::npos)
+                {
+                    break;
+                }
+                folder.resize(slash);
+            }
+        }
+        return std::vector<std::string>(folders.begin(), folders.end());
+    }
+
+    std::vector<std::string> childFolders(const std::vector<std::string> &folders, const std::string &folder)
+    {
+        std::vector<std::string> children;
+        for (const std::string &candidate : folders)
+        {
+            std::size_t slash = candidate.rfind('/');
+            std::string parent = slash == std::string::npos ? std::string() : candidate.substr(0, slash);
+            if (parent == folder)
+            {
+                children.push_back(candidate);
+            }
+        }
+        return children;
+    }
+
+    bool isUnderFolder(const AssetEntry &entry, const std::string &folder)
+    {
+        if (folder.empty())
+        {
+            return true;
+        }
+        std::string own = assetFolderOf(entry);
+        return own == folder || (own.size() > folder.size() && own.compare(0, folder.size(), folder) == 0 && own[folder.size()] == '/');
     }
 
     std::vector<AssetEntry> listAssets(const std::string &root, const std::string &directory)

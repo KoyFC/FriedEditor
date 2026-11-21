@@ -63,3 +63,25 @@ TEST_CASE("an asset reference is written for the inspector and read back from wh
     CHECK_FALSE(assetReferenceFromText("somewhere/else.png", false).has_value());
     CHECK(assetReferenceText(nlohmann::json(), false).empty());
 }
+
+TEST_CASE("assets are grouped in folders that include the ones above them and both roots")
+{
+    std::vector<AssetEntry> entries = {{"game", "a.png", AssetKind::Image}, {"game", "sprites/enemies/b.png", AssetKind::Image}, {"engine", "NunitoSans.ttf", AssetKind::Font}};
+    CHECK(assetFolderOf(entries[0]) == "game");
+    CHECK(assetFolderOf(entries[1]) == "game/sprites/enemies");
+
+    std::vector<std::string> folders = assetFolders(entries);
+    CHECK(folders == std::vector<std::string>({"engine", "game", "game/sprites", "game/sprites/enemies"}));
+    CHECK(assetFolders({}) == std::vector<std::string>({"engine", "game"}));
+
+    CHECK(childFolders(folders, "") == std::vector<std::string>({"engine", "game"}));
+    CHECK(childFolders(folders, "game") == std::vector<std::string>({"game/sprites"}));
+    CHECK(childFolders(folders, "game/sprites/enemies").empty());
+
+    CHECK(isUnderFolder(entries[1], ""));
+    CHECK(isUnderFolder(entries[1], "game"));
+    CHECK(isUnderFolder(entries[1], "game/sprites"));
+    CHECK_FALSE(isUnderFolder(entries[1], "engine"));
+    CHECK_FALSE(isUnderFolder(entries[1], "game/spr"));
+    CHECK_FALSE(isUnderFolder(entries[0], "game/sprites"));
+}

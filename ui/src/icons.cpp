@@ -25,11 +25,17 @@ namespace editor_ui
     namespace
     {
         constexpr int s_columns = 8;
-        constexpr float s_designSize = 16.0f;
 
-        Texture s_atlas;
-        int s_cell = 0;
-        float s_size = s_designSize;
+        // Icons rasterized side by side in one texture, each in a square cell of its own.
+        struct Atlas
+        {
+            Texture m_texture;
+            int m_cell = 0;
+        };
+
+        Atlas s_small;
+        Atlas s_big;
+        float s_size = 16.0f;
 
         const char *svgOf(const char *name)
         {
@@ -48,45 +54,70 @@ namespace editor_ui
             FRIED_ICONS(FRIED_ICON_NAME)
 #undef FRIED_ICON_NAME
         };
+
+        const char *s_bigNames[] = {
+#define FRIED_ICON_NAME(name) #name,
+            FRIED_BIG_ICONS(FRIED_ICON_NAME)
+#undef FRIED_ICON_NAME
+        };
+
+        void build(Atlas &atlas, const char *const *names, int count, int cell)
+        {
+            atlas.m_cell = std::max(1, cell);
+            int rows = (count + s_columns - 1) / s_columns;
+            int width = s_columns * atlas.m_cell;
+            int height = rows * atlas.m_cell;
+            std::vector<unsigned char> pixels((size_t)width * height * 4, 0);
+            std::vector<unsigned char> one((size_t)atlas.m_cell * atlas.m_cell * 4);
+
+            NSVGrasterizer *rasterizer = nsvgCreateRasterizer();
+            for (int index = 0; index < count; ++index)
+            {
+                const char *svg = svgOf(names[index]);
+                if (!svg)
+                {
+                    continue;
+                }
+                std::string copy(svg);
+                NSVGimage *image = nsvgParse(copy.data(), "px", 96.0f);
+                if (!image)
+                {
+                    continue;
+                }
+                std::fill(one.begin(), one.end(), 0);
+                nsvgRasterize(rasterizer, image, 0, 0, atlas.m_cell / std::max(image->width, image->height), one.data(), atlas.m_cell, atlas.m_cell, atlas.m_cell * 4);
+                nsvgDelete(image);
+                int originX = (index % s_columns) * atlas.m_cell;
+                int originY = (index / s_columns) * atlas.m_cell;
+                for (int row = 0; row < atlas.m_cell; ++row)
+                {
+                    std::memcpy(&pixels[((size_t)(originY + row) * width + originX) * 4], &one[(size_t)row * atlas.m_cell * 4], (size_t)atlas.m_cell * 4);
+                }
+            }
+            nsvgDeleteRasterizer(rasterizer);
+            atlas.m_texture.upload(pixels.data(), width, height);
+        }
+
+        void drawFrom(const Atlas &atlas, ImDrawList *list, int index, ImVec2 position, float side, ImU32 tint)
+        {
+            if (atlas.m_texture.isEmpty())
+            {
+                return;
+            }
+            float width = (float)atlas.m_texture.width();
+            float height = (float)atlas.m_texture.height();
+            float x = (float)((index % s_columns) * atlas.m_cell);
+            float y = (float)((index / s_columns) * atlas.m_cell);
+            list->AddImage(atlas.m_texture.id(), position, ImVec2(position.x + side, position.y + side), ImVec2(x / width, y / height),
+                           ImVec2((x + atlas.m_cell) / width, (y + atlas.m_cell) / height), tint);
+        }
     }
 
     void Icons::rebuild(float scale)
     {
-        s_size = std::round(s_designSize * scale);
-        s_cell = std::max(1, (int)s_size);
-        int count = (int)Icon::Count;
-        int rows = (count + s_columns - 1) / s_columns;
-        int width = s_columns * s_cell;
-        int height = rows * s_cell;
-        std::vector<unsigned char> pixels((size_t)width * height * 4, 0);
-        std::vector<unsigned char> cell((size_t)s_cell * s_cell * 4);
-
-        NSVGrasterizer *rasterizer = nsvgCreateRasterizer();
-        for (int index = 0; index < count; ++index)
-        {
-            const char *svg = svgOf(s_names[index]);
-            if (!svg)
-            {
-                continue;
-            }
-            std::string copy(svg);
-            NSVGimage *image = nsvgParse(copy.data(), "px", 96.0f);
-            if (!image)
-            {
-                continue;
-            }
-            std::fill(cell.begin(), cell.end(), 0);
-            nsvgRasterize(rasterizer, image, 0, 0, s_cell / s_designSize, cell.data(), s_cell, s_cell, s_cell * 4);
-            nsvgDelete(image);
-            int originX = (index % s_columns) * s_cell;
-            int originY = (index / s_columns) * s_cell;
-            for (int row = 0; row < s_cell; ++row)
-            {
-                std::memcpy(&pixels[((size_t)(originY + row) * width + originX) * 4], &cell[(size_t)row * s_cell * 4], (size_t)s_cell * 4);
-            }
-        }
-        nsvgDeleteRasterizer(rasterizer);
-        s_atlas.upload(pixels.data(), width, height);
+        s_size = std::round(16.0f * scale);
+        build(s_small, s_names, (int)Icon::Count, (int)s_size);
+        build(s_big, s_bigNames, (int)BigIcon::Count, (int)std::round(64.0f * scale));
     }
 
     float Icons::size()
@@ -96,16 +127,12 @@ namespace editor_ui
 
     void Icons::draw(ImDrawList *list, Icon icon, ImVec2 position, ImU32 tint)
     {
-        if (s_atlas.isEmpty())
-        {
-            return;
-        }
-        int index = (int)icon;
-        float width = (float)s_atlas.width();
-        float height = (float)s_atlas.height();
-        float x = (float)((index % s_columns) * s_cell);
-        float y = (float)((index / s_columns) * s_cell);
-        list->AddImage(s_atlas.id(), position, ImVec2(position.x + s_size, position.y + s_size), ImVec2(x / width, y / height), ImVec2((x + s_cell) / width, (y + s_cell) / height), tint);
+        drawFrom(s_small, list, (int)icon, position, s_size, tint);
+    }
+
+    void Icons::drawBig(ImDrawList *list, BigIcon icon, ImVec2 position, float side, ImU32 tint)
+    {
+        drawFrom(s_big, list, (int)icon, position, side, tint);
     }
 
     bool Icons::button(const char *id, Icon icon, const char *tooltip, bool isActive)

@@ -63,6 +63,7 @@ namespace editor_ui
         // The title of a class in the inspector, with its icon. True while it is open.
         bool classHeader(const std::string &name);
         void openSceneFile(const std::string &path);
+        void enterAssetFolder(const std::string &folder);
         void sceneChangeDialog();
         void controlEditor(const fried::editor::ClassView &view);
         void fieldEditor(const fried::editor::FieldView &field);
@@ -87,6 +88,13 @@ namespace editor_ui
         ImVec2 m_heldMotion;
         ImVec2 m_panPosition;
         int m_assetFilter = 0;
+        std::string m_assetFolder;
+        bool m_isAssetFolderLoaded = false;
+        bool m_isAssetList = false;
+        float m_assetCell = 84;
+        float m_assetTreeWidth = 190;
+        std::vector<std::string> m_folders;
+        std::size_t m_foldersKey = 0;
         std::string m_assetSearch;
         std::string m_pendingScene;
         bool m_isSceneChangeAsked = false;

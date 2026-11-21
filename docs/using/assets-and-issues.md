@@ -2,4 +2,6 @@
 
 The Assets dock lists the images, fonts, sounds and scenes of the project and of the engine: drag an image onto the view for a new Sprite, onto a Sprite to change its texture, or a font for a new Label; a double click drops it in the middle.
 
+The dock has the folders on the left, a tree that starts at the two roots, `game` for the project's own files and `engine` for the engine's, and the folder that is open on the right. The line above shows where it is, and each name in it goes back to that folder. A double click on a folder opens it, the field searches everything below the open folder, and so do the kind buttons (Images, Fonts, Audio and Scenes). The slider sets the size of the thumbnails, the button at its side shows the files as a list, and the line between the panes can be dragged to change the width of the tree. The folder that was open is remembered for each project.
+
 The Issues tab checks the project's assets against the platform being previewed: textures over 1024 pixels on the 3DS and DS, DS audio that is not mono PCM WAV, audio on the fx-CG50, a project that does not fit its 2 MB, and an image in `sce_sys/` that is not a palette PNG, which the Vita's installer refuses. An issue with a fix has a button, and the file as it was is kept in `.fried-editor/originals/` in the project.

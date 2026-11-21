@@ -1600,10 +1600,62 @@ namespace editor_ui
         }
     }
 
+    void Panels::enterAssetFolder(const std::string &folder)
+    {
+        m_assetFolder = folder;
+        fried::editor::EditorState::setProjectValue(m_editor.project().directory(), "assetFolder", folder);
+    }
+
     void Panels::assets()
     {
         static const char *filters[] = {"All", "Images", "Fonts", "Audio", "Scenes"};
         static const AssetKind kinds[] = {AssetKind::Other, AssetKind::Image, AssetKind::Font, AssetKind::Audio, AssetKind::Scene};
+        const std::vector<fried::editor::AssetEntry> &entries = m_editor.assets();
+
+        // The folders are found again only when the files changed.
+        std::size_t key = entries.size();
+        for (const fried::editor::AssetEntry &entry : entries)
+        {
+            key = key * 31 + std::hash<std::string>()(entry.m_path);
+        }
+        if (key != m_foldersKey || m_folders.empty())
+        {
+            m_foldersKey = key;
+            m_folders = fried::editor::assetFolders(entries);
+        }
+        if (!m_isAssetFolderLoaded)
+        {
+            m_isAssetFolderLoaded = true;
+            Json remembered = fried::editor::EditorState::projectValue(m_editor.project().directory(), "assetFolder");
+            m_assetFolder = remembered.is_string() ? remembered.get<std::string>() : std::string("game");
+        }
+        if (!m_assetFolder.empty() && !std::binary_search(m_folders.begin(), m_folders.end(), m_assetFolder))
+        {
+            m_assetFolder.clear();
+        }
+
+        // Where the view is, one name for each folder on the way, to go back to any of them.
+        if (ImGui::Selectable("Assets", false, ImGuiSelectableFlags_None, ImVec2(ImGui::CalcTextSize("Assets").x, 0)))
+        {
+            enterAssetFolder("");
+        }
+        for (std::size_t start = 0; start < m_assetFolder.size();)
+        {
+            std::size_t end = m_assetFolder.find('/', start);
+            end = end == std::string::npos ? m_assetFolder.size() : end;
+            std::string name = m_assetFolder.substr(start, end - start);
+            ImGui::SameLine();
+            ImGui::TextDisabled(">");
+            ImGui::SameLine();
+            ImGui::PushID((int)start);
+            if (ImGui::Selectable(name.c_str(), false, ImGuiSelectableFlags_None, ImVec2(ImGui::CalcTextSize(name.c_str()).x, 0)))
+            {
+                enterAssetFolder(m_assetFolder.substr(0, end));
+            }
+            ImGui::PopID();
+            start = end + 1;
+        }
+
         for (int index = 0; index < 5; ++index)
         {
             if (index > 0)
@@ -1626,71 +1678,213 @@ namespace editor_ui
             }
         }
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(-FLT_MIN);
+        float controls = scaled(86) + Icons::size() + ImGui::GetStyle().FramePadding.y * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
+        ImGui::SetNextItemWidth(-controls);
         ImGui::InputTextWithHint("##asset-search", "Search", &m_assetSearch);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(scaled(86));
+        ImGui::SliderFloat("##asset-size", &m_assetCell, 56, 160, "");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("The size of the thumbnails");
+        }
+        ImGui::SameLine();
+        if (Icons::button("asset-list", Icon::FileList, "Show the files as a list", m_isAssetList))
+        {
+            m_isAssetList = !m_isAssetList;
+        }
         ImGui::Separator();
 
-        const float cell = 84;
-        float width = ImGui::GetContentRegionAvail().x;
-        int columns = std::max(1, (int)(width / (cell + ImGui::GetStyle().ItemSpacing.x)));
-        int index = 0;
-        for (const auto &entry : m_editor.assets())
+        // The folders on the left, and what is in the one chosen on the right.
+        ImVec2 available = ImGui::GetContentRegionAvail();
+        ImGui::BeginChild("##asset-tree", ImVec2(scaled(m_assetTreeWidth), available.y), ImGuiChildFlags_None);
+        std::function<void(const std::string &)> folderNode = [&](const std::string &folder) {
+            std::vector<std::string> children = fried::editor::childFolders(m_folders, folder);
+            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
+            flags |= children.empty() ? ImGuiTreeNodeFlags_Leaf : 0;
+            flags |= folder == m_assetFolder ? ImGuiTreeNodeFlags_Selected : 0;
+            flags |= folder.find('/') == std::string::npos ? ImGuiTreeNodeFlags_DefaultOpen : 0;
+            ImGui::PushStyleColor(ImGuiCol_Header, palette::yolkAt(0.22f));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1, 1, 1, 0.07f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, scaled(3)));
+            bool isOpen = ImGui::TreeNodeEx(folder.c_str(), flags, "%s", "");
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(2);
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+            {
+                enterAssetFolder(folder);
+            }
+            ImVec2 low = ImGui::GetItemRectMin();
+            ImVec2 high = ImGui::GetItemRectMax();
+            float x = low.x + ImGui::GetTreeNodeToLabelSpacing();
+            ImDrawList *list = ImGui::GetWindowDrawList();
+            Icons::draw(list, Icon::Folder, ImVec2(x, (low.y + high.y - Icons::size()) / 2), ImGui::GetColorU32(palette::yolk));
+            std::string name = folder.substr(folder.rfind('/') == std::string::npos ? 0 : folder.rfind('/') + 1);
+            list->AddText(ImVec2(x + Icons::size() + scaled(6), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+            if (isOpen)
+            {
+                for (const std::string &child : children)
+                {
+                    folderNode(child);
+                }
+                ImGui::TreePop();
+            }
+        };
+        for (const std::string &root : fried::editor::childFolders(m_folders, ""))
         {
-            std::string reference = entry.reference();
-            if ((m_assetFilter != 0 && entry.m_kind != kinds[m_assetFilter]) || (!m_assetSearch.empty() && !containsIgnoringCase(reference, m_assetSearch)))
+            folderNode(root);
+        }
+        ImGui::EndChild();
+
+        ImGui::SameLine(0, 0);
+        ImGui::InvisibleButton("##asset-split", ImVec2(scaled(5), available.y));
+        if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+        }
+        if (ImGui::IsItemActive())
+        {
+            m_assetTreeWidth = std::clamp(m_assetTreeWidth + ImGui::GetIO().MouseDelta.x / uiScale(), 100.0f, 400.0f);
+        }
+        ImGui::SameLine(0, 0);
+
+        // What the content shows: the folders in the one chosen and the files that pass the filter, or, with a search, every file below it that matches.
+        struct Item
+        {
+            std::string m_folder;
+            const fried::editor::AssetEntry *m_entry = nullptr;
+        };
+        std::vector<Item> items;
+        bool isSearching = !m_assetSearch.empty();
+        if (!isSearching && m_assetFilter == 0)
+        {
+            for (const std::string &folder : fried::editor::childFolders(m_folders, m_assetFolder))
+            {
+                items.push_back({folder, nullptr});
+            }
+        }
+        for (const fried::editor::AssetEntry &entry : entries)
+        {
+            if (m_assetFilter != 0 && entry.m_kind != kinds[m_assetFilter])
             {
                 continue;
             }
-            if (index++ % columns != 0)
+            // A kind or a search looks through everything below the folder, and without them only the folder's own files are shown.
+            bool isShown = isSearching || m_assetFilter != 0 ? fried::editor::isUnderFolder(entry, m_assetFolder) && (!isSearching || containsIgnoringCase(entry.reference(), m_assetSearch))
+                                                            : fried::editor::assetFolderOf(entry) == m_assetFolder;
+            if (isShown)
+            {
+                items.push_back({std::string(), &entry});
+            }
+        }
+
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
+        ImGui::BeginChild("##asset-content", ImVec2(0, available.y), ImGuiChildFlags_None);
+        ImGui::PopStyleColor();
+        if (items.empty())
+        {
+            ImGui::TextDisabled("%s", isSearching ? "No file matches" : "Nothing here");
+        }
+        const float cell = scaled(m_assetCell);
+        const float box = cell - scaled(14);
+        float width = ImGui::GetContentRegionAvail().x;
+        int columns = std::max(1, (int)(width / (cell + ImGui::GetStyle().ItemSpacing.x)));
+        int placed = 0;
+
+        for (const Item &item : items)
+        {
+            bool isFolder = item.m_entry == nullptr;
+            std::string reference = isFolder ? item.m_folder : item.m_entry->reference();
+            std::string name = reference.substr(reference.rfind('/') == std::string::npos ? 0 : reference.rfind('/') + 1);
+            if (!m_isAssetList && placed++ % columns != 0)
             {
                 ImGui::SameLine();
             }
 
             ImGui::PushID(reference.c_str());
-            ImGui::BeginGroup();
-            const Texture *thumbnail = entry.m_kind == AssetKind::Image ? m_images.get(m_editor.assetFile(entry.m_root, entry.m_path)) : nullptr;
-            if (thumbnail)
+            bool isHovered = false;
+            bool isScene = !isFolder && item.m_entry->m_kind == AssetKind::Scene;
+            ImDrawList *list = ImGui::GetWindowDrawList();
+            if (m_isAssetList)
             {
-                float ratio = std::min(64.0f / thumbnail->width(), 64.0f / thumbnail->height());
-                ImVec2 size(thumbnail->width() * ratio, thumbnail->height() * ratio);
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (cell - size.x) / 2);
-                ImGui::Image(thumbnail->id(), size);
+                ImVec2 row = ImGui::GetCursorScreenPos();
+                ImGui::Selectable("##row", !isFolder && isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath()), ImGuiSelectableFlags_AllowDoubleClick);
+                isHovered = ImGui::IsItemHovered();
+                Icon icon = isFolder ? Icon::Folder
+                            : item.m_entry->m_kind == AssetKind::Image ? Icon::Image
+                            : item.m_entry->m_kind == AssetKind::Font  ? Icon::Font
+                            : item.m_entry->m_kind == AssetKind::Audio ? Icon::AudioStreamWAV
+                            : isScene                                  ? Icon::PackedScene
+                                                                       : Icon::File;
+                float centre = row.y + ImGui::GetItemRectSize().y / 2;
+                Icons::draw(list, icon, ImVec2(row.x + scaled(4), centre - Icons::size() / 2), ImGui::GetColorU32(isFolder ? palette::yolk : palette::white));
+                list->AddText(ImVec2(row.x + Icons::size() + scaled(12), centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+                if (isSearching && !isFolder)
+                {
+                    float x = row.x + Icons::size() + scaled(24) + ImGui::CalcTextSize(name.c_str()).x;
+                    list->AddText(ImVec2(x, centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_TextDisabled), reference.c_str());
+                }
             }
             else
             {
-                const char *tag = entry.m_kind == AssetKind::Font ? "Aa" : entry.m_kind == AssetKind::Audio ? "wav" : entry.m_kind == AssetKind::Scene ? "scn" : "...";
-                ImGui::Button(tag, ImVec2(cell - 10, 64));
+                ImGui::BeginGroup();
+                ImVec2 origin = ImGui::GetCursorScreenPos();
+                ImGui::Dummy(ImVec2(cell, box));
+                const Texture *thumbnail = !isFolder && item.m_entry->m_kind == AssetKind::Image ? m_images.get(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path)) : nullptr;
+                if (thumbnail)
+                {
+                    float ratio = std::min(box / thumbnail->width(), box / thumbnail->height());
+                    ImVec2 size(thumbnail->width() * ratio, thumbnail->height() * ratio);
+                    ImVec2 low(origin.x + (cell - size.x) / 2, origin.y + (box - size.y) / 2);
+                    list->AddImage(thumbnail->id(), low, ImVec2(low.x + size.x, low.y + size.y));
+                }
+                else
+                {
+                    ImVec2 low(origin.x + (cell - box) / 2, origin.y);
+                    list->AddRectFilled(low, ImVec2(low.x + box, low.y + box), IM_COL32(255, 255, 255, 10), 4.0f);
+                    float inner = box * 0.8f;
+                    ImVec2 iconLow(low.x + (box - inner) / 2, low.y + (box - inner) / 2);
+                    if (isFolder)
+                    {
+                        Icons::drawBig(list, BigIcon::FolderBigThumb, iconLow, inner, ImGui::GetColorU32(palette::yolk));
+                    }
+                    else
+                    {
+                        AssetKind kind = item.m_entry->m_kind;
+                        Icon icon = kind == AssetKind::Font ? Icon::Font : kind == AssetKind::Audio ? Icon::AudioStreamWAV : kind == AssetKind::Scene ? Icon::PackedScene : kind == AssetKind::Image ? Icon::Image : Icon::File;
+                        Icons::drawBig(list, BigIcon::FileBigThumb, iconLow, inner, IM_COL32(150, 150, 160, 255));
+                        Icons::draw(list, icon, ImVec2(low.x + (box - Icons::size()) / 2, low.y + (box - Icons::size()) / 2 + inner * 0.08f));
+                    }
+                }
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + cell);
+                ImGui::TextUnformatted(name.c_str());
+                ImGui::PopTextWrapPos();
+                ImGui::EndGroup();
+                isHovered = ImGui::IsItemHovered();
+                if (isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath()))
+                {
+                    // The scene that is being edited.
+                    list->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_CheckMark), 3.0f, 0, 2.0f);
+                }
             }
-            std::string name = entry.m_path.substr(entry.m_path.rfind('/') == std::string::npos ? 0 : entry.m_path.rfind('/') + 1);
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + cell);
-            ImGui::TextUnformatted(name.c_str());
-            ImGui::PopTextWrapPos();
-            ImGui::EndGroup();
 
-            bool isScene = entry.m_kind == AssetKind::Scene;
-            bool isHovered = ImGui::IsItemHovered();
-            if (isScene && isOpenScene(m_editor.assetFile(entry.m_root, entry.m_path), m_editor.scenePath()))
-            {
-                // The scene that is being edited.
-                ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_CheckMark), 3.0f, 0, 2.0f);
-            }
             if (isHovered)
             {
                 ImGui::SetTooltip("%s", reference.c_str());
             }
-            if (ImGui::BeginDragDropSource())
+            if (!isFolder && ImGui::BeginDragDropSource())
             {
                 ImGui::SetDragDropPayload(s_assetPayload, reference.c_str(), reference.size() + 1);
                 ImGui::TextUnformatted(name.c_str());
                 ImGui::EndDragDropSource();
             }
 
-            // A double click does what suits the file: a scene opens, and an image or a font is added to the scene.
-            bool isUsable = isScene || entry.m_kind == AssetKind::Image || entry.m_kind == AssetKind::Font;
+            // A double click does what suits the file: a folder is entered, a scene opens, and an image or a font is added to the scene.
+            bool isUsable = isFolder || isScene || item.m_entry->m_kind == AssetKind::Image || item.m_entry->m_kind == AssetKind::Font;
             bool isActivated = isUsable && isHovered && ImGui::IsMouseDoubleClicked(0);
             if (ImGui::BeginPopupContextItem("asset-menu"))
             {
-                if (isUsable && ImGui::MenuItem(isScene ? "Open scene" : "Add to scene"))
+                if (isUsable && ImGui::MenuItem(isFolder ? "Open folder" : isScene ? "Open scene" : "Add to scene"))
                 {
                     isActivated = true;
                 }
@@ -1700,28 +1894,43 @@ namespace editor_ui
                 }
                 if (ImGui::MenuItem("Show in folder"))
                 {
-                    std::string folder = std::filesystem::path(m_editor.assetFile(entry.m_root, entry.m_path)).parent_path().string();
-                    SDL_OpenURL(("file://" + folder).c_str());
+                    std::string file;
+                    if (isFolder)
+                    {
+                        std::size_t slash = reference.find('/');
+                        file = m_editor.assetFile(reference.substr(0, slash), slash == std::string::npos ? std::string() : reference.substr(slash + 1));
+                    }
+                    else
+                    {
+                        file = std::filesystem::path(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path)).parent_path().string();
+                    }
+                    SDL_OpenURL(("file://" + file).c_str());
                 }
                 ImGui::EndPopup();
             }
             if (isActivated)
             {
-                if (isScene)
+                if (isFolder)
                 {
-                    openSceneFile(m_editor.assetFile(entry.m_root, entry.m_path));
+                    enterAssetFolder(item.m_folder);
+                    ImGui::PopID();
+                    break;
+                }
+                else if (isScene)
+                {
+                    openSceneFile(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path));
                 }
                 else
                 {
-                    m_editor.dropAsset(entry.m_root, entry.m_path, m_editor.viewport().frameWidth() / 2.0, m_editor.viewport().frameHeight() / 2.0);
+                    m_editor.dropAsset(item.m_entry->m_root, item.m_entry->m_path, m_editor.viewport().frameWidth() / 2.0, m_editor.viewport().frameHeight() / 2.0);
                 }
             }
             ImGui::PopID();
         }
+        ImGui::EndChild();
         sceneChangeDialog();
     }
 
-    // Opens the scene at once when the one being edited is saved, and otherwise asks what to do with its changes first.
     void Panels::openSceneFile(const std::string &path)
     {
         if (isOpenScene(path, m_editor.scenePath()))
