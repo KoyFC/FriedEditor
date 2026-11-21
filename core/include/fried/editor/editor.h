@@ -244,6 +244,9 @@ namespace fried::editor
         const Viewport3D &viewport3D() const { return m_viewport3D; }
 
         ViewMode viewMode() const { return m_viewMode; }
+
+        // Remembers where the view of this scene is, its mode, camera and selected node, which opening the scene again puts back. The editor keeps it by itself a moment after the view stops moving, and this is for when it is closing.
+        void saveView();
         void setViewMode(ViewMode mode);
 
         // Moves the 3D camera along where it looks, across it and up, for the seconds a key was held. The speed grows with the distance to what the camera looks at, and fast is for a shift held.
@@ -289,6 +292,7 @@ namespace fried::editor
     private:
         void startPlayer();
         void chooseViewMode();
+        void restoreView();
         DrawList overlay3D() const;
         std::optional<std::string> hit3D(double frameX, double frameY) const;
         const ObjectBounds3D *bounds3DOf(const std::string &id) const;
@@ -338,6 +342,8 @@ namespace fried::editor
         Viewport m_sentView;
         Viewport m_inFlightView;
         ViewMode m_viewMode = ViewMode::TwoD;
+        bool m_isViewDirty = false;
+        std::chrono::steady_clock::time_point m_viewChangedAt;
         Viewport3D m_viewport3D;
         Viewport3D m_frameView3D;
         Viewport3D m_sentView3D;

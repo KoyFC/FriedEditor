@@ -2,6 +2,8 @@
 
 #include "style.h"
 
+#include "fried/editor/editor_state.h"
+
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
@@ -712,6 +714,26 @@ namespace editor_ui
         }
         ImGui::Separator();
 
+        // Which nodes are folded belongs to the scene, and is remembered with the view.
+        std::string sceneName = std::filesystem::path(m_editor.scenePath()).filename().string();
+        if (sceneName != m_collapsedScene)
+        {
+            m_collapsedScene = sceneName;
+            m_collapsed.clear();
+            Json remembered = fried::editor::EditorState::projectValue(m_editor.project().directory(), "collapsed");
+            if (remembered.is_object() && remembered.contains(sceneName) && remembered[sceneName].is_array())
+            {
+                for (const Json &id : remembered[sceneName])
+                {
+                    if (id.is_string())
+                    {
+                        m_collapsed.insert(id.get<std::string>());
+                    }
+                }
+            }
+        }
+        bool isCollapseChanged = false;
+
         const std::vector<fried::editor::HierarchyRow> &rows = m_editor.hierarchy();
 
         // The rows under a collapsed node are left out before anything is drawn, and only the rows in view are drawn of the rest, so a scene of thousands of nodes costs what fits on the screen.
@@ -793,11 +815,11 @@ namespace editor_ui
                 {
                     if (isOpen)
                     {
-                        m_collapsed.erase(row.m_id);
+                        isCollapseChanged |= m_collapsed.erase(row.m_id) > 0;
                     }
                     else
                     {
-                        m_collapsed.insert(row.m_id);
+                        isCollapseChanged |= m_collapsed.insert(row.m_id).second;
                     }
                 }
 
@@ -892,6 +914,17 @@ namespace editor_ui
                     ImGui::EndPopup();
                 }
             }
+        }
+
+        if (isCollapseChanged)
+        {
+            Json remembered = fried::editor::EditorState::projectValue(m_editor.project().directory(), "collapsed");
+            if (!remembered.is_object())
+            {
+                remembered = Json::object();
+            }
+            remembered[sceneName] = Json(m_collapsed);
+            fried::editor::EditorState::setProjectValue(m_editor.project().directory(), "collapsed", remembered);
         }
 
         if (m_isRenameAsked)

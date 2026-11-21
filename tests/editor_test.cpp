@@ -1,11 +1,14 @@
 #include "doctest/doctest.h"
 
+#include "environment.h"
+
 #include "fried/editor/editor.h"
 
 #include <algorithm>
 #include <cmath>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <thread>
 
 using namespace fried::editor;
@@ -419,4 +422,62 @@ TEST_CASE("the empty part of a frame has the editor's background color, before a
     pumpUntil(editor, [&] { return editor.frame().m_width == 864; });
     REQUIRE(editor.frame().m_width == 864);
     CHECK(empty() == "40,40,48");
+}
+
+TEST_CASE("a scene opens with the view it was left with" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    namespace fs = std::filesystem;
+    fs::path state = fs::temp_directory_path() / "fried-editor-view-test";
+    fs::remove_all(state);
+    setEnvironment("FRIED_EDITOR_CONFIG", state.string().c_str());
+
+    std::string engine = std::getenv("FRIED_ENGINE");
+    std::string sample = FRIED_EDITOR_TEST_DATA "/sample.scene.json";
+    double x = 0, y = 0, zoom = 1;
+    std::string error;
+    {
+        Editor editor;
+        REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+        pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+        REQUIRE(editor.status() == Editor::Status::Ready);
+        REQUIRE(editor.openScene(sample, &error));
+        pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 3; });
+
+        editor.wheel(100, 100, 3);
+        editor.pointerDown(50, 50, Editor::Pointer::Pan);
+        editor.pointerMove(90, 70);
+        editor.pointerUp();
+        x = editor.viewport().cameraX();
+        y = editor.viewport().cameraY();
+        zoom = editor.viewport().zoom();
+        REQUIRE(zoom != doctest::Approx(1.0));
+
+        // Another scene has a view of its own, and coming back finds this one as it was.
+        std::string other;
+        for (const std::string &path : editor.scenePaths())
+        {
+            other = path;
+        }
+        REQUIRE(!other.empty());
+        REQUIRE(editor.openScene(other, &error));
+        CHECK(editor.viewport().zoom() != doctest::Approx(zoom));
+        REQUIRE(editor.openScene(sample, &error));
+        CHECK(editor.viewport().cameraX() == doctest::Approx(x));
+        CHECK(editor.viewport().cameraY() == doctest::Approx(y));
+        CHECK(editor.viewport().zoom() == doctest::Approx(zoom));
+        editor.wheel(100, 100, 1);
+        editor.saveView();
+    }
+
+    // A new editor, as after a restart, finds it as it was when the last one closed.
+    {
+        Editor editor;
+        REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+        pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+        REQUIRE(editor.openScene(sample, &error));
+        CHECK(editor.viewport().zoom() != doctest::Approx(zoom));
+        CHECK(editor.viewport().zoom() > zoom);
+    }
+    setEnvironment("FRIED_EDITOR_CONFIG", "none");
+    fs::remove_all(state);
 }

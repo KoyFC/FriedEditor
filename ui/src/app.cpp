@@ -459,6 +459,7 @@ namespace editor_ui
             SDL_SetWindowTitle(window, title.c_str());
         }
 
+        editor.saveView();
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplSDL2_Shutdown();
         ImGui::DestroyContext();

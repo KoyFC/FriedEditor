@@ -1,6 +1,7 @@
 #include "fried/editor/editor.h"
 
 #include "fried/editor/commands.h"
+#include "fried/editor/editor_state.h"
 
 #include "fried/core/engine_location.h"
 
@@ -311,6 +312,12 @@ namespace fried::editor
 
     void Editor::pump()
     {
+        // The view is written once it has stopped moving, so dragging it does not write the file at every frame.
+        if (m_isViewDirty && std::chrono::steady_clock::now() - m_viewChangedAt > std::chrono::milliseconds(500))
+        {
+            saveView();
+        }
+
         if (m_projectBuild.isRunning() && m_projectBuild.pump() != ProjectBuild::State::Running)
         {
             m_message = m_projectBuild.state() == ProjectBuild::State::Succeeded ? "Built for " + fried::core::buildTargetName(m_projectBuild.target()) : m_projectBuild.runner().failure();
@@ -426,6 +433,7 @@ namespace fried::editor
         {
             return false;
         }
+        saveView();
         m_document.m_onChange = nullptr;
         m_document = std::move(loaded);
         m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
@@ -440,6 +448,69 @@ namespace fried::editor
         return true;
     }
 
+    void Editor::saveView()
+    {
+        // Before the player is ready the view is still the default one, which is not what was remembered.
+        if (m_status != Status::Ready || m_scenePath.empty() || m_project.directory().empty())
+        {
+            return;
+        }
+        m_isViewDirty = false;
+        Json views = EditorState::projectValue(m_project.directory(), "views");
+        if (!views.is_object())
+        {
+            views = Json::object();
+        }
+        Json view = {{"mode", m_viewMode == ViewMode::ThreeD ? "3d" : "2d"},
+                     {"x", m_viewport.cameraX()},
+                     {"y", m_viewport.cameraY()},
+                     {"zoom", m_viewport.zoom()},
+                     {"target", {m_viewport3D.targetX(), m_viewport3D.targetY(), m_viewport3D.targetZ()}},
+                     {"distance", m_viewport3D.distance()},
+                     {"yaw", m_viewport3D.rotationY()},
+                     {"pitch", m_viewport3D.rotationX()}};
+        if (m_selected)
+        {
+            view["selected"] = *m_selected;
+        }
+        views[fs::path(m_scenePath).filename().string()] = view;
+        EditorState::setProjectValue(m_project.directory(), "views", views);
+    }
+
+    void Editor::restoreView()
+    {
+        Json views = EditorState::projectValue(m_project.directory(), "views");
+        std::string name = fs::path(m_scenePath).filename().string();
+        if (!views.is_object() || !views.contains(name) || !views[name].is_object())
+        {
+            // A scene that was never opened starts from the default view, not from the last scene's.
+            m_viewport.setCamera(s_frameWidth / 2.0, s_frameHeight / 2.0, 1.0);
+            Viewport3D fresh;
+            fresh.setFrameSize(m_viewport3D.frameWidth(), m_viewport3D.frameHeight());
+            m_viewport3D = fresh;
+            m_isViewDirty = false;
+            return;
+        }
+        const Json &view = views[name];
+        auto number = [&](const char *key, double fallback) { return view.contains(key) && view[key].is_number() ? view[key].get<double>() : fallback; };
+        if (view.contains("mode") && view["mode"].is_string())
+        {
+            m_viewMode = view["mode"].get<std::string>() == "3d" ? ViewMode::ThreeD : ViewMode::TwoD;
+        }
+        m_viewport.setCamera(number("x", m_viewport.cameraX()), number("y", m_viewport.cameraY()), std::clamp(number("zoom", m_viewport.zoom()), Viewport::s_minZoom, Viewport::s_maxZoom));
+        if (view.contains("target") && view["target"].is_array() && view["target"].size() == 3)
+        {
+            const Json &target = view["target"];
+            m_viewport3D.set(target[0].get<double>(), target[1].get<double>(), target[2].get<double>(), number("distance", m_viewport3D.distance()), number("yaw", m_viewport3D.rotationY()),
+                             number("pitch", m_viewport3D.rotationX()));
+        }
+        if (view.contains("selected") && view["selected"].is_string() && m_document.node(view["selected"].get<std::string>()))
+        {
+            m_selected = view["selected"].get<std::string>();
+        }
+        m_isViewDirty = false;
+    }
+
     void Editor::chooseViewMode()
     {
         m_viewMode = ViewMode::TwoD;
@@ -451,6 +522,7 @@ namespace fried::editor
                 break;
             }
         }
+        restoreView();
     }
 
     void Editor::setViewMode(ViewMode mode)
@@ -588,6 +660,8 @@ namespace fried::editor
     void Editor::select(const std::optional<std::string> &id)
     {
         m_selected = id;
+        m_isViewDirty = true;
+        m_viewChangedAt = std::chrono::steady_clock::now();
         m_needsRender = true;
         changed();
     }
@@ -1321,6 +1395,8 @@ namespace fried::editor
 
     void Editor::cameraChanged()
     {
+        m_isViewDirty = true;
+        m_viewChangedAt = std::chrono::steady_clock::now();
         m_needsCamera = true;
         changed();
     }

@@ -92,6 +92,7 @@ namespace editor_ui
         std::string m_issuesMessage;
         std::map<ImGuiID, std::string> m_textEdits;
         std::unordered_set<std::string> m_collapsed;
+        std::string m_collapsedScene;
         std::vector<std::size_t> m_visibleRows;
         std::map<std::string, Icon> m_typeIcons;
         std::size_t m_typeIconsSchema = 0;
