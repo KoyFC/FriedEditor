@@ -18,3 +18,7 @@ A project that has an `editor.hxml` beside its `build.hxml` gets a player built 
 ## Opening scenes and finding files
 
 File, Open scene lists the project's scenes, and File, Open recent the last eight that were opened, the latest first. When the open scene has changes the editor asks whether to save them before leaving it, wherever the choice was made from. Ctrl+P (File, Quick open) opens a field in which a part of a name is enough: the letters only have to appear in order, so `sbx3` finds `sandbox_3d.scene.json`, and a match in the file's own name ranks over one in its folders. With nothing typed it lists the scenes, the recent ones first. Up and Down choose, Enter or a click opens a scene, and for any other file it opens the folder that holds it in the Assets tab.
+
+## Panels
+
+Each panel is a tab that can be dragged next to another, out into a group of its own or away from the editor's window, and closed with the cross on its tab. The Window menu opens the ones that were closed, and Window, Reset layout puts all of them back where a new editor has them. The layout is remembered between runs.

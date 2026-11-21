@@ -595,3 +595,30 @@ TEST_CASE("the scenes opened last are remembered, the latest first" * doctest::s
     setEnvironment("FRIED_EDITOR_CONFIG", "none");
     fs::remove_all(state);
 }
+
+TEST_CASE("the view is brought to the selected node, zoomed back to a pixel scale and reset" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 3; });
+
+    editor.select(std::string("sprite"));
+    editor.focusSelected();
+    // The sprite is 128 pixels wide at x 288 and 128 high at y 160.
+    CHECK(editor.viewport().cameraX() == doctest::Approx(288 + 64));
+    CHECK(editor.viewport().cameraY() == doctest::Approx(160 + 64));
+
+    editor.zoomTo(2);
+    CHECK(editor.viewport().zoom() == doctest::Approx(2));
+    CHECK(editor.viewport().cameraX() == doctest::Approx(288 + 64));
+    editor.zoomTo(1);
+    CHECK(editor.viewport().zoom() == doctest::Approx(1));
+
+    editor.resetView();
+    CHECK(editor.viewport().zoom() == doctest::Approx(1));
+    CHECK(editor.viewport().cameraX() == doctest::Approx(editor.viewport().frameWidth() / 2.0));
+}

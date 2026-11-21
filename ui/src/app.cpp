@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 
 namespace editor_ui
 {
@@ -177,6 +178,13 @@ namespace editor_ui
         bool isCloseAsked = false;
         bool isSettingsOpen = false;
         bool isLayoutBuilt = false;
+        bool isLayoutResetAsked = false;
+        bool isViewportShown = true;
+        bool isHierarchyShown = true;
+        bool isInspectorShown = true;
+        bool isAssetsShown = true;
+        bool isConsoleShown = true;
+        bool isIssuesShown = true;
         int startupFrame = 0;
         fried::editor::GameRunner::State previousGameState = editor.gameState();
 
@@ -384,6 +392,21 @@ namespace editor_ui
                     }
                     ImGui::EndMenu();
                 }
+                if (ImGui::BeginMenu("Window"))
+                {
+                    ImGui::MenuItem("Viewport", nullptr, &isViewportShown);
+                    ImGui::MenuItem("Hierarchy", nullptr, &isHierarchyShown);
+                    ImGui::MenuItem("Inspector", nullptr, &isInspectorShown);
+                    ImGui::MenuItem("Assets", nullptr, &isAssetsShown);
+                    ImGui::MenuItem("Console", nullptr, &isConsoleShown);
+                    ImGui::MenuItem("Issues", nullptr, &isIssuesShown);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Reset layout"))
+                    {
+                        isLayoutResetAsked = true;
+                    }
+                    ImGui::EndMenu();
+                }
                 if (ImGui::BeginMenu("View"))
                 {
                     if (ImGui::BeginMenu("Interface scale"))
@@ -424,43 +447,45 @@ namespace editor_ui
                 }
             }
 
-            if (ImGui::Begin("Viewport"))
+            if (isLayoutResetAsked)
             {
-                panels.viewport();
+                isLayoutResetAsked = false;
+                isViewportShown = isHierarchyShown = isInspectorShown = isAssetsShown = isConsoleShown = isIssuesShown = true;
+                buildLayout(dockspace, ImGui::GetMainViewport()->Size);
             }
-            ImGui::End();
-            if (ImGui::Begin("Hierarchy"))
-            {
-                panels.hierarchy();
-            }
-            ImGui::End();
-            if (ImGui::Begin("Inspector"))
-            {
-                panels.inspector();
-            }
-            ImGui::End();
-            if (ImGui::Begin("Assets"))
-            {
-                panels.assets();
-            }
-            ImGui::End();
+
+            // A panel is drawn while its window is open, which its tab's close button and the Window menu change.
+            auto panel = [](const char *title, bool *isShown, const std::function<void()> &draw) {
+                if (!*isShown)
+                {
+                    return;
+                }
+                // The tab's own close button is enough, without the one that each group of tabs adds at its corner.
+                static ImGuiWindowClass s_panelClass = [] {
+                    ImGuiWindowClass windowClass;
+                    windowClass.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoCloseButton;
+                    return windowClass;
+                }();
+                ImGui::SetNextWindowClass(&s_panelClass);
+                if (ImGui::Begin(title, isShown))
+                {
+                    draw();
+                }
+                ImGui::End();
+            };
+            panel("Viewport", &isViewportShown, [&] { panels.viewport(); });
+            panel("Hierarchy", &isHierarchyShown, [&] { panels.hierarchy(); });
+            panel("Inspector", &isInspectorShown, [&] { panels.inspector(); });
+            panel("Assets", &isAssetsShown, [&] { panels.assets(); });
             // A layout saved before the console existed has no place for it, so it joins the assets.
             if (ImGuiWindow *assets = ImGui::FindWindowByName("Assets"); assets && assets->DockId)
             {
                 ImGui::SetNextWindowDockID(assets->DockId, ImGuiCond_FirstUseEver);
             }
             std::string consoleTitle = panels.consoleErrorCount() > 0 ? "Console (" + std::to_string(panels.consoleErrorCount()) + ")###Console" : "Console###Console";
-            if (ImGui::Begin(consoleTitle.c_str()))
-            {
-                panels.console();
-            }
-            ImGui::End();
+            panel(consoleTitle.c_str(), &isConsoleShown, [&] { panels.console(); });
             std::string issuesTitle = panels.issueCount() > 0 ? "Issues (" + std::to_string(panels.issueCount()) + ")###Issues" : "Issues###Issues";
-            if (ImGui::Begin(issuesTitle.c_str()))
-            {
-                panels.issues();
-            }
-            ImGui::End();
+            panel(issuesTitle.c_str(), &isIssuesShown, [&] { panels.issues(); });
 
             // The editor opens on the assets, unless the project has problems on the platform being previewed, which are what to see first.
             if (startupFrame < 3)

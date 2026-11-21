@@ -282,8 +282,14 @@ namespace fried::editor
         // Moves the 3D camera along where it looks, across it and up, for the seconds a key was held. The speed grows with the distance to what the camera looks at, and fast is for a shift held.
         void fly(double forward, double right, double up, double seconds, bool fast);
 
-        // Turns the 3D view to look at the selected node.
+        // Brings the selected node to the middle of the view: the 3D camera turns to look at it, and the 2D one moves to it and zooms out if it is larger than the view.
         void focusSelected();
+
+        // The view as it is when a scene is first opened.
+        void resetView();
+
+        // Zooms the 2D view about its middle to this much, 1 being the game's own pixels.
+        void zoomTo(double zoom);
         const Frame &frame() const { return m_frame; }
 
         // Counts the frames received, so a backend uploads a picture only when there is a new one.

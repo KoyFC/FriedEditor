@@ -611,15 +611,54 @@ namespace fried::editor
 
     void Editor::focusSelected()
     {
-        if (m_viewMode != ViewMode::ThreeD || !m_selected)
+        if (!m_selected)
         {
             return;
         }
-        if (const ObjectBounds3D *box = bounds3DOf(*m_selected))
+        if (m_viewMode == ViewMode::ThreeD)
         {
-            m_viewport3D.focus(box->m_worldX, box->m_worldY, box->m_worldZ);
+            if (const ObjectBounds3D *box = bounds3DOf(*m_selected))
+            {
+                m_viewport3D.focus(box->m_worldX, box->m_worldY, box->m_worldZ);
+                cameraChanged();
+            }
+            return;
+        }
+        if (const ObjectBounds *box = boundsOf(*m_selected))
+        {
+            double zoom = m_viewport.zoom();
+            if (box->m_width > 0 && box->m_height > 0)
+            {
+                zoom = std::min(zoom, std::min(m_viewport.frameWidth() * 0.8 / box->m_width, m_viewport.frameHeight() * 0.8 / box->m_height));
+            }
+            m_viewport.setCamera(box->m_x + box->m_width / 2, box->m_y + box->m_height / 2, std::max(zoom, Viewport::s_minZoom));
             cameraChanged();
         }
+    }
+
+    void Editor::resetView()
+    {
+        if (m_viewMode == ViewMode::ThreeD)
+        {
+            Viewport3D fresh;
+            fresh.setFrameSize(m_viewport3D.frameWidth(), m_viewport3D.frameHeight());
+            m_viewport3D = fresh;
+        }
+        else
+        {
+            m_viewport.setCamera(s_frameWidth / 2.0, s_frameHeight / 2.0, 1.0);
+        }
+        cameraChanged();
+    }
+
+    void Editor::zoomTo(double zoom)
+    {
+        if (m_viewMode == ViewMode::ThreeD || zoom <= 0)
+        {
+            return;
+        }
+        m_viewport.zoomAt(m_viewport.frameWidth() / 2.0, m_viewport.frameHeight() / 2.0, zoom / m_viewport.zoom());
+        cameraChanged();
     }
 
     const ObjectBounds3D *Editor::bounds3DOf(const std::string &id) const

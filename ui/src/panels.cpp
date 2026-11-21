@@ -622,8 +622,20 @@ namespace editor_ui
         ImVec2 region = ImGui::GetContentRegionAvail();
         m_editor.setViewSize((int)region.x, (int)region.y);
         ImVec2 origin = ImGui::GetCursorScreenPos();
+        // The buttons over the view are submitted after it, so it has to let them be hovered, and the view itself is not hovered where they are.
+        ImGui::SetNextItemAllowOverlap();
         ImGui::InvisibleButton("##view", region, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
         bool isHovered = ImGui::IsItemHovered();
+        const bool isTwoD = m_editor.viewMode() == Editor::ViewMode::TwoD;
+        const float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
+        const std::string zoomText = std::to_string((int)std::lround(m_editor.viewport().zoom() * 100)) + "%";
+        const ImVec2 barLow(origin.x + scaled(8), origin.y + scaled(8));
+        const ImVec2 barHigh(barLow.x + side * 2 + ImGui::GetStyle().ItemSpacing.x * 2 + (isTwoD ? ImGui::CalcTextSize(zoomText.c_str()).x + ImGui::GetStyle().FramePadding.x * 2 : 0),
+                             barLow.y + side);
+        if (ImGui::IsMouseHoveringRect(barLow, barHigh))
+        {
+            isHovered = false;
+        }
 
         ImDrawList *draw = ImGui::GetWindowDrawList();
         draw->AddRectFilled(origin, ImVec2(origin.x + region.x, origin.y + region.y), IM_COL32(20, 20, 24, 255));
@@ -736,6 +748,33 @@ namespace editor_ui
             }
             ImGui::EndDragDropTarget();
         }
+
+        // What the view offers: the selected node to the middle, the view as a scene first has it, and in 2D the zoom, which a click sets back to the game's own pixels.
+        ImGui::SetCursorScreenPos(barLow);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0.45f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.27f, 0.85f));
+        if (Icons::button("frame", Icon::CenterView, "Bring the selected node to the middle (F)"))
+        {
+            m_editor.focusSelected();
+        }
+        ImGui::SameLine();
+        if (Icons::button("reset", Icon::ZoomReset, "Reset the view"))
+        {
+            m_editor.resetView();
+        }
+        if (isTwoD)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button(zoomText.c_str()))
+            {
+                m_editor.zoomTo(1);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("The zoom. Click for 100%%, the game's own pixels.");
+            }
+        }
+        ImGui::PopStyleColor(2);
     }
 
     namespace
