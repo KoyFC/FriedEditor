@@ -115,7 +115,12 @@ namespace editor_ui
         {
             viewport = ImGui::GetMainViewport();
         }
-        SDL_Window *window = viewport->PlatformHandle ? (SDL_Window *)viewport->PlatformHandle : m_window;
+        // The backend keeps SDL's id of the window in the handle, not the window.
+        SDL_Window *window = viewport->PlatformHandle ? SDL_GetWindowFromID((Uint32)(intptr_t)viewport->PlatformHandle) : nullptr;
+        if (!window)
+        {
+            window = m_window;
+        }
         int width = 0;
         int height = 0;
         SDL_GetWindowSize(window, &width, &height);
