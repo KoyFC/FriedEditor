@@ -56,6 +56,7 @@ namespace editor_ui
             ImGui::DockBuilderDockWindow("Inspector", right);
             ImGui::DockBuilderDockWindow("Issues###Issues", bottom);
             ImGui::DockBuilderDockWindow("Assets", bottom);
+            ImGui::DockBuilderDockWindow("Console###Console", bottom);
             ImGui::DockBuilderDockWindow("Viewport", center);
             ImGui::DockBuilderFinish(dockspace);
         }
@@ -177,6 +178,7 @@ namespace editor_ui
         bool isSettingsOpen = false;
         bool isLayoutBuilt = false;
         int startupFrame = 0;
+        fried::editor::GameRunner::State previousGameState = editor.gameState();
 
         while (isRunning)
         {
@@ -222,6 +224,12 @@ namespace editor_ui
             }
 
             editor.pump();
+            fried::editor::GameRunner::State gameState = editor.gameState();
+            if (previousGameState == fried::editor::GameRunner::State::Idle && gameState == fried::editor::GameRunner::State::Building)
+            {
+                ImGui::SetWindowFocus("Console###Console");
+            }
+            previousGameState = gameState;
 
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplSDL2_NewFrame();
@@ -419,6 +427,17 @@ namespace editor_ui
             if (ImGui::Begin("Assets"))
             {
                 panels.assets();
+            }
+            ImGui::End();
+            // A layout saved before the console existed has no place for it, so it joins the assets.
+            if (ImGuiWindow *assets = ImGui::FindWindowByName("Assets"); assets && assets->DockId)
+            {
+                ImGui::SetNextWindowDockID(assets->DockId, ImGuiCond_FirstUseEver);
+            }
+            std::string consoleTitle = panels.consoleErrorCount() > 0 ? "Console (" + std::to_string(panels.consoleErrorCount()) + ")###Console" : "Console###Console";
+            if (ImGui::Begin(consoleTitle.c_str()))
+            {
+                panels.console();
             }
             ImGui::End();
             std::string issuesTitle = panels.issueCount() > 0 ? "Issues (" + std::to_string(panels.issueCount()) + ")###Issues" : "Issues###Issues";

@@ -279,6 +279,8 @@ namespace fried::editor
             return;
         }
         std::string log = (fs::temp_directory_path() / "fried-editor-game.log").string();
+        m_gameLog.follow(log);
+        m_gameLog.clear();
         m_toolchains = machineToolchains();
         if (m_game.start(m_project.directory(), log, m_toolchains, &error))
         {
@@ -313,6 +315,17 @@ namespace fried::editor
 
     void Editor::pump()
     {
+        // The game's log is read a few times a second while it is being written, and once more after it stops.
+        auto now = std::chrono::steady_clock::now();
+        if (now - m_logPolledAt > std::chrono::milliseconds(100))
+        {
+            m_logPolledAt = now;
+            if (m_gameLog.poll())
+            {
+                changed();
+            }
+        }
+
         // The view is written once it has stopped moving, so dragging it does not write the file at every frame.
         if (m_isViewDirty && std::chrono::steady_clock::now() - m_viewChangedAt > std::chrono::milliseconds(500))
         {

@@ -37,6 +37,10 @@ namespace editor_ui
         void assets();
         void issues();
 
+        // What the game printed, and what its build did, as it is written.
+        void console();
+        int consoleErrorCount() const { return m_editor.gameLog().errorCount(); }
+
         // How many problems the assets have for the platform being previewed, for the tab and the status bar.
         // Looks for the problems now if the list is old, whether or not the tab that shows them is the one open.
         void refreshIssues(bool isForced = false);
@@ -94,6 +98,12 @@ namespace editor_ui
         std::unordered_set<std::string> m_collapsed;
         std::string m_collapsedScene;
         std::vector<std::size_t> m_visibleRows;
+        bool m_consoleShow[3] = {true, true, true};
+        std::string m_consoleSearch;
+        std::vector<std::size_t> m_consoleRows;
+        unsigned long m_consoleKeyRevision = 0;
+        std::string m_consoleKeyText;
+        int m_consoleKeyMask = 0;
         std::string m_hierarchyFilter;
         std::vector<char> m_filterKeep;
         std::string m_filterKeyText;

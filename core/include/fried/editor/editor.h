@@ -6,6 +6,7 @@
 #include "fried/editor/editor_state.h"
 #include "fried/editor/gizmo.h"
 #include "fried/editor/game_runner.h"
+#include "fried/editor/log_tail.h"
 #include "fried/editor/core_types.h"
 #include "fried/editor/player_builder.h"
 #include "fried/editor/player_session.h"
@@ -252,6 +253,10 @@ namespace fried::editor
         const Viewport &viewport() const { return m_viewport; }
         const Viewport3D &viewport3D() const { return m_viewport3D; }
 
+        // What the game printed, and what its build did, as far as the log has it.
+        LogTail &gameLog() { return m_gameLog; }
+        const LogTail &gameLog() const { return m_gameLog; }
+
         ViewMode viewMode() const { return m_viewMode; }
 
         // Remembers where the view of this scene is, its mode, camera and selected node, which opening the scene again puts back. The editor keeps it by itself a moment after the view stops moving, and this is for when it is closing.
@@ -346,6 +351,8 @@ namespace fried::editor
         Platform m_platform = Platform::Pc;
         std::optional<std::string> m_selected;
         nlohmann::json m_clipboard;
+        LogTail m_gameLog;
+        std::chrono::steady_clock::time_point m_logPolledAt;
         Viewport m_viewport;
 
         // The view the player drew the frame on screen with. The overlay is drawn with it, not with the view the user has moved on to since, so the two stay together while panning.

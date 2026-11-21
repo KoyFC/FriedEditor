@@ -457,6 +457,104 @@ namespace editor_ui
         }
     }
 
+    void Panels::console()
+    {
+        fried::editor::LogTail &log = m_editor.gameLog();
+        if (ImGui::Button("Clear"))
+        {
+            log.clear();
+        }
+        struct Toggle
+        {
+            const char *m_label;
+            int m_count;
+        };
+        for (int kind = 0; kind < 3; ++kind)
+        {
+            Toggle toggle = kind == 0 ? Toggle{"Errors", log.errorCount()} : kind == 1 ? Toggle{"Warnings", log.warningCount()} : Toggle{"Output", -1};
+            std::string label = toggle.m_count >= 0 ? std::string(toggle.m_label) + " " + std::to_string(toggle.m_count) : std::string(toggle.m_label);
+            ImGui::SameLine();
+            bool isOn = m_consoleShow[kind];
+            if (isOn)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+                ImGui::PushStyleColor(ImGuiCol_Text, kind == 0 ? palette::tomato : kind == 1 ? palette::yolk : palette::white);
+            }
+            if (ImGui::Button(label.c_str()))
+            {
+                m_consoleShow[kind] = !isOn;
+            }
+            if (isOn)
+            {
+                ImGui::PopStyleColor(2);
+            }
+        }
+        ImGui::SameLine();
+        float copyWidth = ImGui::CalcTextSize("Copy").x + ImGui::GetStyle().FramePadding.x * 2 + ImGui::GetStyle().ItemSpacing.x;
+        ImGui::SetNextItemWidth(-copyWidth);
+        ImGui::InputTextWithHint("##console-search", "Search", &m_consoleSearch);
+        ImGui::SameLine();
+        bool isCopyAsked = ImGui::Button("Copy");
+        ImGui::Separator();
+
+        // The lines that pass the toggles and the search, found again only when the log or the filter changed.
+        const auto &lines = log.lines();
+        int mask = (m_consoleShow[0] ? 1 : 0) | (m_consoleShow[1] ? 2 : 0) | (m_consoleShow[2] ? 4 : 0);
+        bool isFiltered = mask != 7 || !m_consoleSearch.empty();
+        if (isFiltered && (m_consoleKeyRevision != log.revision() || m_consoleKeyText != m_consoleSearch || m_consoleKeyMask != mask))
+        {
+            m_consoleKeyRevision = log.revision();
+            m_consoleKeyText = m_consoleSearch;
+            m_consoleKeyMask = mask;
+            m_consoleRows.clear();
+            for (std::size_t index = 0; index < lines.size(); ++index)
+            {
+                using fried::core::LineKind;
+                int bit = lines[index].m_kind == LineKind::Error ? 1 : lines[index].m_kind == LineKind::Warning ? 2 : 4;
+                if ((mask & bit) && (m_consoleSearch.empty() || containsIgnoringCase(lines[index].m_text, m_consoleSearch)))
+                {
+                    m_consoleRows.push_back(index);
+                }
+            }
+        }
+        int count = isFiltered ? (int)m_consoleRows.size() : (int)lines.size();
+
+        if (isCopyAsked)
+        {
+            std::string text;
+            for (int row = 0; row < count; ++row)
+            {
+                text += lines[isFiltered ? m_consoleRows[row] : (std::size_t)row].m_text + "\n";
+            }
+            ImGui::SetClipboardText(text.c_str());
+        }
+
+        ImGui::BeginChild("##console-lines", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
+        // Following the output is the point, but not at the cost of pulling the view away from someone who scrolled up to read something.
+        bool wasAtBottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1;
+        if (count == 0)
+        {
+            ImGui::TextDisabled("%s", lines.empty() ? "Nothing printed yet. Play the game to see its output." : "No line passes the filter");
+        }
+        ImGuiListClipper clipper;
+        clipper.Begin(count);
+        while (clipper.Step())
+        {
+            for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+            {
+                const fried::core::OutputLine &line = lines[isFiltered ? m_consoleRows[row] : (std::size_t)row];
+                ImGui::PushStyleColor(ImGuiCol_Text, lineColor(line.m_kind));
+                ImGui::TextUnformatted(line.m_text.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
+        if (wasAtBottom)
+        {
+            ImGui::SetScrollHereY(1.0f);
+        }
+        ImGui::EndChild();
+    }
+
     void Panels::statusBar()
     {
         auto &commands = m_editor.commands();
