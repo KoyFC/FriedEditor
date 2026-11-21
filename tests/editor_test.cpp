@@ -527,3 +527,42 @@ TEST_CASE("a node is duplicated, copied and pasted with its children, under new 
     CHECK(editor.paste("something else"));
     editor.commands().undo();
 }
+
+TEST_CASE("dragging a node snaps to the grid when it is on, or when the snap key is held while it is off" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 3; });
+    const Viewport &view = editor.viewport();
+
+    editor.select(std::string("sprite"));
+    auto drag = [&] {
+        editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
+        editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
+        editor.pointerMove(view.worldToFrameX(320) + 37, view.worldToFrameY(200) + 13);
+        editor.pointerUp();
+    };
+    auto isOnGrid = [&](double value) { return std::fmod(value, 16.0) == 0; };
+
+    drag();
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(325));
+    editor.commands().undo();
+
+    Editor::GridSettings settings = editor.grid();
+    settings.m_isSnapping = true;
+    editor.setGrid(settings);
+    drag();
+    CHECK(isOnGrid(editor.document().nodeField("sprite", "x")->get<double>()));
+    CHECK(isOnGrid(editor.document().nodeField("sprite", "y")->get<double>()));
+    editor.commands().undo();
+
+    // Holding the key turns snapping the other way.
+    editor.setSnapHeld(true);
+    drag();
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(325));
+    editor.setSnapHeld(false);
+}

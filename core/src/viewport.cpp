@@ -1,5 +1,7 @@
 #include "fried/editor/viewport.h"
 
+#include <cmath>
+
 #include <algorithm>
 
 namespace fried::editor
@@ -9,6 +11,8 @@ namespace fried::editor
         constexpr unsigned int s_selection = 0xffffc800;
         constexpr unsigned int s_gameFrame = 0xa0ffffff;
         constexpr unsigned int s_grid = 0x30ffffff;
+        constexpr unsigned int s_gridMinor = 0x10ffffff;
+        constexpr unsigned int s_gridMajor = 0x22ffffff;
     }
 
     void Viewport::setFrameSize(int width, int height)
@@ -52,6 +56,38 @@ namespace fried::editor
             }
         }
         return std::nullopt;
+    }
+
+    DrawList Viewport::grid(double step) const
+    {
+        DrawList list;
+        if (step <= 0 || m_zoom <= 0)
+        {
+            return list;
+        }
+        constexpr double s_closest = 8;
+        while (step * m_zoom < s_closest)
+        {
+            step *= 2;
+        }
+        for (int vertical = 0; vertical < 2; ++vertical)
+        {
+            double low = vertical ? frameToWorldY(0) : frameToWorldX(0);
+            double high = vertical ? frameToWorldY(m_frameHeight) : frameToWorldX(m_frameWidth);
+            for (long line = (long)std::ceil(low / step); line * step <= high; ++line)
+            {
+                unsigned int color = line % 4 == 0 ? s_gridMajor : s_gridMinor;
+                if (vertical)
+                {
+                    list.push_back({DrawCommand::Kind::Line, 0, worldToFrameY(line * step), (double)m_frameWidth, 0, color});
+                }
+                else
+                {
+                    list.push_back({DrawCommand::Kind::Line, worldToFrameX(line * step), 0, 0, (double)m_frameHeight, color});
+                }
+            }
+        }
+        return list;
     }
 
     DrawList Viewport::overlay(const std::vector<ObjectBounds> &bounds, const std::optional<std::string> &selected,

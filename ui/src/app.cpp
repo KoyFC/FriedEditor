@@ -237,6 +237,7 @@ namespace editor_ui
             pointer.beginFrame();
             panels.setHeldMotion(pointer.takeHeldMotion());
 
+            editor.setSnapHeld(io.KeyCtrl);
             if (!io.WantTextInput)
             {
                 bool isControl = io.KeyCtrl;

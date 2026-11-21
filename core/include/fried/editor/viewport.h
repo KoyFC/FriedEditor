@@ -63,6 +63,9 @@ namespace fried::editor
         // The topmost object under a point of the frame, which is the last one drawn.
         static std::optional<std::string> hit(const Viewport &viewport, const std::vector<ObjectBounds> &bounds, double frameX, double frameY);
 
+        // Lines every step of the world, the stronger ones every fourth, which are fewer and farther apart than a step when the view is zoomed out so that they do not crowd.
+        DrawList grid(double step) const;
+
         // The selection's outline and the frame the game shows, around the scene's camera.
         DrawList overlay(const std::vector<ObjectBounds> &bounds, const std::optional<std::string> &selected,
                          const std::optional<std::pair<double, double>> &gameCamera, int gameWidth, int gameHeight) const;

@@ -244,6 +244,19 @@ namespace fried::editor
         std::vector<AssetIssue> issues() const;
         bool fixIssue(const AssetIssue &issue, std::string *error);
 
+        // The grid drawn over a 2D scene, and what dragging a node snaps to: positions to its step, rotations to degrees, scales to tenths. Holding the snap key does the opposite of what snapping is set to.
+        struct GridSettings
+        {
+            bool m_isShown = true;
+            bool m_isSnapping = false;
+            double m_step = 16;
+            double m_rotationStep = 15;
+            double m_scaleStep = 0.1;
+        };
+        const GridSettings &grid() const { return m_grid; }
+        void setGrid(const GridSettings &grid);
+        void setSnapHeld(bool isHeld) { m_isSnapHeld = isHeld; }
+
         GizmoMode gizmoMode() const { return m_gizmoMode; }
         void setGizmoMode(GizmoMode mode);
 
@@ -329,6 +342,7 @@ namespace fried::editor
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
         nlohmann::json newNode(const std::string &type) const;
         std::string playerLogFile() const;
+        std::map<std::string, double> snapped(std::map<std::string, double> fields) const;
         bool insertCopy(const nlohmann::json &source, const std::string &parentId, int index, const std::string &label);
 
         Project m_project;
@@ -369,6 +383,8 @@ namespace fried::editor
         Frame m_frame;
         unsigned long m_frameSerial = 0;
         GizmoMode m_gizmoMode = GizmoMode::Move;
+        GridSettings m_grid;
+        bool m_isSnapHeld = false;
 
         int m_wantedWidth = 0;
         int m_wantedHeight = 0;

@@ -339,6 +339,43 @@ namespace editor_ui
             ImGui::SameLine();
         }
 
+        if (m_editor.viewMode() == fried::editor::Editor::ViewMode::TwoD)
+        {
+            ImGui::SameLine(0, scaled(24));
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextDisabled("Grid");
+            ImGui::SameLine();
+            Editor::GridSettings grid = m_editor.grid();
+            bool isChanged = false;
+            if (Icons::button("grid", Icon::Grid, "Show the grid", grid.m_isShown))
+            {
+                grid.m_isShown = !grid.m_isShown;
+                isChanged = true;
+            }
+            ImGui::SameLine();
+            if (Icons::button("snap", Icon::Snap, "Snap what is dragged to the grid. Hold Ctrl to do the opposite.", grid.m_isSnapping))
+            {
+                grid.m_isSnapping = !grid.m_isSnapping;
+                isChanged = true;
+            }
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(scaled(72));
+            int step = (int)grid.m_step;
+            if (ImGui::DragInt("##grid-step", &step, 0.5f, 1, 1024, "%d px"))
+            {
+                grid.m_step = step;
+                isChanged = true;
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("The size of a grid square, and of a snapped move");
+            }
+            if (isChanged)
+            {
+                m_editor.setGrid(grid);
+            }
+        }
+
         ImGui::SameLine(0, scaled(24));
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("Platform");

@@ -85,3 +85,27 @@ TEST_CASE("dragging merges into one step and undoes to the start")
     CHECK_FALSE(document.nodeField("a", "y").has_value());
     CHECK_FALSE(stack.canUndo());
 }
+
+TEST_CASE("the grid has a line at every step in view, and fewer of them when zoomed out")
+{
+    Viewport view;
+    view.setFrameSize(100, 100);
+    view.setCamera(50, 50, 1);
+
+    DrawList grid = view.grid(10);
+    CHECK(grid.size() == 22);
+    int vertical = 0;
+    for (const DrawCommand &line : grid)
+    {
+        CHECK(line.m_kind == DrawCommand::Kind::Line);
+        vertical += line.m_width == 0;
+    }
+    CHECK(vertical == 11);
+
+    // At a tenth of the size the steps would be a pixel apart, so the lines keep to multiples of the step that are far enough.
+    view.setCamera(500, 500, 0.1);
+    view.setFrameSize(1000, 1000);
+    DrawList far = view.grid(10);
+    CHECK(far.size() <= 300);
+    CHECK(view.grid(0).empty());
+}

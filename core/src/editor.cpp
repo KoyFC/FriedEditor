@@ -65,6 +65,15 @@ namespace fried::editor
         m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
         m_viewport.setFrameSize(s_frameWidth, s_frameHeight);
         m_viewport.setCamera(s_frameWidth / 2.0, s_frameHeight / 2.0, 1.0);
+        Json grid = EditorState::projectValue(m_project.directory(), "grid");
+        if (grid.is_object())
+        {
+            m_grid.m_isShown = grid.value("shown", m_grid.m_isShown);
+            m_grid.m_isSnapping = grid.value("snap", m_grid.m_isSnapping);
+            m_grid.m_step = std::max(1.0, grid.value("step", m_grid.m_step));
+            m_grid.m_rotationStep = std::max(0.1, grid.value("rotation", m_grid.m_rotationStep));
+            m_grid.m_scaleStep = std::max(0.001, grid.value("scale", m_grid.m_scaleStep));
+        }
 
         if (isPlayerStale(m_enginePath, m_project.directory(), m_toolchains))
         {
@@ -1328,6 +1337,43 @@ namespace fried::editor
         setTransformFields(*m_selected, fields, false);
     }
 
+    void Editor::setGrid(const GridSettings &grid)
+    {
+        m_grid = grid;
+        m_grid.m_step = std::max(1.0, m_grid.m_step);
+        m_grid.m_rotationStep = std::max(0.1, m_grid.m_rotationStep);
+        m_grid.m_scaleStep = std::max(0.001, m_grid.m_scaleStep);
+        EditorState::setProjectValue(m_project.directory(), "grid",
+                                     {{"shown", m_grid.m_isShown}, {"snap", m_grid.m_isSnapping}, {"step", m_grid.m_step}, {"rotation", m_grid.m_rotationStep}, {"scale", m_grid.m_scaleStep}});
+        m_needsRender = true;
+        changed();
+    }
+
+    std::map<std::string, double> Editor::snapped(std::map<std::string, double> fields) const
+    {
+        if (m_grid.m_isSnapping == m_isSnapHeld)
+        {
+            return fields;
+        }
+        auto toStep = [](double value, double step) { return std::round(value / step) * step; };
+        for (auto &[name, value] : fields)
+        {
+            if (name == "x" || name == "y")
+            {
+                value = toStep(value, m_grid.m_step);
+            }
+            else if (name == "rotation")
+            {
+                value = toStep(value, m_grid.m_rotationStep);
+            }
+            else if (name == "scaleX" || name == "scaleY")
+            {
+                value = std::round(toStep(value, m_grid.m_scaleStep) * 1000) / 1000;
+            }
+        }
+        return fields;
+    }
+
     std::map<std::string, double> Editor::dragFields(const std::string &id, std::map<std::string, double> fields)
     {
         if (!isControl(id))
@@ -1459,8 +1505,9 @@ namespace fried::editor
             gameCamera = std::make_pair(logical.first / 2.0, logical.second / 2.0);
         }
         double zoom = gameCameraZoom();
-        DrawList list = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, (int)std::lround(logical.first / zoom),
-                                            (int)std::lround(logical.second / zoom));
+        DrawList list = m_grid.m_isShown ? m_frameView.grid(m_grid.m_step) : DrawList();
+        DrawList scene = m_frameView.overlay(m_frame.m_bounds, m_selected, gameCamera, (int)std::lround(logical.first / zoom), (int)std::lround(logical.second / zoom));
+        list.insert(list.end(), scene.begin(), scene.end());
         DrawList handles = Gizmo::draw(handlesFor(m_frameView));
         list.insert(list.end(), handles.begin(), handles.end());
         DrawList anchors = anchorOverlay();
@@ -1694,14 +1741,14 @@ namespace fried::editor
         }
         else if (m_drag.m_kind == Drag::Kind::Handle)
         {
-            setTransformFields(m_drag.m_id, dragFields(m_drag.m_id, m_drag.m_handle->update(m_viewport, frameX, frameY)), m_drag.m_hasMoved);
+            setTransformFields(m_drag.m_id, dragFields(m_drag.m_id, snapped(m_drag.m_handle->update(m_viewport, frameX, frameY))), m_drag.m_hasMoved);
             m_drag.m_hasMoved = true;
         }
         else if (m_drag.m_kind == Drag::Kind::Object)
         {
             double x = std::round(m_drag.m_startX + m_viewport.frameToWorldX(frameX) - m_drag.m_startWorldX);
             double y = std::round(m_drag.m_startY + m_viewport.frameToWorldY(frameY) - m_drag.m_startWorldY);
-            setTransformFields(m_drag.m_id, dragFields(m_drag.m_id, {{"x", x}, {"y", y}}), m_drag.m_hasMoved);
+            setTransformFields(m_drag.m_id, dragFields(m_drag.m_id, snapped({{"x", x}, {"y", y}})), m_drag.m_hasMoved);
             m_drag.m_hasMoved = true;
         }
     }
