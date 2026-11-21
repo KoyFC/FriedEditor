@@ -273,47 +273,11 @@ namespace editor_ui
 
     void Panels::toolbar()
     {
+        using fried::editor::Editor;
         using fried::editor::GameRunner;
-        GameRunner::State game = m_editor.gameState();
-        bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
-        ImGui::PushStyleColor(ImGuiCol_Button, isGoing ? palette::tomato : palette::leaf);
-        if (Icons::button("play", isGoing ? Icon::Stop : Icon::Play, isGoing ? "Stop the game" : "Play the scene (F5)"))
-        {
-            isGoing ? m_editor.stopGame() : m_editor.play();
-        }
-        ImGui::PopStyleColor();
-        if (game == GameRunner::State::Building)
-        {
-            ImGui::SameLine();
-            ImGui::TextDisabled("building...");
-        }
-        ImGui::SameLine(0, scaled(24));
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextDisabled("View");
-        ImGui::SameLine();
-        for (fried::editor::Editor::ViewMode view : {fried::editor::Editor::ViewMode::TwoD, fried::editor::Editor::ViewMode::ThreeD})
-        {
-            bool isActive = m_editor.viewMode() == view;
-            if (isActive)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button, palette::accent);
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
-            }
-            if (ImGui::Button(view == fried::editor::Editor::ViewMode::TwoD ? "2D" : "3D"))
-            {
-                m_editor.setViewMode(view);
-            }
-            if (isActive)
-            {
-                ImGui::PopStyleColor(2);
-            }
-            ImGui::SameLine();
-        }
+        const bool is2D = m_editor.viewMode() == Editor::ViewMode::TwoD;
+        const float gap = scaled(16);
 
-        ImGui::SameLine(0, scaled(24));
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextDisabled("Tool");
-        ImGui::SameLine();
         struct Mode
         {
             const char *m_id;
@@ -321,14 +285,20 @@ namespace editor_ui
             const char *m_tooltip;
             GizmoMode m_mode;
         };
+        bool isFirst = true;
         for (const Mode &mode : {Mode{"move", Icon::ToolMove, "Move (W)", GizmoMode::Move}, Mode{"rotate", Icon::ToolRotate, "Rotate (E)", GizmoMode::Rotate},
                                  Mode{"scale", Icon::ToolScale, "Scale (R)", GizmoMode::Scale}})
         {
-            bool isDisabled = m_editor.viewMode() == fried::editor::Editor::ViewMode::ThreeD && mode.m_mode != GizmoMode::Move;
+            bool isDisabled = !is2D && mode.m_mode != GizmoMode::Move;
             if (isDisabled)
             {
                 ImGui::BeginDisabled();
             }
+            if (!isFirst)
+            {
+                ImGui::SameLine();
+            }
+            isFirst = false;
             if (Icons::button(mode.m_id, mode.m_icon, mode.m_tooltip, m_editor.gizmoMode() == mode.m_mode))
             {
                 m_editor.setGizmoMode(mode.m_mode);
@@ -337,15 +307,38 @@ namespace editor_ui
             {
                 ImGui::EndDisabled();
             }
-            ImGui::SameLine();
         }
 
-        if (m_editor.viewMode() == fried::editor::Editor::ViewMode::TwoD)
+        ImGui::SameLine(0, gap);
+        for (Editor::ViewMode view : {Editor::ViewMode::TwoD, Editor::ViewMode::ThreeD})
         {
-            ImGui::SameLine(0, scaled(24));
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextDisabled("Grid");
-            ImGui::SameLine();
+            bool isActive = m_editor.viewMode() == view;
+            if (isActive)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, palette::accent);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
+            }
+            if (ImGui::Button(view == Editor::ViewMode::TwoD ? "2D" : "3D"))
+            {
+                m_editor.setViewMode(view);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("%s", view == Editor::ViewMode::TwoD ? "Edit the scene in 2D" : "Edit the scene in 3D");
+            }
+            if (isActive)
+            {
+                ImGui::PopStyleColor(2);
+            }
+            if (view == Editor::ViewMode::TwoD)
+            {
+                ImGui::SameLine(0, scaled(2));
+            }
+        }
+
+        if (is2D)
+        {
+            ImGui::SameLine(0, gap);
             Editor::GridSettings grid = m_editor.grid();
             bool isChanged = false;
             if (Icons::button("grid", Icon::Grid, "Show the grid", grid.m_isShown))
@@ -376,12 +369,30 @@ namespace editor_ui
                 m_editor.setGrid(grid);
             }
         }
+        float leftEnd = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x;
 
-        ImGui::SameLine(0, scaled(24));
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextDisabled("Platform");
+        // The play button sits in the middle of the strip, as in Unity.
+        GameRunner::State game = m_editor.gameState();
+        bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
+        float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
+        float middle = (ImGui::GetWindowWidth() - side) / 2;
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(scaled(170));
+        ImGui::SetCursorPosX(std::max(middle, leftEnd + gap));
+        if (Icons::button("play", isGoing ? Icon::Stop : Icon::Play, isGoing ? "Stop the game" : "Play the scene (F5)", isGoing))
+        {
+            isGoing ? m_editor.stopGame() : m_editor.play();
+        }
+        if (game == GameRunner::State::Building)
+        {
+            ImGui::SameLine();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextDisabled("building...");
+        }
+
+        float platformWidth = scaled(150);
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - platformWidth - ImGui::GetStyle().WindowPadding.x);
+        ImGui::SetNextItemWidth(platformWidth);
         if (ImGui::BeginCombo("##platform", fried::editor::platformLabel(m_editor.platform()).c_str()))
         {
             for (fried::editor::Platform platform : fried::editor::s_platforms)
@@ -392,6 +403,10 @@ namespace editor_ui
                 }
             }
             ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("The platform the game is built for when it is played");
         }
     }
 
