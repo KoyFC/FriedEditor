@@ -1,5 +1,7 @@
 # Project settings
 
+The settings and the build output open as windows of their own, which can be moved outside the editor, onto another monitor, and closed with their own close button. On Linux the editor asks SDL for X11 so this works under Wayland too (through XWayland); set `SDL_VIDEODRIVER` to choose another driver, in which case the windows stay inside the editor if that driver cannot make windows of its own.
+
 File, Project Settings opens the project's own settings, which the Project Manager also edits: its name, organization, version, window title, the platforms it builds for, start scene, display, vsync, the frame rate the game starts at and the physics rate. Each change is written to `project.fried` as it is made, and the viewport's frame follows the display at once.
 
 The platforms are ticked on the Project page, all of them until the project narrows them. The engine refuses to configure a build for one that is not ticked, and checks the limits of the ones that are, such as an image too large for the 3DS or the DS, even in a build for another platform. At least one has to stay ticked.

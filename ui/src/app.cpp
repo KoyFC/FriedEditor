@@ -98,7 +98,21 @@ namespace editor_ui
 
     int run(Editor &editor)
     {
-        if (SDL_Init(SDL_INIT_VIDEO) != 0)
+        bool isVideoReady = false;
+#ifdef __linux__
+        // Panels dragged out of the editor become windows of their own, which SDL only does on X11. A Wayland session runs it through XWayland, unless the user chose a driver.
+        if (std::getenv("SDL_VIDEODRIVER") == nullptr)
+        {
+            SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
+            isVideoReady = SDL_Init(SDL_INIT_VIDEO) == 0;
+            if (!isVideoReady)
+            {
+                SDL_ClearError();
+                SDL_ResetHint(SDL_HINT_VIDEODRIVER);
+            }
+        }
+#endif
+        if (!isVideoReady && SDL_Init(SDL_INIT_VIDEO) != 0)
         {
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Fried Editor", SDL_GetError(), nullptr);
             return 1;
@@ -134,7 +148,8 @@ namespace editor_ui
         ImGuiIO &io = ImGui::GetIO();
         static const std::string s_layout = layoutFile();
         io.IniFilename = s_layout.c_str();
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_ViewportsEnable;
+        io.ConfigViewportsNoTaskBarIcon = true;
         applyStyle(editor.enginePath() + "/assets/NunitoSans.ttf");
         setUiScale(fried::editor::EditorState::uiScale());
         ImGui_ImplSDL2_InitForOpenGL(window, context);
@@ -172,11 +187,13 @@ namespace editor_ui
                     panels.fileDropped(event.drop.file);
                     SDL_free(event.drop.file);
                 }
-                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                // The windows of the panels have their own events, which are theirs to handle.
+                bool isMainWindow = event.type != SDL_WINDOWEVENT || event.window.windowID == SDL_GetWindowID(window);
+                if (event.type == SDL_WINDOWEVENT && isMainWindow && event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
                 {
                     editor.refreshAssets();
                 }
-                if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
+                if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && isMainWindow && event.window.event == SDL_WINDOWEVENT_CLOSE))
                 {
                     if (editor.commands().isClean())
                     {
@@ -428,6 +445,14 @@ namespace editor_ui
             glClearColor(0.085f, 0.085f, 0.105f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            {
+                SDL_Window *current = SDL_GL_GetCurrentWindow();
+                SDL_GLContext currentContext = SDL_GL_GetCurrentContext();
+                ImGui::UpdatePlatformWindows();
+                ImGui::RenderPlatformWindowsDefault();
+                SDL_GL_MakeCurrent(current, currentContext);
+            }
             SDL_GL_SwapWindow(window);
 
             std::string title = editor.document().name() + (editor.commands().isClean() ? "" : "*") + " - " + editor.project().name() + " - Fried Editor";

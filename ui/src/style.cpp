@@ -14,6 +14,16 @@ namespace editor_ui
         float s_scale = 1.0f;
     }
 
+    const ImGuiWindowClass *ownWindowClass()
+    {
+        static ImGuiWindowClass s_class = [] {
+            ImGuiWindowClass windowClass;
+            windowClass.ViewportFlagsOverrideSet = ImGuiViewportFlags_NoAutoMerge;
+            return windowClass;
+        }();
+        return &s_class;
+    }
+
     void setUiScale(float scale)
     {
         s_scale = scale;

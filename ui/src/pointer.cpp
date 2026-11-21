@@ -108,10 +108,18 @@ namespace editor_ui
 
     void Pointer::wrap()
     {
+        // With the panels in windows of their own the pointer's position is the desktop's, so it wraps at the edges of the window it is over.
+        ImGuiIO &io = ImGui::GetIO();
+        ImGuiViewport *viewport = ImGui::FindViewportByID(io.MouseHoveredViewport);
+        if (!viewport || !viewport->PlatformHandle)
+        {
+            viewport = ImGui::GetMainViewport();
+        }
+        SDL_Window *window = viewport->PlatformHandle ? (SDL_Window *)viewport->PlatformHandle : m_window;
         int width = 0;
         int height = 0;
-        SDL_GetWindowSize(m_window, &width, &height);
-        ImVec2 position = ImGui::GetIO().MousePos;
+        SDL_GetWindowSize(window, &width, &height);
+        ImVec2 position(io.MousePos.x - viewport->Pos.x, io.MousePos.y - viewport->Pos.y);
         ImVec2 target = position;
         if (position.x <= s_wrapMargin)
         {
@@ -133,9 +141,9 @@ namespace editor_ui
         {
             return;
         }
-        SDL_WarpMouseInWindow(m_window, (int)target.x, (int)target.y);
+        SDL_WarpMouseInWindow(window, (int)target.x, (int)target.y);
         m_isWarpPending = true;
-        m_warpTarget = target;
+        m_warpTarget = ImVec2(target.x + viewport->Pos.x, target.y + viewport->Pos.y);
         m_warpFrames = 0;
     }
 }

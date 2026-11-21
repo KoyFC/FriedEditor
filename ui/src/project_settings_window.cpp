@@ -45,7 +45,8 @@ namespace editor_ui
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(scaled(820), scaled(600)), ImGuiCond_FirstUseEver);
-        if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse))
+        ImGui::SetNextWindowClass(ownWindowClass());
+        if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
         {
             m_isSettingsShown = true;
             if (m_settingsPage > 0 && !m_editor.project().declares(fried::core::s_platforms[m_settingsPage - 1]))
