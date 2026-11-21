@@ -2003,7 +2003,7 @@ namespace editor_ui
 
     void Panels::assets()
     {
-        static const char *filters[] = {"All", "Images", "Fonts", "Audio", "Scenes"};
+        static const char *filters[] = {"All types", "Images", "Fonts", "Audio", "Scenes"};
         static const AssetKind kinds[] = {AssetKind::Other, AssetKind::Image, AssetKind::Font, AssetKind::Audio, AssetKind::Scene};
         const std::vector<fried::editor::AssetEntry> &entries = m_editor.assets();
 
@@ -2051,33 +2051,36 @@ namespace editor_ui
             start = end + 1;
         }
 
-        for (int index = 0; index < 5; ++index)
-        {
-            if (index > 0)
-            {
-                ImGui::SameLine();
-            }
-            bool isActive = m_assetFilter == index;
-            if (isActive)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button, palette::accent);
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
-            }
-            if (ImGui::Button(filters[index]))
-            {
-                m_assetFilter = index;
-            }
-            if (isActive)
-            {
-                ImGui::PopStyleColor(2);
-            }
-        }
+        // The search, the kind of file, the size of the thumbnails and the list switch sit at the right end of the same row.
+        const ImGuiStyle &style = ImGui::GetStyle();
+        float searchWidth = scaled(170);
+        float kindWidth = scaled(96);
+        float sliderWidth = scaled(80);
+        float buttonSide = Icons::size() + style.FramePadding.y * 2;
+        float controls = searchWidth + kindWidth + sliderWidth + buttonSide + style.ItemSpacing.x * 3;
         ImGui::SameLine();
-        float controls = scaled(86) + Icons::size() + ImGui::GetStyle().FramePadding.y * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
-        ImGui::SetNextItemWidth(-controls);
+        ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX() + scaled(12), ImGui::GetWindowWidth() - controls - style.WindowPadding.x));
+        ImGui::SetNextItemWidth(searchWidth);
         ImGui::InputTextWithHint("##asset-search", "Search", &m_assetSearch);
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(scaled(86));
+        ImGui::SetNextItemWidth(kindWidth);
+        if (ImGui::BeginCombo("##asset-kind", filters[m_assetFilter]))
+        {
+            for (int index = 0; index < 5; ++index)
+            {
+                if (ImGui::Selectable(filters[index], m_assetFilter == index))
+                {
+                    m_assetFilter = index;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Show only one kind of file");
+        }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(sliderWidth);
         ImGui::SliderFloat("##asset-size", &m_assetCell, 56, 160, "");
         if (ImGui::IsItemHovered())
         {
