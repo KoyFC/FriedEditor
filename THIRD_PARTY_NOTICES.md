@@ -24,4 +24,4 @@ SDL2 2.32.10 for the Windows build, Copyright (C) 1997-2025 Sam Lantinga and con
 
 ## Godot Engine icons
 
-`ui/imgui/icons/` holds the editor icons of Godot Engine 4, <https://github.com/godotengine/godot/tree/master/editor/icons>, Copyright (c) 2014-present Godot Engine contributors and (c) 2007-2014 Juan Linietsky, Ariel Manzur, under the MIT License carried in `ui/imgui/icons/LICENSE.txt`. They are compiled into the editor.
+`ui/icons/` holds the editor icons of Godot Engine 4, <https://github.com/godotengine/godot/tree/master/editor/icons>, Copyright (c) 2014-present Godot Engine contributors and (c) 2007-2014 Juan Linietsky, Ariel Manzur, under the MIT License carried in `ui/icons/LICENSE.txt`. They are compiled into the editor.

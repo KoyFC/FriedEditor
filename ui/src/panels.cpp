@@ -42,17 +42,17 @@ namespace
         switch (kind)
         {
         case fried::core::LineKind::Error:
-            return imgui_backend::palette::tomato;
+            return editor_ui::palette::tomato;
         case fried::core::LineKind::Warning:
-            return imgui_backend::palette::yolk;
+            return editor_ui::palette::yolk;
         case fried::core::LineKind::Success:
-            return imgui_backend::palette::leaf;
+            return editor_ui::palette::leaf;
         case fried::core::LineKind::Command:
-            return imgui_backend::palette::yolkHot;
+            return editor_ui::palette::yolkHot;
         case fried::core::LineKind::Progress:
-            return imgui_backend::palette::whiteDim;
+            return editor_ui::palette::whiteDim;
         default:
-            return imgui_backend::palette::white;
+            return editor_ui::palette::white;
         }
     }
 
@@ -205,7 +205,7 @@ namespace
     {
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", name.c_str());
-        ImGui::SameLine(imgui_backend::scaled(110.0f));
+        ImGui::SameLine(editor_ui::scaled(110.0f));
         ImGui::SetNextItemWidth(-FLT_MIN);
     }
 }
@@ -261,7 +261,7 @@ namespace
     }
 }
 
-namespace imgui_backend
+namespace editor_ui
 {
     Panels::Panels(Editor &editor)
         : m_editor(editor)
@@ -1461,7 +1461,7 @@ namespace imgui_backend
     }
 }
 
-namespace imgui_backend
+namespace editor_ui
 {
     // Reading every asset is not free, so the list is made again when the platform changes, after a fix, and every few seconds.
     void Panels::refreshIssues(bool isForced)

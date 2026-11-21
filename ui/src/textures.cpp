@@ -6,7 +6,7 @@
 #define STBI_ONLY_JPEG
 #include <stb/stb_image.h>
 
-namespace imgui_backend
+namespace editor_ui
 {
     Texture::~Texture()
     {

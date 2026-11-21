@@ -6,7 +6,7 @@
 
 #include <array>
 
-namespace imgui_backend
+namespace editor_ui
 {
     // The pointer's look and reach. It shows the cursor ImGui asks for, hides and holds it still while the scene is panned, and wraps it at the window's edges while a value is dragged so the drag can go on past them.
     class Pointer

@@ -65,7 +65,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-          cp build/app_imgui/fried_editor AppDir/usr/bin/
+          cp build/app/fried_editor AppDir/usr/bin/
           cp packaging/linux/fried-editor.desktop AppDir/usr/share/applications/
 
           # A stand-in until the editor has artwork of its own; replace this line with the real icon.
@@ -91,7 +91,7 @@ jobs:
         shell: pwsh
         run: |
           mkdir package
-          copy build\app_imgui\Release\fried_editor.exe package\
+          copy build\app\Release\fried_editor.exe package\
           copy $env:SDL2_DLL package\
           Compress-Archive -Path package\* -DestinationPath "FriedEditor-$env:VERSION-windows-x64.zip"
 

@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace imgui_backend
+namespace editor_ui
 {
     namespace
     {

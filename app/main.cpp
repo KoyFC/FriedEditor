@@ -68,5 +68,5 @@ int main(int argc, char *argv[])
     {
         return fail(error);
     }
-    return imgui_backend::run(editor);
+    return editor_ui::run(editor);
 }

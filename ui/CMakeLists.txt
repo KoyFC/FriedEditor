@@ -14,7 +14,7 @@ target_link_libraries(imgui PUBLIC ${FRIED_SDL2_TARGET} OpenGL::GL ${CMAKE_DL_LI
 
 # The icons are compiled in, one string of SVG each, so the editor needs no files beside it.
 file(GLOB FRIED_ICON_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/icons/*.svg)
-set(FRIED_ICON_SOURCE "#include \"icons.h\"\n\nnamespace imgui_backend\n{\n    const IconSource s_iconSources[] = {\n")
+set(FRIED_ICON_SOURCE "#include \"icons.h\"\n\nnamespace editor_ui\n{\n    const IconSource s_iconSources[] = {\n")
 set(FRIED_ICON_COUNT 0)
 foreach(icon_file ${FRIED_ICON_FILES})
     get_filename_component(icon_name ${icon_file} NAME_WE)
@@ -26,7 +26,7 @@ string(APPEND FRIED_ICON_SOURCE "    };\n    const int s_iconSourceCount = ${FRI
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp.tmp "${FRIED_ICON_SOURCE}")
 configure_file(${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp.tmp ${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp COPYONLY)
 
-add_library(fried_editor_imgui STATIC
+add_library(fried_editor_ui STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp
     src/app.cpp
     src/app.h
@@ -42,5 +42,5 @@ add_library(fried_editor_imgui STATIC
     src/textures.cpp
     src/textures.h
 )
-target_include_directories(fried_editor_imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src PRIVATE ${PROJECT_SOURCE_DIR}/third_party ${PROJECT_SOURCE_DIR}/third_party/nanosvg)
-target_link_libraries(fried_editor_imgui PUBLIC fried_editor_core imgui)
+target_include_directories(fried_editor_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src PRIVATE ${PROJECT_SOURCE_DIR}/third_party ${PROJECT_SOURCE_DIR}/third_party/nanosvg)
+target_link_libraries(fried_editor_ui PUBLIC fried_editor_core imgui)

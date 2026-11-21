@@ -4,7 +4,7 @@
 
 #include <string>
 
-namespace imgui_backend
+namespace editor_ui
 {
     // The editor's colors: the yolk is the one accent, the egg white is the text, and the surfaces are neutral greys.
     namespace palette

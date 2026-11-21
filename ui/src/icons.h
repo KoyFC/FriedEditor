@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 
-namespace imgui_backend
+namespace editor_ui
 {
     // The SVG of an icon, by the name of its file, as the build compiles them in.
     struct IconSource
@@ -13,7 +13,7 @@ namespace imgui_backend
     extern const IconSource s_iconSources[];
     extern const int s_iconSourceCount;
 
-    // Every icon the editor draws, named after the file in ui/imgui/icons.
+    // Every icon the editor draws, named after the file in ui/icons.
 #define FRIED_ICONS(X) \
     X(Node) X(Node2D) X(Node3D) X(Sprite2D) X(Camera2D) X(Camera3D) X(CollisionShape2D) X(CharacterBody2D) X(MeshInstance3D) X(DirectionalLight3D) \
     X(Control) X(Label) X(Button) X(TextureRect) X(Play) X(Stop) X(ToolMove) X(ToolRotate) X(ToolScale) X(Add) X(Remove) X(MoveUp) X(MoveDown)

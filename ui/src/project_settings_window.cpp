@@ -27,7 +27,7 @@ namespace
     {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(label);
-        ImGui::SameLine(imgui_backend::scaled(s_labelBase));
+        ImGui::SameLine(editor_ui::scaled(s_labelBase));
         ImGui::SetNextItemWidth(-FLT_MIN);
     }
 
@@ -37,7 +37,7 @@ namespace
     }
 }
 
-namespace imgui_backend
+namespace editor_ui
 {
     void Panels::projectSettings(bool *isOpen)
     {

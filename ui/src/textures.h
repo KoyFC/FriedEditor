@@ -5,7 +5,7 @@
 #include <map>
 #include <string>
 
-namespace imgui_backend
+namespace editor_ui
 {
     // An OpenGL texture that can be replaced with new pixels.
     class Texture

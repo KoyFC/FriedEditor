@@ -11,7 +11,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace imgui_backend
+namespace editor_ui
 {
     // What a file dragged out of the Assets panel carries: its reference, as "root/path".
     inline constexpr const char *s_assetPayload = "FRIED_ASSET";
