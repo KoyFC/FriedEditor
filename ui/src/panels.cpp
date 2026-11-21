@@ -2,6 +2,7 @@
 
 #include "style.h"
 
+#include "fried/editor/display_name.h"
 #include "fried/editor/editor_state.h"
 #include "fried/editor/fuzzy.h"
 
@@ -204,11 +205,51 @@ namespace
     }
 
     // The name of a field, and the width left for its widget.
+    // Fields called x, y and z, or a name ending in X, Y and Z such as scaleX, that follow each other and are numbers: the axes of one value.
+    bool isAxisStart(const std::vector<fried::editor::FieldView> &fields, std::size_t first, std::vector<const fried::editor::FieldView *> *axes, std::string *label)
+    {
+        const std::string &name = fields[first].m_schema.m_name;
+        if (fields[first].m_schema.m_kind != "float" || name.empty())
+        {
+            return false;
+        }
+        bool isLower = name == "x";
+        bool isUpper = name.size() > 1 && name.back() == 'X';
+        if (!isLower && !isUpper)
+        {
+            return false;
+        }
+        std::string base = isLower ? std::string() : name.substr(0, name.size() - 1);
+        axes->clear();
+        axes->push_back(&fields[first]);
+        for (char axis : std::string(isLower ? "yz" : "YZ"))
+        {
+            std::size_t next = first + axes->size();
+            if (next >= fields.size() || fields[next].m_schema.m_kind != "float" || fields[next].m_schema.m_name != base + axis)
+            {
+                break;
+            }
+            axes->push_back(&fields[next]);
+        }
+        if (axes->size() < 2)
+        {
+            return false;
+        }
+        *label = isLower ? "Position" : fried::editor::displayName(base);
+        return true;
+    }
+
+    // The names of the properties take a share of the inspector's width, so they are neither cut in a narrow one nor lost in a wide one.
+    float captionWidth()
+    {
+        return std::clamp(ImGui::GetWindowWidth() * 0.38f, editor_ui::scaled(90.0f), editor_ui::scaled(220.0f));
+    }
+
     void caption(const std::string &name)
     {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextDisabled("%s", name.c_str());
-        ImGui::SameLine(editor_ui::scaled(110.0f));
+        ImGui::TextUnformatted(fried::editor::displayName(name).c_str());
+        ImGui::SameLine(captionWidth());
         ImGui::SetNextItemWidth(-FLT_MIN);
     }
 }
@@ -1531,6 +1572,41 @@ namespace editor_ui
         ImGui::PopID();
     }
 
+    void Panels::vectorEditor(const std::string &label, const std::vector<const FieldView *> &axes)
+    {
+        static const ImVec4 s_axisColors[] = {ImVec4(0.89f, 0.35f, 0.35f, 1), ImVec4(0.45f, 0.78f, 0.35f, 1), ImVec4(0.35f, 0.58f, 0.92f, 1)};
+        static const char *const s_axisNames[] = {"X", "Y", "Z"};
+        ImGui::PushID(label.c_str());
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(label.c_str());
+        ImGui::SameLine(captionWidth());
+        float spacing = ImGui::GetStyle().ItemSpacing.x;
+        float cell = (ImGui::GetContentRegionAvail().x - spacing * (axes.size() - 1)) / axes.size();
+        for (std::size_t index = 0; index < axes.size(); ++index)
+        {
+            const FieldView &field = *axes[index];
+            const std::string &name = field.m_schema.m_name;
+            if (index > 0)
+            {
+                ImGui::SameLine();
+            }
+            ImGui::PushID(name.c_str());
+            float letterWidth = ImGui::CalcTextSize("X").x + scaled(6);
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextColored(s_axisColors[index], "%s", s_axisNames[index]);
+            ImGui::SameLine(0, scaled(2));
+            ImGui::SetNextItemWidth(std::max(cell - letterWidth - scaled(2), scaled(30)));
+            float value = field.m_value.is_number() ? field.m_value.get<float>() : 0.0f;
+            float speed = name.find("otation") != std::string::npos ? 0.5f : name.find("cale") != std::string::npos ? 0.01f : 1.0f;
+            if (dragFloat("##v", &value, speed, 0, 0, "%.3f"))
+            {
+                m_editor.setField(name, Json((double)value));
+            }
+            ImGui::PopID();
+        }
+        ImGui::PopID();
+    }
+
     // A Control as pictures and the few numbers that matter: a preview of the object on the screen, the place it is anchored to, its pivot, and either its position or its distance to the edges it stretches between.
     void Panels::controlEditor(const fried::editor::ClassView &view)
     {
@@ -1749,7 +1825,7 @@ namespace editor_ui
         ImDrawList *list = ImGui::GetWindowDrawList();
         float x = low.x + ImGui::GetTreeNodeToLabelSpacing() + ImGui::GetStyle().FramePadding.x;
         Icons::draw(list, iconOf(name), ImVec2(x, (low.y + high.y - Icons::size()) / 2));
-        list->AddText(ImVec2(x + Icons::size() + scaled(6), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+        list->AddText(boldFont(), ImGui::GetFontSize(), ImVec2(x + Icons::size() + scaled(6), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
         return isOpen;
     }
 
@@ -1764,7 +1840,6 @@ namespace editor_ui
         for (const auto &view : m_editor.inspector())
         {
             ImGui::PushID(view.m_class.c_str());
-            ImGui::Spacing();
             bool isOpen = classHeader(view.m_class);
             if (isOpen && view.m_class == "Control")
             {
@@ -1772,10 +1847,20 @@ namespace editor_ui
             }
             else if (isOpen)
             {
-                for (const FieldView &field : view.m_fields)
+                const std::vector<FieldView> &fields = view.m_fields;
+                for (std::size_t index = 0; index < fields.size(); ++index)
                 {
-                    fieldEditor(field);
+                    std::vector<const FieldView *> axes;
+                    std::string label;
+                    if (isAxisStart(fields, index, &axes, &label))
+                    {
+                        vectorEditor(label, axes);
+                        index += axes.size() - 1;
+                        continue;
+                    }
+                    fieldEditor(fields[index]);
                 }
+                ImGui::Dummy(ImVec2(0, scaled(2)));
             }
             ImGui::PopID();
         }

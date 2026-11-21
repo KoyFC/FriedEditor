@@ -5,6 +5,7 @@ add_library(fried_editor_core STATIC
     src/editor.cpp
     src/editor_state.cpp
     src/expression.cpp
+    src/display_name.cpp
     src/fuzzy.cpp
     src/game_runner.cpp
     src/gizmo.cpp

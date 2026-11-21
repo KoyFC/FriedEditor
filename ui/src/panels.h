@@ -73,6 +73,8 @@ namespace editor_ui
         void enterAssetFolder(const std::string &folder);
         void controlEditor(const fried::editor::ClassView &view);
         void fieldEditor(const fried::editor::FieldView &field);
+        // Fields that are the x, y and z of one thing, as one row of small drag fields, each with its axis letter.
+        void vectorEditor(const std::string &label, const std::vector<const fried::editor::FieldView *> &axes);
         bool textField(const char *label, std::string *value);
         void projectPage();
         void platformPage(fried::editor::Platform platform);
