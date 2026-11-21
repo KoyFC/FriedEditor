@@ -1,5 +1,6 @@
 #include "icons.h"
 
+#include "style.h"
 #include "textures.h"
 
 #include <math.h>
@@ -144,9 +145,10 @@ namespace editor_ui
         bool isPressed = ImGui::InvisibleButton("##icon", ImVec2(side, side));
         bool isHovered = ImGui::IsItemHovered();
         ImDrawList *list = ImGui::GetWindowDrawList();
-        ImU32 fill = ImGui::GetColorU32(ImGui::IsItemActive() ? ImGuiCol_ButtonActive : isActive ? ImGuiCol_ButtonActive : isHovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+        ImU32 fill = isActive ? ImGui::GetColorU32(isHovered ? palette::accentHot : palette::accent)
+                             : ImGui::GetColorU32(ImGui::IsItemActive() ? ImGuiCol_ButtonActive : isHovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
         list->AddRectFilled(position, ImVec2(position.x + side, position.y + side), fill, style.FrameRounding);
-        ImVec4 color = isActive ? ImVec4(1.00f, 0.78f, 0.24f, 1.00f) : ImVec4(1, 1, 1, 1);
+        ImVec4 color(1, 1, 1, 1);
         color.w *= style.Alpha;
         draw(list, icon, ImVec2(position.x + (side - s_size) / 2, position.y + (side - s_size) / 2), ImGui::GetColorU32(color));
         if (isHovered && tooltip && *tooltip)

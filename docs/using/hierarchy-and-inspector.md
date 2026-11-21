@@ -6,7 +6,7 @@ Each row shows an icon for the node's type. A class the engine does not know the
 
 Ctrl+D duplicates the selected node with everything under it, right after it, with new ids and a name that none of its siblings has (`Enemy` gives `Enemy2`). Ctrl+C and Ctrl+V copy and paste: the copy goes to the system clipboard as text, so it can be pasted into another scene, even in another editor, and a paste lands next to the selected node, or in the scene when none is selected. All three are in the Edit menu and the node's right click menu, and each is one undo step.
 
-The field under the buttons filters the tree: it keeps the nodes whose name or type contains the text, in yellow, and the nodes above them so each is seen in its place. Folds are ignored while there is text in it, and clearing it brings the tree back as it was.
+The field under the buttons filters the tree: it keeps the nodes whose name or type contains the text, in blue, and the nodes above them so each is seen in its place. Folds are ignored while there is text in it, and clearing it brings the tree back as it was.
 
 A padlock at the end of a row locks the node: it shows when the pointer is over the row, and stays when the node is locked. A locked node is not picked by a click in the view, has no handles and is not moved there, so a background or a floor can be left alone while the nodes over it are worked on; it is still chosen in the hierarchy and edited in the inspector. The locks belong to the editor and are remembered for each scene, and the scene file does not have them, so the game is not changed by them.
 

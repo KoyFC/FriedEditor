@@ -616,13 +616,13 @@ namespace editor_ui
         if (!m_buildIssues.empty())
         {
             ImGui::Spacing();
-            ImGui::TextColored(palette::yolk, "%d asset issues on this platform", (int)m_buildIssues.size());
+            ImGui::TextColored(palette::warning, "%d asset issues on this platform", (int)m_buildIssues.size());
             int index = 0;
             for (const fried::editor::AssetIssue &issue : m_buildIssues)
             {
                 ImGui::PushID(index++);
                 bool isError = issue.m_severity == fried::editor::AssetIssue::Severity::Error;
-                ImGui::TextColored(isError ? palette::tomato : palette::yolk, "%s", isError ? "Error" : "Warning");
+                ImGui::TextColored(isError ? palette::tomato : palette::warning, "%s", isError ? "Error" : "Warning");
                 ImGui::SameLine();
                 ImGui::TextWrapped("%s%s%s", issue.m_asset.c_str(), issue.m_asset.empty() ? "" : ": ", issue.m_message.c_str());
                 if (issue.m_fix != fried::editor::AssetIssue::Fix::None)

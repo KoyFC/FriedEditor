@@ -47,11 +47,11 @@ namespace
         case fried::core::LineKind::Error:
             return editor_ui::palette::tomato;
         case fried::core::LineKind::Warning:
-            return editor_ui::palette::yolk;
+            return editor_ui::palette::warning;
         case fried::core::LineKind::Success:
             return editor_ui::palette::leaf;
         case fried::core::LineKind::Command:
-            return editor_ui::palette::yolkHot;
+            return editor_ui::palette::accentText;
         case fried::core::LineKind::Progress:
             return editor_ui::palette::whiteDim;
         default:
@@ -296,8 +296,8 @@ namespace editor_ui
             bool isActive = m_editor.viewMode() == view;
             if (isActive)
             {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-                ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
+                ImGui::PushStyleColor(ImGuiCol_Button, palette::accent);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
             }
             if (ImGui::Button(view == fried::editor::Editor::ViewMode::TwoD ? "2D" : "3D"))
             {
@@ -516,7 +516,7 @@ namespace editor_ui
             if (isOn)
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-                ImGui::PushStyleColor(ImGuiCol_Text, kind == 0 ? palette::tomato : kind == 1 ? palette::yolk : palette::white);
+                ImGui::PushStyleColor(ImGuiCol_Text, kind == 0 ? palette::tomato : kind == 1 ? palette::warning : palette::white);
             }
             if (ImGui::Button(label.c_str()))
             {
@@ -600,7 +600,7 @@ namespace editor_ui
         ImGui::TextUnformatted(m_editor.message().c_str());
         std::string right = (m_issues.empty() ? std::string() : std::to_string(m_issues.size()) + " asset issues   ") + (commands.isClean() ? "Saved" : "Unsaved changes");
         ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - scaled(20));
-        ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : palette::yolk, "%s", right.c_str());
+        ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : palette::warning, "%s", right.c_str());
     }
 
     bool Panels::takeValueDrag()
@@ -1019,9 +1019,9 @@ namespace editor_ui
                     m_editor.setLocked(row.m_id, !isLocked);
                 }
 
-                ImGui::PushStyleColor(ImGuiCol_Header, palette::yolkAt(0.22f));
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, isSelected ? palette::yolkAt(0.30f) : ImVec4(1, 1, 1, 0.07f));
-                ImGui::PushStyleColor(ImGuiCol_HeaderActive, palette::yolkAt(0.36f));
+                ImGui::PushStyleColor(ImGuiCol_Header, palette::accentAt(0.22f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, isSelected ? palette::accentAt(0.30f) : ImVec4(1, 1, 1, 0.07f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, palette::accentAt(0.36f));
                 ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, rowPadding));
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0));
                 ImGui::Indent(indent);
@@ -1036,13 +1036,13 @@ namespace editor_ui
                 float contentX = itemMin.x + levelWidth;
                 if (isSelected)
                 {
-                    list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowPosition.x + scaled(2), top + rowHeight), ImGui::GetColorU32(palette::yolk));
+                    list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowPosition.x + scaled(2), top + rowHeight), ImGui::GetColorU32(palette::accentHot));
                 }
                 Icons::draw(list, iconOf(row.m_type), ImVec2(contentX, top + (rowHeight - iconSize) / 2));
-                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::yolk : ImGui::GetStyleColorVec4(ImGuiCol_Text)), row.m_name.c_str());
+                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::accentText : ImGui::GetStyleColorVec4(ImGuiCol_Text)), row.m_name.c_str());
                 if (isLocked)
                 {
-                    Icons::draw(list, Icon::Lock, lockLow, ImGui::GetColorU32(palette::yolk));
+                    Icons::draw(list, Icon::Lock, lockLow, ImGui::GetColorU32(palette::accentText));
                 }
                 else if (isRowHovered)
                 {
@@ -1054,7 +1054,7 @@ namespace editor_ui
                 }
                 if (row.m_isCamera)
                 {
-                    Icons::draw(list, Icon::Camera2D, ImVec2(lockLow.x - iconSize - scaled(6), lockLow.y), ImGui::GetColorU32(palette::yolk));
+                    Icons::draw(list, Icon::Camera2D, ImVec2(lockLow.x - iconSize - scaled(6), lockLow.y), ImGui::GetColorU32(palette::accentText));
                 }
                 if (row.m_hasChildren && !isFiltering)
                 {
@@ -1956,8 +1956,8 @@ namespace editor_ui
             bool isActive = m_assetFilter == index;
             if (isActive)
             {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-                ImGui::PushStyleColor(ImGuiCol_Text, palette::yolk);
+                ImGui::PushStyleColor(ImGuiCol_Button, palette::accent);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
             }
             if (ImGui::Button(filters[index]))
             {
@@ -1995,7 +1995,7 @@ namespace editor_ui
             flags |= children.empty() ? ImGuiTreeNodeFlags_Leaf : 0;
             flags |= folder == m_assetFolder ? ImGuiTreeNodeFlags_Selected : 0;
             flags |= folder.find('/') == std::string::npos ? ImGuiTreeNodeFlags_DefaultOpen : 0;
-            ImGui::PushStyleColor(ImGuiCol_Header, palette::yolkAt(0.22f));
+            ImGui::PushStyleColor(ImGuiCol_Header, palette::accentAt(0.22f));
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1, 1, 1, 0.07f));
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, scaled(3)));
             bool isOpen = ImGui::TreeNodeEx(folder.c_str(), flags, "%s", "");
@@ -2009,7 +2009,7 @@ namespace editor_ui
             ImVec2 high = ImGui::GetItemRectMax();
             float x = low.x + ImGui::GetTreeNodeToLabelSpacing();
             ImDrawList *list = ImGui::GetWindowDrawList();
-            Icons::draw(list, Icon::Folder, ImVec2(x, (low.y + high.y - Icons::size()) / 2), ImGui::GetColorU32(palette::yolk));
+            Icons::draw(list, Icon::Folder, ImVec2(x, (low.y + high.y - Icons::size()) / 2), ImGui::GetColorU32(palette::accentText));
             std::string name = folder.substr(folder.rfind('/') == std::string::npos ? 0 : folder.rfind('/') + 1);
             list->AddText(ImVec2(x + Icons::size() + scaled(6), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
             if (isOpen)
@@ -2108,7 +2108,7 @@ namespace editor_ui
                             : isScene                                  ? Icon::PackedScene
                                                                        : Icon::File;
                 float centre = row.y + ImGui::GetItemRectSize().y / 2;
-                Icons::draw(list, icon, ImVec2(row.x + scaled(4), centre - Icons::size() / 2), ImGui::GetColorU32(isFolder ? palette::yolk : palette::white));
+                Icons::draw(list, icon, ImVec2(row.x + scaled(4), centre - Icons::size() / 2), ImGui::GetColorU32(isFolder ? palette::accentText : palette::white));
                 list->AddText(ImVec2(row.x + Icons::size() + scaled(12), centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
                 if (isSearching && !isFolder)
                 {
@@ -2137,7 +2137,7 @@ namespace editor_ui
                     ImVec2 iconLow(low.x + (box - inner) / 2, low.y + (box - inner) / 2);
                     if (isFolder)
                     {
-                        Icons::drawBig(list, BigIcon::FolderBigThumb, iconLow, inner, ImGui::GetColorU32(palette::yolk));
+                        Icons::drawBig(list, BigIcon::FolderBigThumb, iconLow, inner, ImGui::GetColorU32(palette::accentText));
                     }
                     else
                     {
@@ -2336,7 +2336,7 @@ namespace editor_ui
         {
             ImGui::PushID(index++);
             bool isError = issue.m_severity == fried::editor::AssetIssue::Severity::Error;
-            ImGui::TextColored(isError ? palette::tomato : palette::yolk, "%s", isError ? "Error" : "Warning");
+            ImGui::TextColored(isError ? palette::tomato : palette::warning, "%s", isError ? "Error" : "Warning");
             ImGui::SameLine();
             if (!issue.m_asset.empty())
             {

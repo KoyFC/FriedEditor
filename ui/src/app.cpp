@@ -463,7 +463,7 @@ namespace editor_ui
                 // The tab's own close button is enough, without the one that each group of tabs adds at its corner.
                 static ImGuiWindowClass s_panelClass = [] {
                     ImGuiWindowClass windowClass;
-                    windowClass.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoCloseButton;
+                    windowClass.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoCloseButton | ImGuiDockNodeFlags_NoWindowMenuButton;
                     return windowClass;
                 }();
                 ImGui::SetNextWindowClass(&s_panelClass);
