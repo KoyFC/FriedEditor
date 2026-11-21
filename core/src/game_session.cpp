@@ -107,6 +107,7 @@ namespace fried::editor
             }
             send({{"type", "play"}, {"name", m_sceneName}, {"scene", m_scene}, {"fromStart", m_isFromStartScene}});
             send({{"type", "showGame"}, {"visible", m_isShowing}});
+            send({{"type", "frameLimit"}, {"fps", m_frameLimit}, {"refresh", m_refreshRate}});
             m_state = State::Running;
         }
         else if (type == "gameFrame")
@@ -165,6 +166,19 @@ namespace fried::editor
     void GameSession::moveNode(const std::string &nodeId, const std::string &parentId, int index)
     {
         send({{"type", "moveNode"}, {"id", nodeId}, {"parent", parentId}, {"index", index}});
+    }
+
+    void GameSession::setFrameLimit(int fps, int refreshRate)
+    {
+        if (fps != m_frameLimit || refreshRate != m_refreshRate)
+        {
+            m_frameLimit = fps;
+            m_refreshRate = refreshRate;
+            if (m_state == State::Running)
+            {
+                send({{"type", "frameLimit"}, {"fps", fps}, {"refresh", refreshRate}});
+            }
+        }
     }
 
     void GameSession::setShowing(bool isShowing)

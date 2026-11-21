@@ -107,6 +107,7 @@ namespace editor_ui
         std::vector<float> m_frameTimes;
         double m_frameTimeSampledAt = 0.0;
         int m_gameScale = 0;
+        int m_gameLimit = 0;
         bool m_isStatsShown = false;
         bool m_isGameDrawn = false;
         bool m_isSceneDrawn = false;

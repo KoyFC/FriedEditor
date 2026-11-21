@@ -45,13 +45,15 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     MessageChannel game(connectToLoopback(session.port(), &error));
     REQUIRE(game.send({{"type", "hello"}, {"protocol", PlayerSession::s_protocol}, {"platform", "pc"}}));
 
-    std::vector<Message> asked = pumpAndPoll(session, game, 2);
-    REQUIRE(asked.size() == 2);
+    std::vector<Message> asked = pumpAndPoll(session, game, 3);
+    REQUIRE(asked.size() == 3);
     CHECK(asked[0].m_header["type"] == "play");
     CHECK(asked[0].m_header["name"] == "main");
     CHECK(asked[0].m_header["scene"] == scene);
     CHECK(asked[0].m_header["fromStart"] == false);
     CHECK(asked[1].m_header["type"] == "showGame");
+    CHECK(asked[2].m_header["type"] == "frameLimit");
+    CHECK(asked[2].m_header["fps"] == -1);
     CHECK(session.state() == GameSession::State::Running);
 
     nlohmann::json stats = {{"fps", 59.5}, {"frameMs", 16.8}, {"workMs", 2.5}, {"nodes", 16}};
@@ -64,14 +66,17 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(received.m_stats.m_fps == doctest::Approx(59.5));
     CHECK(received.m_stats.m_nodes == 16);
 
+    session.setFrameLimit(0, 144);
     session.setField("wall", "x", 4);
     session.key(7, true);
     session.mouseButton(1, 10, 20, true);
-    std::vector<Message> sent = pumpAndPoll(session, game, 3);
-    REQUIRE(sent.size() == 3);
-    CHECK(sent[0].m_header["type"] == "setField");
-    CHECK(sent[1].m_header["code"] == 7);
-    CHECK(sent[2].m_header["y"] == 20);
+    std::vector<Message> sent = pumpAndPoll(session, game, 4);
+    REQUIRE(sent.size() == 4);
+    CHECK(sent[0].m_header["fps"] == 0);
+    CHECK(sent[0].m_header["refresh"] == 144);
+    CHECK(sent[1].m_header["type"] == "setField");
+    CHECK(sent[2].m_header["code"] == 7);
+    CHECK(sent[3].m_header["y"] == 20);
 
     REQUIRE(game.send({{"type", "error"}, {"request", "setField"}, {"message", "The scene has no node \"x\"."}}));
     std::string reported;

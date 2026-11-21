@@ -754,7 +754,43 @@ namespace editor_ui
             ImGui::SetTooltip("How big the game is shown");
         }
         ImGui::SameLine();
+        ImGui::SetNextItemWidth(scaled(110));
+        struct Limit
+        {
+            const char *m_label;
+            int m_fps;
+        };
+        static const Limit s_limits[] = {{"Project rate", -1}, {"30 FPS", 30}, {"60 FPS", 60}, {"120 FPS", 120}, {"240 FPS", 240}, {"Unlimited", 0}};
+        if (ImGui::BeginCombo("##game-limit", s_limits[m_gameLimit].m_label))
+        {
+            for (int index = 0; index < (int)(sizeof(s_limits) / sizeof(s_limits[0])); ++index)
+            {
+                if (ImGui::Selectable(s_limits[index].m_label, index == m_gameLimit))
+                {
+                    m_gameLimit = index;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("How many frames a second the game runs at. The project's rate is its own default frame rate, or this screen's refresh rate when the project waits for vsync.");
+        }
+        ImGui::SameLine();
         ImGui::Checkbox("Stats", &m_isStatsShown);
+        if (isPlaying)
+        {
+            int refresh = 60;
+            if (SDL_Window *window = SDL_GL_GetCurrentWindow())
+            {
+                SDL_DisplayMode mode;
+                if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode) == 0 && mode.refresh_rate > 0)
+                {
+                    refresh = mode.refresh_rate;
+                }
+            }
+            m_editor.gameSession().setFrameLimit(s_limits[m_gameLimit].m_fps, refresh);
+        }
 
         ImVec2 region = ImGui::GetContentRegionAvail();
         ImVec2 origin = ImGui::GetCursorScreenPos();

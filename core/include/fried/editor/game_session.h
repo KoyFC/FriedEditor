@@ -63,6 +63,9 @@ namespace fried::editor
         void removeNode(const std::string &nodeId);
         void moveNode(const std::string &nodeId, const std::string &parentId, int index);
 
+        // How many frames a second the game is held to: 0 for as many as it can draw, or a negative number for the project's own rule, which follows the rate of the display when the project waits for vsync. The display's rate is what the editor is shown on.
+        void setFrameLimit(int fps, int refreshRate);
+
         // The game sends no frames while nothing shows them.
         void setShowing(bool isShowing);
 
@@ -88,5 +91,7 @@ namespace fried::editor
         nlohmann::json m_scene;
         bool m_isFromStartScene = false;
         bool m_isShowing = true;
+        int m_frameLimit = -1;
+        int m_refreshRate = 60;
     };
 }
