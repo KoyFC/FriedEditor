@@ -279,6 +279,14 @@ namespace fried::editor
         }
     }
 
+    void PlayerSession::setEditorView(bool is3D)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "setEditorView"}, {"mode", is3D ? "3d" : "2d"}});
+        }
+    }
+
     void PlayerSession::resize(int width, int height)
     {
         if (m_channel)

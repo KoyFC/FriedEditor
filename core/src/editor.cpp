@@ -417,6 +417,7 @@ namespace fried::editor
         if (m_needsCamera)
         {
             m_needsCamera = false;
+            m_session.setEditorView(m_viewMode == ViewMode::ThreeD);
             m_session.setEditorCamera(m_viewport.cameraX(), m_viewport.cameraY(), m_viewport.zoom());
             m_session.setEditorCamera3D(m_viewport3D.x(), m_viewport3D.y(), m_viewport3D.z(), m_viewport3D.rotationX(), m_viewport3D.rotationY(),
                                         m_viewport3D.fieldOfView());

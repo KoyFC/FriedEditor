@@ -127,6 +127,7 @@ namespace editor_ui
         colors[ImGuiCol_DockingPreview] = raisedHot;
         colors[ImGuiCol_DockingEmptyBg] = base;
         colors[ImGuiCol_TextSelectedBg] = accentSoft;
+        colors[ImGuiCol_PlotHistogram] = accentHot;
         colors[ImGuiCol_DragDropTarget] = accentHot;
         colors[ImGuiCol_NavCursor] = whiteDim;
         s_unscaled = style;
