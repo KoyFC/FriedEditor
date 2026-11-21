@@ -32,6 +32,9 @@ namespace fried::editor
         std::string setDefaultTargetFramerate(int value);
         std::string setPhysicsRate(int value);
 
+        // Adds the platform to the ones the project declares, or takes it out. A project that declares none builds for every platform, so taking one out first declares all the others. The last one cannot be taken out, since the engine refuses a project that builds for nothing.
+        std::string setPlatformDeclared(Platform platform, bool isDeclared);
+
         // The 3DS's description and the DS's two subtitles, which are the only lines of packaging text there are.
         std::string setPackagingText(const std::string &section, const std::string &key, const std::string &value);
         static int packagingTextLimit(const std::string &section);

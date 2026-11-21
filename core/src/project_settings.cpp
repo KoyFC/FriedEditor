@@ -111,6 +111,30 @@ namespace fried::editor
         return apply(std::string(), [&](Project &project) { project.setVsync(value); });
     }
 
+    std::string ProjectSettings::setPlatformDeclared(Platform platform, bool isDeclared)
+    {
+        std::vector<Platform> declared;
+        for (Platform candidate : fried::core::s_platforms)
+        {
+            if (m_project.declares(candidate))
+            {
+                declared.push_back(candidate);
+            }
+        }
+
+        auto found = std::find(declared.begin(), declared.end(), platform);
+        if (isDeclared && found == declared.end())
+        {
+            declared.push_back(platform);
+        }
+        else if (!isDeclared && found != declared.end())
+        {
+            declared.erase(found);
+        }
+
+        return apply(declared.empty() ? "A project has to build for at least one platform." : std::string(), [&](Project &project) { project.setDeclaredPlatforms(declared); });
+    }
+
     std::string ProjectSettings::setDefaultTargetFramerate(int value)
     {
         return apply(value < 0 ? "The target framerate cannot be negative." : std::string(), [&](Project &project) { project.setDefaultTargetFramerate(value); });

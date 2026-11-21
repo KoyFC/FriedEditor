@@ -151,6 +151,32 @@ TEST_CASE("the physics rate is saved, leaves no key at 60 and refuses one out of
     CHECK(project.read("project.fried").find("physicsRate") == std::string::npos);
 }
 
+TEST_CASE("a platform is declared or taken out, and the last one cannot be")
+{
+    TemporaryProject project("platforms");
+    ProjectSettings settings(project.m_project);
+    CHECK(project.m_project.declares(Platform::Vita));
+
+    CHECK(settings.setPlatformDeclared(Platform::Vita, false).empty());
+    CHECK_FALSE(project.m_project.declares(Platform::Vita));
+    CHECK(project.m_project.declares(Platform::Pc));
+    CHECK(project.m_project.declaredPlatforms().size() == fried::core::s_platforms.size() - 1);
+    CHECK(project.read("project.fried").find("\"platforms\"") != std::string::npos);
+
+    CHECK(settings.setPlatformDeclared(Platform::Vita, true).empty());
+    CHECK(project.read("project.fried").find("platforms") == std::string::npos);
+
+    for (Platform platform : fried::core::s_platforms)
+    {
+        if (platform != Platform::Web)
+        {
+            CHECK(settings.setPlatformDeclared(platform, false).empty());
+        }
+    }
+    CHECK(settings.setPlatformDeclared(Platform::Web, false) == "A project has to build for at least one platform.");
+    CHECK(project.m_project.declaredPlatforms() == std::vector<Platform>{Platform::Web});
+}
+
 TEST_CASE("the default target framerate is saved and refuses a negative one")
 {
     TemporaryProject project("framerate");

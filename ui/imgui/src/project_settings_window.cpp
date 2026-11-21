@@ -48,6 +48,10 @@ namespace imgui_backend
         if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse))
         {
             m_isSettingsShown = true;
+            if (m_settingsPage > 0 && !m_editor.project().declares(fried::core::s_platforms[m_settingsPage - 1]))
+            {
+                m_settingsPage = 0;
+            }
             Platform shown = m_settingsPage == 0 ? Platform::Pc : fried::core::s_platforms[m_settingsPage - 1];
             size_t targetCount = m_settingsPage == 0 ? 0 : fried::editor::ProjectBuild::targetsOf(shown).size();
             float stripHeight = 0;
@@ -64,6 +68,10 @@ namespace imgui_backend
             ImGui::Separator();
             for (int index = 0; index < (int)fried::core::s_platforms.size(); ++index)
             {
+                if (!m_editor.project().declares(fried::core::s_platforms[index]))
+                {
+                    continue;
+                }
                 if (ImGui::Selectable(fried::editor::platformLabel(fried::core::s_platforms[index]).c_str(), m_settingsPage == index + 1))
                 {
                     m_settingsPage = index + 1;
@@ -133,6 +141,25 @@ namespace imgui_backend
         settingText("Organization", project.organization(), 0, [&](const std::string &value) { return settings.setOrganization(value); });
         settingText("Version", project.version(), 0, [&](const std::string &value) { return settings.setVersion(value); });
         settingText("Window title", project.windowTitle(), 0, [&](const std::string &value) { return settings.setWindowTitle(value); });
+
+        ImGui::SeparatorText("Platforms");
+        ImGui::TextDisabled("The engine refuses to build for a platform that is not ticked, and checks the limits of the ones that are.");
+        for (Platform platform : fried::core::s_platforms)
+        {
+            bool isDeclared = project.declares(platform);
+            std::string label = fried::editor::platformLabel(platform);
+            if (ImGui::Checkbox(label.c_str(), &isDeclared))
+            {
+                m_settingErrors["Platforms"] = settings.setPlatformDeclared(platform, isDeclared);
+            }
+        }
+        auto platformProblem = m_settingErrors.find("Platforms");
+        if (platformProblem != m_settingErrors.end() && !platformProblem->second.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+            ImGui::TextWrapped("%s", platformProblem->second.c_str());
+            ImGui::PopStyleColor();
+        }
 
         ImGui::SeparatorText("Start");
         row("Start scene");
