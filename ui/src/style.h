@@ -28,8 +28,11 @@ namespace editor_ui
         }
     }
 
-    // A dark theme with the yolk accent, and the engine's own font when it can be found.
-    void applyStyle(const std::string &fontPath);
+    // A dark theme, with the Inter font that is compiled into the editor.
+    void applyStyle();
+
+    // The heavier weight of the font, for the names that head a group.
+    ImFont *boldFont();
 
     // For a window that is to be an operating system window of its own, such as the settings, and stay one instead of merging back into the editor's when they overlap.
     const ImGuiWindowClass *ownWindowClass();

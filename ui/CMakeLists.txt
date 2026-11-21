@@ -26,8 +26,24 @@ string(APPEND FRIED_ICON_SOURCE "    };\n    const int s_iconSourceCount = ${FRI
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp.tmp "${FRIED_ICON_SOURCE}")
 configure_file(${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp.tmp ${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp COPYONLY)
 
+# The fonts are compiled in as byte arrays, for the same reason.
+set(FRIED_FONT_SOURCE "#include \"style.h\"\n\nnamespace editor_ui\n{\n")
+foreach(font_file Inter-Regular Inter-SemiBold)
+    string(REPLACE "-" "_" font_symbol ${font_file})
+    file(READ ${CMAKE_CURRENT_SOURCE_DIR}/fonts/${font_file}.ttf font_hex HEX)
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," font_bytes "${font_hex}")
+    string(LENGTH "${font_hex}" font_hex_length)
+    math(EXPR font_size "${font_hex_length} / 2")
+    string(APPEND FRIED_FONT_SOURCE "    extern const unsigned char s_${font_symbol}[] = {${font_bytes}};\n    extern const unsigned int s_${font_symbol}Size = ${font_size};\n")
+endforeach()
+string(APPEND FRIED_FONT_SOURCE "}\n")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/fonts_data.cpp.tmp "${FRIED_FONT_SOURCE}")
+configure_file(${CMAKE_CURRENT_BINARY_DIR}/fonts_data.cpp.tmp ${CMAKE_CURRENT_BINARY_DIR}/fonts_data.cpp COPYONLY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/fonts/Inter-Regular.ttf ${CMAKE_CURRENT_SOURCE_DIR}/fonts/Inter-SemiBold.ttf)
+
 add_library(fried_editor_ui STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/icons_data.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/fonts_data.cpp
     src/app.cpp
     src/app.h
     src/icons.cpp

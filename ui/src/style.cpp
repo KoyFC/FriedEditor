@@ -4,14 +4,18 @@
 
 #include <imgui.h>
 
-#include <filesystem>
-
 namespace editor_ui
 {
+    extern const unsigned char s_Inter_Regular[];
+    extern const unsigned int s_Inter_RegularSize;
+    extern const unsigned char s_Inter_SemiBold[];
+    extern const unsigned int s_Inter_SemiBoldSize;
+
     namespace
     {
         ImGuiStyle s_unscaled;
         float s_scale = 1.0f;
+        ImFont *s_bold = nullptr;
     }
 
     const ImGuiWindowClass *ownWindowClass()
@@ -39,17 +43,18 @@ namespace editor_ui
         return s_scale;
     }
 
-    void applyStyle(const std::string &fontPath)
+    ImFont *boldFont()
+    {
+        return s_bold;
+    }
+
+    void applyStyle()
     {
         ImGuiIO &io = ImGui::GetIO();
-        if (!fontPath.empty() && std::filesystem::exists(fontPath))
-        {
-            io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 16.0f);
-        }
-        else
-        {
-            io.Fonts->AddFontDefault();
-        }
+        ImFontConfig config;
+        config.FontDataOwnedByAtlas = false;
+        io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char *>(s_Inter_Regular), (int)s_Inter_RegularSize, 14.0f, &config);
+        s_bold = io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char *>(s_Inter_SemiBold), (int)s_Inter_SemiBoldSize, 14.0f, &config);
 
         ImGuiStyle &style = ImGui::GetStyle();
         style.WindowRounding = 0;

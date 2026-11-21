@@ -167,7 +167,7 @@ namespace editor_ui
         io.IniFilename = s_layout.c_str();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_ViewportsEnable;
         io.ConfigViewportsNoTaskBarIcon = true;
-        applyStyle(editor.enginePath() + "/assets/NunitoSans.ttf");
+        applyStyle();
         setUiScale(fried::editor::EditorState::uiScale());
         ImGui_ImplSDL2_InitForOpenGL(window, context);
         ImGui_ImplOpenGL3_Init("#version 330");
