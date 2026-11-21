@@ -566,3 +566,32 @@ TEST_CASE("dragging a node snaps to the grid when it is on, or when the snap key
     CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(325));
     editor.setSnapHeld(false);
 }
+
+TEST_CASE("the scenes opened last are remembered, the latest first" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    namespace fs = std::filesystem;
+    fs::path state = fs::temp_directory_path() / "fried-editor-recent-test";
+    fs::remove_all(state);
+    setEnvironment("FRIED_EDITOR_CONFIG", state.string().c_str());
+
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    std::vector<std::string> scenes = editor.scenePaths();
+    REQUIRE(scenes.size() >= 3);
+
+    REQUIRE(editor.openScene(scenes[0], &error));
+    REQUIRE(editor.openScene(scenes[1], &error));
+    REQUIRE(editor.openScene(scenes[2], &error));
+    REQUIRE(editor.openScene(scenes[0], &error));
+    std::vector<std::string> recent = editor.recentScenes();
+    REQUIRE(recent.size() >= 3);
+    CHECK(recent[0] == scenes[0]);
+    CHECK(recent[1] == scenes[2]);
+    CHECK(recent[2] == scenes[1]);
+    CHECK(std::count(recent.begin(), recent.end(), scenes[0]) == 1);
+
+    setEnvironment("FRIED_EDITOR_CONFIG", "none");
+    fs::remove_all(state);
+}

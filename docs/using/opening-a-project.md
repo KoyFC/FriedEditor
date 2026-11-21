@@ -14,3 +14,7 @@ File, Open scene switches between the project's scene files, and `--scene <file>
 The scene that was open is remembered for each project, in `state.json` in that folder, and opened again next time.
 
 A project that has an `editor.hxml` beside its `build.hxml` gets a player built from it, so its own nodes show in the viewport and in the inspector, and a node field is a list of the scene's nodes. The player is built again when the engine's or the project's sources are newer than it.
+
+## Opening scenes and finding files
+
+File, Open scene lists the project's scenes, and File, Open recent the last eight that were opened, the latest first. When the open scene has changes the editor asks whether to save them before leaving it, wherever the choice was made from. Ctrl+P (File, Quick open) opens a field in which a part of a name is enough: the letters only have to appear in order, so `sbx3` finds `sandbox_3d.scene.json`, and a match in the file's own name ranks over one in its folders. With nothing typed it lists the scenes, the recent ones first. Up and Down choose, Enter or a click opens a scene, and for any other file it opens the folder that holds it in the Assets tab.

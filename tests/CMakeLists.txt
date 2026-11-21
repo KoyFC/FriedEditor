@@ -6,6 +6,7 @@ add_executable(core_tests
     large_scene_test.cpp
     editor_test.cpp
     expression_test.cpp
+    fuzzy_test.cpp
     game_runner_test.cpp
     gizmo_test.cpp
     log_tail_test.cpp

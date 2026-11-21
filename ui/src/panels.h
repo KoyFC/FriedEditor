@@ -47,6 +47,14 @@ namespace editor_ui
         int issueCount() const { return (int)m_issues.size(); }
         void statusBar();
 
+        // Opens a scene, asking first about the changes of the one that is open. The question is drawn by sceneChangeDialog, wherever the panels are.
+        void openSceneFile(const std::string &path);
+        void sceneChangeDialog();
+
+        // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets.
+        void showQuickOpen() { m_isQuickOpenAsked = true; }
+        void quickOpen();
+
         // The window that shows a build going on, or one that has ended, with what it printed.
         void buildWindow();
 
@@ -62,9 +70,7 @@ namespace editor_ui
 
         // The title of a class in the inspector, with its icon. True while it is open.
         bool classHeader(const std::string &name);
-        void openSceneFile(const std::string &path);
         void enterAssetFolder(const std::string &folder);
-        void sceneChangeDialog();
         void controlEditor(const fried::editor::ClassView &view);
         void fieldEditor(const fried::editor::FieldView &field);
         bool textField(const char *label, std::string *value);
@@ -112,6 +118,9 @@ namespace editor_ui
         unsigned long m_consoleKeyRevision = 0;
         std::string m_consoleKeyText;
         int m_consoleKeyMask = 0;
+        bool m_isQuickOpenAsked = false;
+        std::string m_quickText;
+        int m_quickIndex = 0;
         std::string m_hierarchyFilter;
         std::vector<char> m_filterKeep;
         std::string m_filterKeyText;

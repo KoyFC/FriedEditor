@@ -159,6 +159,9 @@ namespace fried::editor
         bool save(std::string *error);
         std::vector<std::string> scenePaths() const;
 
+        // The scenes opened last, the latest first, that are still in the project.
+        std::vector<std::string> recentScenes() const;
+
         void rebuildPlayer();
 
         BuildProgress buildProgress() const;
@@ -319,6 +322,7 @@ namespace fried::editor
     private:
         void startPlayer();
         void chooseViewMode();
+        void rememberScene();
         void restoreView();
         DrawList overlay3D() const;
         std::optional<std::string> hit3D(double frameX, double frameY) const;

@@ -57,7 +57,7 @@ namespace fried::editor
                 return false;
             }
             m_scenePath = chosen;
-            EditorState::setLastScene(m_project.directory(), fs::path(chosen).filename().string());
+            rememberScene();
         }
 
         m_commands = std::make_unique<CommandStack>(m_document);
@@ -433,6 +433,45 @@ namespace fried::editor
         }
     }
 
+    void Editor::rememberScene()
+    {
+        std::string name = fs::path(m_scenePath).filename().string();
+        EditorState::setLastScene(m_project.directory(), name);
+        std::vector<std::string> recent = {name};
+        Json remembered = EditorState::projectValue(m_project.directory(), "recentScenes");
+        if (remembered.is_array())
+        {
+            for (const Json &other : remembered)
+            {
+                if (other.is_string() && other.get<std::string>() != name && recent.size() < 8)
+                {
+                    recent.push_back(other.get<std::string>());
+                }
+            }
+        }
+        EditorState::setProjectValue(m_project.directory(), "recentScenes", Json(recent));
+    }
+
+    std::vector<std::string> Editor::recentScenes() const
+    {
+        std::vector<std::string> paths;
+        Json remembered = EditorState::projectValue(m_project.directory(), "recentScenes");
+        if (!remembered.is_array())
+        {
+            return paths;
+        }
+        std::error_code ignored;
+        for (const Json &name : remembered)
+        {
+            std::string path = m_project.scenesDirectory() + "/" + (name.is_string() ? name.get<std::string>() : std::string());
+            if (name.is_string() && fs::exists(path, ignored))
+            {
+                paths.push_back(path);
+            }
+        }
+        return paths;
+    }
+
     std::vector<std::string> Editor::scenePaths() const
     {
         std::vector<std::string> paths;
@@ -463,7 +502,7 @@ namespace fried::editor
         m_commands = std::make_unique<CommandStack>(m_document);
         m_commands->m_onChange = [this] { changed(); };
         m_scenePath = path;
-        EditorState::setLastScene(m_project.directory(), fs::path(path).filename().string());
+        rememberScene();
         m_selected.reset();
         chooseViewMode();
         m_needsLoad = true;

@@ -3,6 +3,7 @@
 #include "style.h"
 
 #include "fried/editor/editor_state.h"
+#include "fried/editor/fuzzy.h"
 
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -1600,6 +1601,135 @@ namespace editor_ui
         }
     }
 
+    void Panels::quickOpen()
+    {
+        if (m_isQuickOpenAsked)
+        {
+            m_isQuickOpenAsked = false;
+            m_quickText.clear();
+            m_quickIndex = 0;
+            ImGui::OpenPopup("Quick open");
+        }
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(viewport->GetCenter().x, viewport->Pos.y + viewport->Size.y * 0.18f), ImGuiCond_Always, ImVec2(0.5f, 0));
+        ImGui::SetNextWindowSize(ImVec2(scaled(560), 0));
+        ImGui::SetNextWindowViewport(viewport->ID);
+        if (!ImGui::BeginPopup("Quick open", ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+        {
+            return;
+        }
+
+        // The scenes come first, the latest opened before the rest, then the other files.
+        const std::vector<fried::editor::AssetEntry> &entries = m_editor.assets();
+        std::vector<std::string> recent = m_editor.recentScenes();
+        std::vector<const fried::editor::AssetEntry *> ordered;
+        for (const std::string &path : recent)
+        {
+            for (const fried::editor::AssetEntry &entry : entries)
+            {
+                if (entry.m_kind == AssetKind::Scene && std::filesystem::path(m_editor.assetFile(entry.m_root, entry.m_path)) == std::filesystem::path(path))
+                {
+                    ordered.push_back(&entry);
+                }
+            }
+        }
+        for (int pass = 0; pass < 2; ++pass)
+        {
+            for (const fried::editor::AssetEntry &entry : entries)
+            {
+                bool isScene = entry.m_kind == AssetKind::Scene;
+                if (isScene == (pass == 0) && std::find(ordered.begin(), ordered.end(), &entry) == ordered.end())
+                {
+                    ordered.push_back(&entry);
+                }
+            }
+        }
+        std::vector<std::string> names;
+        for (const fried::editor::AssetEntry *entry : ordered)
+        {
+            names.push_back(entry->reference());
+        }
+
+        if (ImGui::IsWindowAppearing())
+        {
+            ImGui::SetKeyboardFocusHere();
+        }
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        if (ImGui::InputTextWithHint("##quick", "Open a scene or find an asset", &m_quickText))
+        {
+            m_quickIndex = 0;
+        }
+        std::vector<std::size_t> found = fried::editor::fuzzyRank(m_quickText, names);
+        int shown = (int)std::min<std::size_t>(found.size(), 12);
+        if (shown > 0)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+            {
+                m_quickIndex = (m_quickIndex + 1) % shown;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+            {
+                m_quickIndex = (m_quickIndex + shown - 1) % shown;
+            }
+        }
+
+        int chosen = -1;
+        ImGui::Separator();
+        for (int row = 0; row < shown; ++row)
+        {
+            const fried::editor::AssetEntry &entry = *ordered[found[row]];
+            ImGui::PushID(row);
+            ImVec2 position = ImGui::GetCursorScreenPos();
+            if (ImGui::Selectable("##row", row == m_quickIndex, ImGuiSelectableFlags_None, ImVec2(0, Icons::size() + scaled(6))))
+            {
+                chosen = row;
+            }
+            if (row == m_quickIndex && (ImGui::IsKeyPressed(ImGuiKey_DownArrow) || ImGui::IsKeyPressed(ImGuiKey_UpArrow)))
+            {
+                ImGui::SetScrollHereY();
+            }
+            Icon icon = entry.m_kind == AssetKind::Image  ? Icon::Image
+                        : entry.m_kind == AssetKind::Font  ? Icon::Font
+                        : entry.m_kind == AssetKind::Audio ? Icon::AudioStreamWAV
+                        : entry.m_kind == AssetKind::Scene ? Icon::PackedScene
+                                                           : Icon::File;
+            ImDrawList *list = ImGui::GetWindowDrawList();
+            float centre = position.y + (Icons::size() + scaled(6)) / 2;
+            Icons::draw(list, icon, ImVec2(position.x + scaled(4), centre - Icons::size() / 2));
+            std::string name = entry.m_path.substr(entry.m_path.rfind('/') == std::string::npos ? 0 : entry.m_path.rfind('/') + 1);
+            list->AddText(ImVec2(position.x + Icons::size() + scaled(12), centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+            float folderX = position.x + Icons::size() + scaled(24) + ImGui::CalcTextSize(name.c_str()).x;
+            list->AddText(ImVec2(folderX, centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_TextDisabled), fried::editor::assetFolderOf(entry).c_str());
+            ImGui::PopID();
+        }
+        if (shown == 0)
+        {
+            ImGui::TextDisabled("Nothing matches");
+        }
+        if (shown > 0 && ImGui::IsKeyPressed(ImGuiKey_Enter))
+        {
+            chosen = m_quickIndex;
+        }
+
+        if (chosen >= 0)
+        {
+            const fried::editor::AssetEntry &entry = *ordered[found[chosen]];
+            if (entry.m_kind == AssetKind::Scene)
+            {
+                openSceneFile(m_editor.assetFile(entry.m_root, entry.m_path));
+            }
+            else
+            {
+                enterAssetFolder(fried::editor::assetFolderOf(entry));
+                m_assetFilter = 0;
+                m_assetSearch.clear();
+                ImGui::SetWindowFocus("Assets");
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
     void Panels::enterAssetFolder(const std::string &folder)
     {
         m_assetFolder = folder;
@@ -1928,7 +2058,6 @@ namespace editor_ui
             ImGui::PopID();
         }
         ImGui::EndChild();
-        sceneChangeDialog();
     }
 
     void Panels::openSceneFile(const std::string &path)

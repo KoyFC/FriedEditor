@@ -261,6 +261,10 @@ namespace editor_ui
                 {
                     pasteNode(editor);
                 }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_P, false))
+                {
+                    panels.showQuickOpen();
+                }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_S, false))
                 {
                     save(editor);
@@ -299,21 +303,31 @@ namespace editor_ui
                     {
                         save(editor);
                     }
+                    if (ImGui::MenuItem("Quick open...", "Ctrl+P"))
+                    {
+                        panels.showQuickOpen();
+                    }
                     if (ImGui::BeginMenu("Open scene"))
                     {
-                        bool isClean = editor.commands().isClean();
                         for (const std::string &path : editor.scenePaths())
                         {
                             std::string label = std::filesystem::path(path).filename().string();
-                            if (ImGui::MenuItem(label.c_str(), nullptr, path == editor.scenePath(), isClean))
+                            if (ImGui::MenuItem(label.c_str(), nullptr, path == editor.scenePath()))
                             {
-                                std::string error;
-                                editor.openScene(path, &error);
+                                panels.openSceneFile(path);
                             }
                         }
-                        if (!isClean)
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Open recent", !editor.recentScenes().empty()))
+                    {
+                        for (const std::string &path : editor.recentScenes())
                         {
-                            ImGui::TextDisabled("Save the scene first");
+                            std::string label = std::filesystem::path(path).filename().string();
+                            if (ImGui::MenuItem(label.c_str(), nullptr, path == editor.scenePath()))
+                            {
+                                panels.openSceneFile(path);
+                            }
                         }
                         ImGui::EndMenu();
                     }
@@ -467,6 +481,8 @@ namespace editor_ui
                 panels.projectSettings(&isSettingsOpen);
             }
             panels.buildWindow();
+            panels.quickOpen();
+            panels.sceneChangeDialog();
 
             if (isCloseAsked)
             {
