@@ -17,3 +17,11 @@ SDL2 2.32.10 for the Windows build, Copyright (C) 1997-2025 Sam Lantinga and con
 ## stb_image and stb_image_write
 
 `third_party/fried_core/third_party/stb/stb_image.h` (v2.30) and `stb_image_write.h` (v1.16), by Sean Barrett and contributors, <https://github.com/nothings/stb>. Each header offers its terms as two alternatives at its end: the MIT License, or the public domain (Unlicense).
+
+## NanoSVG
+
+`third_party/nanosvg/` (`nanosvg.h` and `nanosvgrast.h`, as bundled with SDL_image 2.8.12), Copyright (c) 2013-14 Mikko Mononen, <https://github.com/memononen/nanosvg>, under the zlib license that the header of each file states. The editor rasterizes its icons with it.
+
+## Godot Engine icons
+
+`ui/imgui/icons/` holds the editor icons of Godot Engine 4, <https://github.com/godotengine/godot/tree/master/editor/icons>, Copyright (c) 2014-present Godot Engine contributors and (c) 2007-2014 Juan Linietsky, Ariel Manzur, under the MIT License carried in `ui/imgui/icons/LICENSE.txt`. They are compiled into the editor.

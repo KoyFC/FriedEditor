@@ -1,5 +1,7 @@
 #include "style.h"
 
+#include "icons.h"
+
 #include <imgui.h>
 
 #include <filesystem>
@@ -19,6 +21,7 @@ namespace imgui_backend
         style = s_unscaled;
         style.ScaleAllSizes(scale);
         style.FontScaleMain = scale;
+        Icons::rebuild(scale);
     }
 
     float uiScale()
