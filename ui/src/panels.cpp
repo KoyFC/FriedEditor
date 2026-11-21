@@ -883,25 +883,6 @@ namespace editor_ui
             ImGui::EndPopup();
         }
         ImGui::SameLine();
-        if (Icons::button("delete", Icon::Remove, "Delete the selected node"))
-        {
-            m_editor.removeSelected();
-        }
-        ImGui::SameLine();
-        if (Icons::button("up", Icon::MoveUp, "Move the node up among its siblings"))
-        {
-            m_editor.moveSelected(-1);
-        }
-        ImGui::SameLine();
-        if (Icons::button("down", Icon::MoveDown, "Move the node down among its siblings"))
-        {
-            m_editor.moveSelected(1);
-        }
-        ImGui::SameLine();
-        if (Icons::button("camera", Icon::Camera2D, "Use the selected node as the scene's camera"))
-        {
-            m_editor.setCameraToSelected();
-        }
         {
             // The icon sits inside the field, so the text starts after it.
             float room = Icons::size() + scaled(14);
@@ -913,7 +894,22 @@ namespace editor_ui
             ImVec2 high = ImGui::GetItemRectMax();
             Icons::draw(ImGui::GetWindowDrawList(), Icon::Search, ImVec2(low.x + scaled(8), (low.y + high.y - Icons::size()) / 2), IM_COL32(255, 255, 255, 150));
         }
-        ImGui::Separator();
+        {
+            // The scene itself heads the tree, as in Unity and Godot.
+            ImVec2 low = ImGui::GetCursorScreenPos();
+            float rowHeight = ImGui::GetFontSize() + scaled(8);
+            ImDrawList *list = ImGui::GetWindowDrawList();
+            float right = ImGui::GetWindowPos().x + ImGui::GetWindowWidth();
+            list->AddRectFilled(ImVec2(ImGui::GetWindowPos().x, low.y), ImVec2(right, low.y + rowHeight), ImGui::GetColorU32(palette::base));
+            Icons::draw(list, Icon::PackedScene, ImVec2(low.x + scaled(2), low.y + (rowHeight - Icons::size()) / 2));
+            std::string title = std::filesystem::path(m_editor.scenePath()).filename().string();
+            if (!m_editor.commands().isClean())
+            {
+                title += " *";
+            }
+            list->AddText(boldFont(), ImGui::GetFontSize(), ImVec2(low.x + Icons::size() + scaled(8), low.y + scaled(4)), ImGui::GetColorU32(ImGuiCol_Text), title.c_str());
+            ImGui::Dummy(ImVec2(0, rowHeight));
+        }
 
         // Which nodes are folded belongs to the scene, and is remembered with the view.
         std::string sceneName = std::filesystem::path(m_editor.scenePath()).filename().string();
@@ -1165,6 +1161,14 @@ namespace editor_ui
                     if (ImGui::MenuItem("Use as the Camera"))
                     {
                         m_editor.setCameraToSelected();
+                    }
+                    if (ImGui::MenuItem("Move Up"))
+                    {
+                        m_editor.moveSelected(-1);
+                    }
+                    if (ImGui::MenuItem("Move Down"))
+                    {
+                        m_editor.moveSelected(1);
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("Duplicate", "Ctrl+D"))
