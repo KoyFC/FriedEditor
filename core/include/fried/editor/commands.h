@@ -46,9 +46,9 @@ namespace fried::editor
     class AddNode : public Command
     {
     public:
-        AddNode(std::string parentId, int index, nlohmann::json node);
+        AddNode(std::string parentId, int index, nlohmann::json node, std::string label = "Add node");
 
-        std::string label() const override { return "Add node"; }
+        std::string label() const override { return m_label; }
         bool apply(SceneDocument &document) override;
         void revert(SceneDocument &document) override;
 
@@ -56,6 +56,7 @@ namespace fried::editor
         std::string m_parentId;
         int m_index;
         nlohmann::json m_node;
+        std::string m_label;
     };
 
     // Takes the node's children with it, and its place as the scene's camera, and gives them back on undo.

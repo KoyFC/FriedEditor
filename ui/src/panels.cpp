@@ -907,6 +907,21 @@ namespace editor_ui
                         m_editor.setCameraToSelected();
                     }
                     ImGui::Separator();
+                    if (ImGui::MenuItem("Duplicate", "Ctrl+D"))
+                    {
+                        m_editor.duplicateSelected();
+                    }
+                    if (ImGui::MenuItem("Copy", "Ctrl+C"))
+                    {
+                        std::string text = m_editor.copySelected();
+                        ImGui::SetClipboardText(text.c_str());
+                    }
+                    if (ImGui::MenuItem("Paste", "Ctrl+V"))
+                    {
+                        const char *text = ImGui::GetClipboardText();
+                        m_editor.paste(text ? text : "");
+                    }
+                    ImGui::Separator();
                     if (ImGui::MenuItem("Delete"))
                     {
                         m_editor.removeSelected();

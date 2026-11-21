@@ -481,3 +481,49 @@ TEST_CASE("a scene opens with the view it was left with" * doctest::skip(std::ge
     setEnvironment("FRIED_EDITOR_CONFIG", "none");
     fs::remove_all(state);
 }
+
+TEST_CASE("a node is duplicated, copied and pasted with its children, under new ids and names" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+    std::size_t before = editor.hierarchy().size();
+
+    CHECK(editor.copySelected().empty());
+    CHECK(!editor.duplicateSelected());
+
+    editor.select(std::string("sprite"));
+    std::string name = editor.document().nodeField("sprite", "name").value_or("").get<std::string>();
+    REQUIRE(editor.duplicateSelected());
+    CHECK(editor.hierarchy().size() == before + 1);
+    REQUIRE(editor.selected());
+    CHECK(*editor.selected() != "sprite");
+    CHECK(editor.document().typeOf(*editor.selected()) == editor.document().typeOf("sprite"));
+    CHECK(editor.document().parentOf(*editor.selected()) == editor.document().parentOf("sprite"));
+    CHECK(editor.document().indexOf(*editor.selected()) == editor.document().indexOf("sprite") + 1);
+    CHECK(editor.document().nodeField(*editor.selected(), "name").value_or("").get<std::string>() == name + "2");
+    editor.commands().undo();
+    CHECK(editor.hierarchy().size() == before);
+
+    // Pasting twice gives two more, each with ids and names of its own.
+    editor.select(std::string("sprite"));
+    std::string text = editor.copySelected();
+    CHECK(text.rfind("fried-nodes:", 0) == 0);
+    REQUIRE(editor.paste(text));
+    std::string first = *editor.selected();
+    editor.select(std::string("sprite"));
+    REQUIRE(editor.paste(text));
+    CHECK(*editor.selected() != first);
+    CHECK(editor.hierarchy().size() == before + 2);
+    CHECK(editor.document().nodeField(first, "name") != editor.document().nodeField(*editor.selected(), "name"));
+    editor.commands().undo();
+    editor.commands().undo();
+    CHECK(editor.hierarchy().size() == before);
+
+    // Text that is not a copy pastes the last copy the editor made.
+    CHECK(editor.paste("something else"));
+    editor.commands().undo();
+}

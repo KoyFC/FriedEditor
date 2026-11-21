@@ -69,6 +69,21 @@ namespace editor_ui
             }
         }
 
+        void copyNode(Editor &editor)
+        {
+            std::string text = editor.copySelected();
+            if (!text.empty())
+            {
+                ImGui::SetClipboardText(text.c_str());
+            }
+        }
+
+        void pasteNode(Editor &editor)
+        {
+            const char *text = ImGui::GetClipboardText();
+            editor.paste(text ? text : "");
+        }
+
         bool sideBar(const char *name, ImGuiDir direction, float height, const std::function<void()> &content)
         {
             ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
@@ -225,6 +240,18 @@ namespace editor_ui
                 {
                     editor.commands().redo();
                 }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+                {
+                    editor.duplicateSelected();
+                }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_C, false))
+                {
+                    copyNode(editor);
+                }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_V, false))
+                {
+                    pasteNode(editor);
+                }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_S, false))
                 {
                     save(editor);
@@ -318,6 +345,19 @@ namespace editor_ui
                     if (ImGui::MenuItem(redo.c_str(), "Ctrl+Shift+Z", false, commands.canRedo()))
                     {
                         commands.redo();
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, editor.selected().has_value()))
+                    {
+                        editor.duplicateSelected();
+                    }
+                    if (ImGui::MenuItem("Copy", "Ctrl+C", false, editor.selected().has_value()))
+                    {
+                        copyNode(editor);
+                    }
+                    if (ImGui::MenuItem("Paste", "Ctrl+V"))
+                    {
+                        pasteNode(editor);
                     }
                     ImGui::EndMenu();
                 }

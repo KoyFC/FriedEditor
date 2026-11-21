@@ -192,6 +192,15 @@ namespace fried::editor
         void addNode(const std::string &type, const std::optional<std::string> &parentId = std::nullopt);
         void removeSelected();
 
+        // Puts a copy of the selected node and what is under it next to it, with new ids and a name that is not its siblings'.
+        bool duplicateSelected();
+
+        // The selected node and what is under it as text for the system clipboard, which is empty when nothing is selected. The editor keeps the copy too.
+        std::string copySelected();
+
+        // Pastes what the text holds, or the last copy when it holds none, next to the selected node, or into the scene when none is selected.
+        bool paste(const std::string &clipboardText);
+
         // Moves the selected node among its siblings.
         void moveSelected(int delta);
 
@@ -315,6 +324,7 @@ namespace fried::editor
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
         nlohmann::json newNode(const std::string &type) const;
         std::string playerLogFile() const;
+        bool insertCopy(const nlohmann::json &source, const std::string &parentId, int index, const std::string &label);
 
         Project m_project;
         ProjectSettings m_settings{m_project};
@@ -335,6 +345,7 @@ namespace fried::editor
         std::string m_message;
         Platform m_platform = Platform::Pc;
         std::optional<std::string> m_selected;
+        nlohmann::json m_clipboard;
         Viewport m_viewport;
 
         // The view the player drew the frame on screen with. The overlay is drawn with it, not with the view the user has moved on to since, so the two stay together while panning.

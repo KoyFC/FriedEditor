@@ -77,8 +77,8 @@ namespace fried::editor
         return true;
     }
 
-    AddNode::AddNode(std::string parentId, int index, nlohmann::json node)
-        : m_parentId(std::move(parentId)), m_index(index), m_node(std::move(node))
+    AddNode::AddNode(std::string parentId, int index, nlohmann::json node, std::string label)
+        : m_parentId(std::move(parentId)), m_index(index), m_node(std::move(node)), m_label(std::move(label))
     {
     }
 

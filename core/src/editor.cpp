@@ -6,6 +6,7 @@
 #include "fried/core/engine_location.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <set>
@@ -770,6 +771,126 @@ namespace fried::editor
         {
             select(id);
         }
+    }
+
+    namespace
+    {
+        constexpr const char *s_clipboardPrefix = "fried-nodes:";
+
+        // The text without the number at its end, and without the separator before it when there is one: "post-3" with a dash is "post", and "Enemy2" with none is "Enemy".
+        std::string withoutNumber(const std::string &text, char separator)
+        {
+            std::size_t end = text.size();
+            while (end > 0 && std::isdigit((unsigned char)text[end - 1]))
+            {
+                --end;
+            }
+            if (end == text.size() || end == 0)
+            {
+                return text;
+            }
+            if (separator != 0)
+            {
+                if (text[end - 1] != separator || end == 1)
+                {
+                    return text;
+                }
+                --end;
+            }
+            return text.substr(0, end);
+        }
+
+        void renumber(Json *node, const SceneDocument &document, std::set<std::string> *taken)
+        {
+            std::string base = withoutNumber(node->value("id", std::string("node")), '-');
+            std::string id = base;
+            for (int number = 2; document.contains(id) || taken->count(id); ++number)
+            {
+                id = base + "-" + std::to_string(number);
+            }
+            taken->insert(id);
+            (*node)["id"] = id;
+            if (node->contains("children") && (*node)["children"].is_array())
+            {
+                for (Json &child : (*node)["children"])
+                {
+                    renumber(&child, document, taken);
+                }
+            }
+        }
+    }
+
+    bool Editor::insertCopy(const Json &source, const std::string &parentId, int index, const std::string &label)
+    {
+        Json copy = source;
+        std::set<std::string> taken;
+        renumber(&copy, m_document, &taken);
+
+        // The name of the copy is not one of its siblings': "Enemy" gives "Enemy2", and "Enemy2" gives "Enemy3".
+        std::set<std::string> siblings;
+        for (const std::string &sibling : m_document.childrenOf(parentId))
+        {
+            Json name = m_document.nodeField(sibling, "name").value_or(Json());
+            siblings.insert(name.is_string() ? name.get<std::string>() : sibling);
+        }
+        if (copy.contains("name") && copy["name"].is_string() && siblings.count(copy["name"].get<std::string>()))
+        {
+            std::string base = withoutNumber(copy["name"].get<std::string>(), 0);
+            std::string name = base;
+            for (int number = 2; siblings.count(name); ++number)
+            {
+                name = base + std::to_string(number);
+            }
+            copy["name"] = name;
+        }
+
+        std::string id = copy.value("id", "");
+        if (!m_commands->execute(std::make_unique<AddNode>(parentId, index, copy, label)))
+        {
+            return false;
+        }
+        select(id);
+        return true;
+    }
+
+    bool Editor::duplicateSelected()
+    {
+        if (!m_selected || !m_document.node(*m_selected))
+        {
+            return false;
+        }
+        return insertCopy(*m_document.node(*m_selected), m_document.parentOf(*m_selected), m_document.indexOf(*m_selected) + 1, "Duplicate node");
+    }
+
+    std::string Editor::copySelected()
+    {
+        if (!m_selected || !m_document.node(*m_selected))
+        {
+            return std::string();
+        }
+        m_clipboard = *m_document.node(*m_selected);
+        return s_clipboardPrefix + m_clipboard.dump();
+    }
+
+    bool Editor::paste(const std::string &clipboardText)
+    {
+        Json source = m_clipboard;
+        std::string prefix = s_clipboardPrefix;
+        if (clipboardText.compare(0, prefix.size(), prefix) == 0)
+        {
+            Json parsed = Json::parse(clipboardText.substr(prefix.size()), nullptr, false);
+            if (parsed.is_object() && parsed.contains("type") && parsed["type"].is_string())
+            {
+                source = parsed;
+            }
+        }
+        if (!source.is_object())
+        {
+            return false;
+        }
+        std::string parent = m_selected ? m_document.parentOf(*m_selected) : std::string();
+        int index = m_selected ? m_document.indexOf(*m_selected) + 1 : m_document.childCount(parent);
+        return insertCopy(source, parent, index, "Paste node");
     }
 
     void Editor::removeSelected()
