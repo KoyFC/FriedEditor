@@ -26,6 +26,15 @@ namespace editor_ui
         void toolbar();
         void viewport();
 
+        // The game running inside the editor, which the keyboard and the mouse go to while it is the window with the focus.
+        void gameView();
+        // Whether the game's window had the focus when it was last drawn, which is when the keyboard is the game's.
+        bool isGameFocused() const { return m_isGameFocused; }
+        // Whether the game's window was drawn since this was last asked, which is whether it is on screen for the game to send frames to.
+        bool takeGameDrawn();
+        // Gives the focus back to the scene, which is how the keyboard is taken back from the game.
+        void releaseGame();
+
         // Panning holds the pointer still, so the viewport pans by the movement it is given instead of by where the pointer is.
         bool isPanning() const { return m_dragKind >= 2; }
         void setHeldMotion(ImVec2 motion) { m_heldMotion = motion; }
@@ -91,6 +100,17 @@ namespace editor_ui
         fried::editor::Editor &m_editor;
         Texture m_frame;
         unsigned long m_uploadedSerial = 0;
+        Texture m_gameFrame;
+        unsigned long long m_uploadedGameSerial = 0;
+        std::vector<float> m_frameTimes;
+        double m_frameTimeSampledAt = 0.0;
+        int m_gameScale = 0;
+        bool m_isStatsShown = false;
+        bool m_isGameDrawn = false;
+        bool m_isGameFocused = false;
+        bool m_isGameButtonDown[3] = {false, false, false};
+        int m_gameMouseX = -1;
+        int m_gameMouseY = -1;
         ImageCache m_images;
         int m_dragKind = 0;
         ImVec2 m_heldMotion;

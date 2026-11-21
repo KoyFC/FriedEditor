@@ -318,6 +318,12 @@ namespace editor_ui
         using fried::editor::GameRunner;
         const bool is2D = m_editor.viewMode() == Editor::ViewMode::TwoD;
         const float gap = scaled(16);
+        if (m_editor.isPlaying())
+        {
+            ImVec2 position = ImGui::GetWindowPos();
+            ImVec2 size = ImGui::GetWindowSize();
+            ImGui::GetWindowDrawList()->AddRectFilled(position, ImVec2(position.x + size.x, position.y + size.y), ImGui::GetColorU32(palette::accentAt(0.40f)));
+        }
 
         struct Mode
         {
@@ -412,18 +418,27 @@ namespace editor_ui
         }
         float leftEnd = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x;
 
-        // The play button sits in the middle of the strip, as in Unity.
+        // The play button sits in the middle of the strip, as in Unity, and the strip is tinted while the game runs so that it is clear that edits will not be kept.
         GameRunner::State game = m_editor.gameState();
-        bool isGoing = game == GameRunner::State::Building || game == GameRunner::State::Running;
+        bool isBuilding = game == GameRunner::State::Building;
+        bool isPlaying = m_editor.isPlaying() || m_editor.isStartingPlay();
         float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
-        float middle = (ImGui::GetWindowWidth() - side) / 2;
+        float playWidth = side * 2 + ImGui::GetStyle().ItemSpacing.x;
+        float middle = (ImGui::GetWindowWidth() - playWidth) / 2;
         ImGui::SameLine();
         ImGui::SetCursorPosX(std::max(middle, leftEnd + gap));
-        if (Icons::button("play", isGoing ? Icon::Stop : Icon::Play, isGoing ? "Stop the game" : "Play the scene (F5)", isGoing))
+        if (Icons::button("play", isPlaying ? Icon::Stop : Icon::Play, isPlaying ? "Stop the game (F5)" : "Play the open scene (F5)", isPlaying))
         {
-            isGoing ? m_editor.stopGame() : m_editor.buildAndRun();
+            isPlaying ? m_editor.stopPlay() : m_editor.startPlay(false);
         }
-        if (game == GameRunner::State::Building)
+        ImGui::SameLine();
+        ImGui::BeginDisabled(isPlaying);
+        if (Icons::button("play-start", Icon::PlayStart, "Play from the project's start scene (Shift+F5)"))
+        {
+            m_editor.startPlay(true);
+        }
+        ImGui::EndDisabled();
+        if (isBuilding)
         {
             ImGui::SameLine();
             ImGui::AlignTextToFramePadding();
@@ -664,6 +679,168 @@ namespace editor_ui
         bool isDragged = s_isValueDragged;
         s_isValueDragged = false;
         return isDragged;
+    }
+
+    bool Panels::takeGameDrawn()
+    {
+        bool isDrawn = m_isGameDrawn;
+        m_isGameDrawn = false;
+        if (!isDrawn)
+        {
+            m_isGameFocused = false;
+        }
+        return isDrawn;
+    }
+
+    void Panels::releaseGame()
+    {
+        ImGui::SetWindowFocus("Scene###Viewport");
+        m_isGameFocused = false;
+    }
+
+    void Panels::gameView()
+    {
+        m_isGameDrawn = true;
+        m_isGameFocused = ImGui::IsWindowFocused() && m_editor.isPlaying();
+        const fried::editor::GameFrame &frame = m_editor.gameFrame();
+        if (m_uploadedGameSerial != m_editor.gameFrameSerial() && frame.m_width > 0 && frame.m_rgba.size() == (size_t)frame.m_width * frame.m_height * 4)
+        {
+            m_gameFrame.upload(frame.m_rgba.data(), frame.m_width, frame.m_height);
+            m_uploadedGameSerial = m_editor.gameFrameSerial();
+        }
+
+        ImGui::SetNextItemWidth(scaled(72));
+        const char *scales[] = {"Fit", "1x", "2x", "3x"};
+        if (ImGui::BeginCombo("##game-scale", scales[m_gameScale]))
+        {
+            for (int index = 0; index < 4; ++index)
+            {
+                if (ImGui::Selectable(scales[index], index == m_gameScale))
+                {
+                    m_gameScale = index;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("How big the game is shown");
+        }
+        ImGui::SameLine();
+        ImGui::Checkbox("Stats", &m_isStatsShown);
+
+        ImVec2 region = ImGui::GetContentRegionAvail();
+        ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImGui::InvisibleButton("##game", region, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
+        bool isHovered = ImGui::IsItemHovered();
+        ImDrawList *draw = ImGui::GetWindowDrawList();
+        draw->AddRectFilled(origin, ImVec2(origin.x + region.x, origin.y + region.y), IM_COL32(12, 12, 14, 255));
+
+        if (!m_editor.isPlaying() || m_gameFrame.isEmpty())
+        {
+            m_frameTimes.clear();
+            std::string message = m_editor.isStartingPlay() ? "Starting the game..." : "Press Play (F5) to run the game here";
+            ImVec2 size = ImGui::CalcTextSize(message.c_str());
+            draw->AddText(ImVec2(origin.x + (region.x - size.x) / 2, origin.y + (region.y - size.y) / 2), IM_COL32(150, 150, 160, 255), message.c_str());
+            return;
+        }
+
+        double scale = m_gameScale == 0 ? std::min((double)region.x / m_gameFrame.width(), (double)region.y / m_gameFrame.height()) : (double)m_gameScale;
+        ImVec2 corner(origin.x + (float)((region.x - m_gameFrame.width() * scale) / 2), origin.y + (float)((region.y - m_gameFrame.height() * scale) / 2));
+        ImVec2 end(corner.x + (float)(m_gameFrame.width() * scale), corner.y + (float)(m_gameFrame.height() * scale));
+        draw->PushClipRect(origin, ImVec2(origin.x + region.x, origin.y + region.y), true);
+        draw->AddImage(m_gameFrame.id(), corner, end);
+
+        // The game's own pixels are what it asks for, so the mouse is sent in them.
+        fried::editor::GameSession &session = m_editor.gameSession();
+        ImGuiIO &io = ImGui::GetIO();
+        int gameX = (int)std::floor((io.MousePos.x - corner.x) / scale);
+        int gameY = (int)std::floor((io.MousePos.y - corner.y) / scale);
+        bool isInside = isHovered && gameX >= 0 && gameY >= 0 && gameX < m_gameFrame.width() && gameY < m_gameFrame.height();
+        if (isInside && (gameX != m_gameMouseX || gameY != m_gameMouseY))
+        {
+            m_gameMouseX = gameX;
+            m_gameMouseY = gameY;
+            session.mouseMove(gameX, gameY);
+        }
+        // ImGui's left, right and middle are the engine's 1, 3 and 2.
+        const int engineButtons[3] = {1, 3, 2};
+        for (int button = 0; button < 3; ++button)
+        {
+            if (isInside && ImGui::IsMouseClicked(button))
+            {
+                m_isGameButtonDown[button] = true;
+                session.mouseButton(engineButtons[button], gameX, gameY, true);
+            }
+            else if (m_isGameButtonDown[button] && ImGui::IsMouseReleased(button))
+            {
+                m_isGameButtonDown[button] = false;
+                session.mouseButton(engineButtons[button], std::clamp(gameX, 0, m_gameFrame.width() - 1), std::clamp(gameY, 0, m_gameFrame.height() - 1), false);
+            }
+        }
+        if (isInside && (io.MouseWheel != 0 || io.MouseWheelH != 0))
+        {
+            session.mouseWheel(io.MouseWheelH, io.MouseWheel);
+        }
+
+        // The frame rate, large over the corner, colored by how close it is to a smooth 60.
+        const fried::editor::GameStats &stats = frame.m_stats;
+        double now = ImGui::GetTime();
+        if (now - m_frameTimeSampledAt >= 0.5)
+        {
+            m_frameTimeSampledAt = now;
+            m_frameTimes.push_back((float)stats.m_frameMs);
+            if (m_frameTimes.size() > 60)
+            {
+                m_frameTimes.erase(m_frameTimes.begin());
+            }
+        }
+        ImVec4 tint = stats.m_fps >= 55.0 ? palette::leaf : stats.m_fps >= 30.0 ? palette::warning : palette::tomato;
+        ImFont *font = boldFont() ? boldFont() : ImGui::GetFont();
+        float bigSize = ImGui::GetFontSize() * 1.7f;
+        float pad = scaled(10);
+        char text[64];
+        float y = origin.y + pad;
+        auto line = [&](ImFont *useFont, float size, ImU32 color, const char *words) {
+            ImVec2 extent = useFont->CalcTextSizeA(size, FLT_MAX, 0.0f, words);
+            float x = origin.x + region.x - pad - extent.x;
+            draw->AddText(useFont, size, ImVec2(x + 1, y + 1), IM_COL32(0, 0, 0, 200), words);
+            draw->AddText(useFont, size, ImVec2(x, y), color, words);
+            y += extent.y + 2;
+        };
+        std::snprintf(text, sizeof(text), "%.0f FPS", stats.m_fps);
+        line(font, bigSize, ImGui::GetColorU32(tint), text);
+        std::snprintf(text, sizeof(text), "%.1f ms", stats.m_frameMs);
+        line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
+        if (m_isStatsShown)
+        {
+            std::snprintf(text, sizeof(text), "Update and draw %.2f ms", stats.m_workMs);
+            line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
+            std::snprintf(text, sizeof(text), "%d nodes", stats.m_nodes);
+            line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
+            std::snprintf(text, sizeof(text), "%d x %d", m_gameFrame.width(), m_gameFrame.height());
+            line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
+
+            // The last half minute, one bar for each half second, taller the longer the frame took.
+            float graphWidth = scaled(180);
+            float graphHeight = scaled(40);
+            float left = origin.x + region.x - pad - graphWidth;
+            draw->AddRectFilled(ImVec2(left, y), ImVec2(left + graphWidth, y + graphHeight), IM_COL32(0, 0, 0, 120));
+            float top = 1000.0f / 30.0f;
+            for (size_t index = 0; index < m_frameTimes.size(); ++index)
+            {
+                float height = std::min(m_frameTimes[index] / top, 1.0f) * graphHeight;
+                float x = left + graphWidth - (float)(m_frameTimes.size() - index) * (graphWidth / 60.0f);
+                draw->AddRectFilled(ImVec2(x, y + graphHeight - height), ImVec2(x + graphWidth / 60.0f - 1, y + graphHeight), ImGui::GetColorU32(palette::accentText));
+            }
+        }
+        if (!m_isGameFocused)
+        {
+            const char *hint = "Click the game to give it the keyboard";
+            ImVec2 extent = ImGui::CalcTextSize(hint);
+            draw->AddText(ImVec2(origin.x + (region.x - extent.x) / 2, origin.y + region.y - extent.y - pad), IM_COL32(150, 150, 160, 255), hint);
+        }
+        draw->PopClipRect();
     }
 
     void Panels::viewport()

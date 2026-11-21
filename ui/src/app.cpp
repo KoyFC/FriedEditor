@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <set>
 
 namespace editor_ui
 {
@@ -58,7 +59,8 @@ namespace editor_ui
             ImGui::DockBuilderDockWindow("Issues###Issues", bottom);
             ImGui::DockBuilderDockWindow("Assets", bottom);
             ImGui::DockBuilderDockWindow("Console###Console", bottom);
-            ImGui::DockBuilderDockWindow("Viewport", center);
+            ImGui::DockBuilderDockWindow("Scene###Viewport", center);
+            ImGui::DockBuilderDockWindow("Game###Game", center);
             ImGui::DockBuilderFinish(dockspace);
         }
 
@@ -180,6 +182,7 @@ namespace editor_ui
         bool isLayoutBuilt = false;
         bool isLayoutResetAsked = false;
         bool isViewportShown = true;
+        bool isGameShown = true;
         bool isHierarchyShown = true;
         bool isInspectorShown = true;
         bool isAssetsShown = true;
@@ -187,6 +190,8 @@ namespace editor_ui
         bool isIssuesShown = true;
         int startupFrame = 0;
         fried::editor::GameRunner::State previousGameState = editor.gameState();
+        bool wasPlaying = false;
+        std::set<int> heldGameKeys;
 
         while (isRunning)
         {
@@ -195,6 +200,31 @@ namespace editor_ui
             {
                 ImGui_ImplSDL2_ProcessEvent(&event);
                 pointer.handleEvent(event);
+                if (editor.isPlaying() && panels.isGameFocused() && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
+                {
+                    // The game has the keyboard while its window has the focus. Escape takes it back, and Shift+Escape is the game's own Escape. F5 stops the game.
+                    int code = event.key.keysym.scancode;
+                    bool isDown = event.type == SDL_KEYDOWN;
+                    if (code == SDL_SCANCODE_ESCAPE && !(event.key.keysym.mod & KMOD_SHIFT))
+                    {
+                        if (isDown)
+                        {
+                            panels.releaseGame();
+                        }
+                    }
+                    else if (code != SDL_SCANCODE_F5 && !event.key.repeat)
+                    {
+                        editor.gameSession().key(code, isDown);
+                        if (isDown)
+                        {
+                            heldGameKeys.insert(code);
+                        }
+                        else
+                        {
+                            heldGameKeys.erase(code);
+                        }
+                    }
+                }
                 if (event.type == SDL_KEYDOWN && (event.key.keysym.mod & KMOD_CTRL))
                 {
                     // By the character rather than the key, as "+" is a key of its own on some layouts.
@@ -238,6 +268,23 @@ namespace editor_ui
                 ImGui::SetWindowFocus("Console###Console");
             }
             previousGameState = gameState;
+            if (editor.isPlaying() && !wasPlaying)
+            {
+                ImGui::SetWindowFocus("Game###Game");
+            }
+            if (!editor.isPlaying() || !panels.isGameFocused())
+            {
+                // A key that was down when the keyboard went back to the editor would stay down in the game.
+                for (int code : heldGameKeys)
+                {
+                    if (editor.isPlaying())
+                    {
+                        editor.gameSession().key(code, false);
+                    }
+                }
+                heldGameKeys.clear();
+            }
+            wasPlaying = editor.isPlaying();
 
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplSDL2_NewFrame();
@@ -246,7 +293,19 @@ namespace editor_ui
             panels.setHeldMotion(pointer.takeHeldMotion());
 
             editor.setSnapHeld(io.KeyCtrl);
-            if (!io.WantTextInput)
+            if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F5, false))
+            {
+                if (editor.isPlaying() || editor.isStartingPlay())
+                {
+                    editor.stopPlay();
+                }
+                else
+                {
+                    editor.startPlay(io.KeyShift);
+                }
+            }
+            // The keys are the game's while it has the focus.
+            if (!io.WantTextInput && !(editor.isPlaying() && panels.isGameFocused()))
             {
                 bool isControl = io.KeyCtrl;
                 if (isControl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
@@ -277,7 +336,7 @@ namespace editor_ui
                 {
                     save(editor);
                 }
-                else if (ImGui::IsKeyPressed(ImGuiKey_F5, false))
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_B, false))
                 {
                     editor.buildAndRun();
                 }
@@ -339,14 +398,29 @@ namespace editor_ui
                         }
                         ImGui::EndMenu();
                     }
-                    if (ImGui::MenuItem("Play", "F5"))
+                    bool isPlaying = editor.isPlaying() || editor.isStartingPlay();
+                    if (ImGui::MenuItem("Play", "F5", false, !isPlaying))
+                    {
+                        editor.startPlay(false);
+                    }
+                    if (ImGui::MenuItem("Play from start scene", "Shift+F5", false, !isPlaying))
+                    {
+                        editor.startPlay(true);
+                    }
+                    if (ImGui::MenuItem("Stop", "F5", false, isPlaying))
+                    {
+                        editor.stopPlay();
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Build and run", "Ctrl+B", false, !isPlaying && editor.gameState() == fried::editor::GameRunner::State::Idle))
                     {
                         editor.buildAndRun();
                     }
-                    if (ImGui::MenuItem("Stop game", nullptr, false, editor.gameState() != fried::editor::GameRunner::State::Idle))
+                    if (ImGui::MenuItem("Stop built game", nullptr, false, editor.gameState() != fried::editor::GameRunner::State::Idle))
                     {
                         editor.stopGame();
                     }
+                    ImGui::Separator();
                     if (ImGui::MenuItem("Rebuild player"))
                     {
                         editor.rebuildPlayer();
@@ -394,7 +468,8 @@ namespace editor_ui
                 }
                 if (ImGui::BeginMenu("Window"))
                 {
-                    ImGui::MenuItem("Viewport", nullptr, &isViewportShown);
+                    ImGui::MenuItem("Scene", nullptr, &isViewportShown);
+                    ImGui::MenuItem("Game", nullptr, &isGameShown);
                     ImGui::MenuItem("Hierarchy", nullptr, &isHierarchyShown);
                     ImGui::MenuItem("Inspector", nullptr, &isInspectorShown);
                     ImGui::MenuItem("Assets", nullptr, &isAssetsShown);
@@ -450,7 +525,7 @@ namespace editor_ui
             if (isLayoutResetAsked)
             {
                 isLayoutResetAsked = false;
-                isViewportShown = isHierarchyShown = isInspectorShown = isAssetsShown = isConsoleShown = isIssuesShown = true;
+                isViewportShown = isGameShown = isHierarchyShown = isInspectorShown = isAssetsShown = isConsoleShown = isIssuesShown = true;
                 buildLayout(dockspace, ImGui::GetMainViewport()->Size);
             }
 
@@ -473,7 +548,19 @@ namespace editor_ui
                 }
                 ImGui::End();
             };
-            panel("Viewport", &isViewportShown, [&] { panels.viewport(); });
+            panel("Scene###Viewport", &isViewportShown, [&] { panels.viewport(); });
+            // A layout saved before the game had a window has no place for it, so it joins the scene.
+            if (ImGuiWindow *scene = ImGui::FindWindowByName("Scene###Viewport"); scene && scene->DockId)
+            {
+                ImGui::SetNextWindowDockID(scene->DockId, ImGuiCond_FirstUseEver);
+            }
+            panel("Game###Game", &isGameShown, [&] { panels.gameView(); });
+            // The game sends frames only while there is a window to show them in.
+            bool isGameDrawn = panels.takeGameDrawn();
+            if (editor.isPlaying())
+            {
+                editor.gameSession().setShowing(isGameDrawn);
+            }
             panel("Hierarchy", &isHierarchyShown, [&] { panels.hierarchy(); });
             panel("Inspector", &isInspectorShown, [&] { panels.inspector(); });
             panel("Assets", &isAssetsShown, [&] { panels.assets(); });

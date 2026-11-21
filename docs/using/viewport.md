@@ -1,6 +1,6 @@
-# The viewport
+# The scene view
 
-The viewport shows the scene without running it. Left click selects a node, and a press anywhere inside the selected node's box drags it, even where one of its children is drawn over it, the wheel zooms, and the right or middle button pans.
+The Scene tab shows the scene without running it, and the Game tab next to it is where [Play](play.md) runs the game. Left click selects a node, and a press anywhere inside the selected node's box drags it, even where one of its children is drawn over it, the wheel zooms, and the right or middle button pans.
 
 A scene that has a `Node3D` opens in 3D, and the toolbar's 2D and 3D switch between the two views. In 3D, left click selects the node whose box is nearest, the wheel moves the camera closer or farther, the middle button pans, and holding the right button makes the camera a free one: moving the pointer turns it about its own position and W, A, S and D fly it (E up, Q down, Shift faster). The selected node has an arrow for each of its x, y and z, along its parent's axes, and dragging one changes only that field in a single undo step; Rotate and Scale are for 2D, and a 3D node's rotation and scale are edited in the inspector. F turns the view to the selected node, the ground grid has the x axis in red and the z axis in blue, and each camera shows the edges of what it sees out to its far plane (the selected one in yellow).
 
