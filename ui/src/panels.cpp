@@ -712,6 +712,17 @@ namespace editor_ui
         {
             m_editor.setCameraToSelected();
         }
+        {
+            // The icon sits inside the field, so the text starts after it.
+            float room = Icons::size() + scaled(14);
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(room, ImGui::GetStyle().FramePadding.y));
+            ImGui::InputTextWithHint("##hierarchy-filter", "Search by name or type", &m_hierarchyFilter);
+            ImGui::PopStyleVar();
+            ImVec2 low = ImGui::GetItemRectMin();
+            ImVec2 high = ImGui::GetItemRectMax();
+            Icons::draw(ImGui::GetWindowDrawList(), Icon::Search, ImVec2(low.x + scaled(8), (low.y + high.y - Icons::size()) / 2), IM_COL32(255, 255, 255, 150));
+        }
         ImGui::Separator();
 
         // Which nodes are folded belongs to the scene, and is remembered with the view.
@@ -736,11 +747,43 @@ namespace editor_ui
 
         const std::vector<fried::editor::HierarchyRow> &rows = m_editor.hierarchy();
 
+        // The filter keeps the rows that match by name or type and the ones above them, so a match is seen in its place. The folds are ignored while it is on.
+        bool isFiltering = !m_hierarchyFilter.empty();
+        if (isFiltering && (m_filterKeyText != m_hierarchyFilter || m_filterKeyVersion != m_editor.document().version() || m_filterKeep.size() != rows.size()))
+        {
+            m_filterKeyText = m_hierarchyFilter;
+            m_filterKeyVersion = m_editor.document().version();
+            m_filterKeep.assign(rows.size(), 0);
+            std::vector<std::size_t> ancestors;
+            for (std::size_t position = 0; position < rows.size(); ++position)
+            {
+                const auto &row = rows[position];
+                ancestors.resize(std::min<std::size_t>(ancestors.size(), (std::size_t)row.m_depth));
+                ancestors.push_back(position);
+                if (containsIgnoringCase(row.m_name, m_hierarchyFilter) || containsIgnoringCase(row.m_type, m_hierarchyFilter))
+                {
+                    m_filterKeep[position] = 2;
+                    for (auto above = ancestors.rbegin() + 1; above != ancestors.rend() && m_filterKeep[*above] == 0; ++above)
+                    {
+                        m_filterKeep[*above] = 1;
+                    }
+                }
+            }
+        }
+
         // The rows under a collapsed node are left out before anything is drawn, and only the rows in view are drawn of the rest, so a scene of thousands of nodes costs what fits on the screen.
         m_visibleRows.clear();
         int hiddenBelowDepth = -1;
         for (std::size_t position = 0; position < rows.size(); ++position)
         {
+            if (isFiltering)
+            {
+                if (m_filterKeep[position] != 0)
+                {
+                    m_visibleRows.push_back(position);
+                }
+                continue;
+            }
             if (hiddenBelowDepth >= 0 && rows[position].m_depth > hiddenBelowDepth)
             {
                 continue;
@@ -751,6 +794,10 @@ namespace editor_ui
             {
                 hiddenBelowDepth = rows[position].m_depth;
             }
+        }
+        if (isFiltering && m_visibleRows.empty())
+        {
+            ImGui::TextDisabled("No node matches");
         }
 
         // Rows are as tall as a button and touch each other, so the stripes behind them tile.
@@ -792,7 +839,7 @@ namespace editor_ui
                 ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, rowPadding));
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0));
                 ImGui::Indent(indent);
-                ImGui::SetNextItemOpen(!m_collapsed.count(row.m_id));
+                ImGui::SetNextItemOpen(isFiltering || !m_collapsed.count(row.m_id));
                 bool isOpen = ImGui::TreeNodeEx(row.m_id.c_str(), flags, "%s", "");
                 ImGui::Unindent(indent);
                 ImGui::PopStyleVar(2);
@@ -806,12 +853,12 @@ namespace editor_ui
                     list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowPosition.x + scaled(2), top + rowHeight), ImGui::GetColorU32(palette::yolk));
                 }
                 Icons::draw(list, iconOf(row.m_type), ImVec2(contentX, top + (rowHeight - iconSize) / 2));
-                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(ImGuiCol_Text), row.m_name.c_str());
+                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::yolk : ImGui::GetStyleColorVec4(ImGuiCol_Text)), row.m_name.c_str());
                 if (row.m_isCamera)
                 {
                     Icons::draw(list, Icon::Camera2D, ImVec2(windowRight - iconSize - scaled(10), top + (rowHeight - iconSize) / 2), ImGui::GetColorU32(palette::yolk));
                 }
-                if (row.m_hasChildren)
+                if (row.m_hasChildren && !isFiltering)
                 {
                     if (isOpen)
                     {

@@ -94,6 +94,10 @@ namespace editor_ui
         std::unordered_set<std::string> m_collapsed;
         std::string m_collapsedScene;
         std::vector<std::size_t> m_visibleRows;
+        std::string m_hierarchyFilter;
+        std::vector<char> m_filterKeep;
+        std::string m_filterKeyText;
+        unsigned long m_filterKeyVersion = 0;
         std::map<std::string, Icon> m_typeIcons;
         std::size_t m_typeIconsSchema = 0;
         std::string m_renameId;
