@@ -287,6 +287,14 @@ namespace fried::editor
         }
     }
 
+    void PlayerSession::setPreview(bool isEnabled)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "setPreview"}, {"enabled", isEnabled}});
+        }
+    }
+
     void PlayerSession::resize(int width, int height)
     {
         if (m_channel)

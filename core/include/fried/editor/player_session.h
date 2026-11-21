@@ -101,7 +101,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 5;
+        static constexpr int s_protocol = 6;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);
@@ -132,6 +132,8 @@ namespace fried::editor
         void setEditorCamera3D(double x, double y, double z, double rotationX, double rotationY, double fieldOfView);
         // Which of the scene's two kinds of drawing the player shows, the flat nodes or the meshes.
         void setEditorView(bool is3D);
+        // Whether the player draws the scene as the game would, through the cameras the scene names, instead of through the editor's.
+        void setPreview(bool isEnabled);
         void resize(int width, int height);
         void render();
 

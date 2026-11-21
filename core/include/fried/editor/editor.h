@@ -279,6 +279,11 @@ namespace fried::editor
         // The size in pixels of the area the backend shows the frame in. The player draws frames of that size, so nothing is scaled and no pixel is drawn that is not seen. A change is sent once it has held still for a moment, so dragging a panel's edge does not resize the player on every step.
         void setViewSize(int width, int height);
 
+        // Asks for the scene as the game would show it, at the size of the game's display on the platform, which is what the Game tab shows while the game is not running. The Scene view and the preview share the one player, so only one of them is drawn at a time.
+        void setGamePreview(bool isWanted);
+        const Frame &previewFrame() const { return m_previewFrame; }
+        unsigned long long previewFrameSerial() const { return m_previewFrameSerial; }
+
         const Viewport &viewport() const { return m_viewport; }
         const Viewport3D &viewport3D() const { return m_viewport3D; }
 
@@ -422,6 +427,14 @@ namespace fried::editor
         GridSettings m_grid;
         bool m_isSnapHeld = false;
 
+        void wantSize(int width, int height);
+        bool m_isPreviewing = false;
+        bool m_isPreviewInFlight = false;
+        bool m_needsPreviewMode = false;
+        int m_sceneWidth = 0;
+        int m_sceneHeight = 0;
+        Frame m_previewFrame;
+        unsigned long long m_previewFrameSerial = 0;
         int m_wantedWidth = 0;
         int m_wantedHeight = 0;
         int m_requestedWidth = 0;

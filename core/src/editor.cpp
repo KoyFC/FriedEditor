@@ -236,6 +236,7 @@ namespace fried::editor
             chooseViewMode();
             m_needsLoad = true;
             m_needsCamera = true;
+            m_needsPreviewMode = true;
             m_needsRender = true;
             if (m_pendingPlay)
             {
@@ -246,6 +247,14 @@ namespace fried::editor
             changed();
         };
         m_session.m_onFrame = [this](const Frame &frame) {
+            m_isRenderInFlight = false;
+            if (m_isPreviewInFlight)
+            {
+                m_previewFrame = frame;
+                ++m_previewFrameSerial;
+                changed();
+                return;
+            }
             m_frame = frame;
             m_frameView = m_inFlightView;
             m_frameView.setFrameSize(frame.m_width, frame.m_height);
@@ -254,7 +263,6 @@ namespace fried::editor
             m_viewport3D.setFrameSize(frame.m_width, frame.m_height);
             ++m_frameSerial;
             m_viewport.setFrameSize(frame.m_width, frame.m_height);
-            m_isRenderInFlight = false;
             changed();
         };
         m_session.m_onError = [this](const std::string &message) {
@@ -411,6 +419,37 @@ namespace fried::editor
 
     void Editor::setViewSize(int width, int height)
     {
+        m_sceneWidth = width;
+        m_sceneHeight = height;
+        if (!m_isPreviewing)
+        {
+            wantSize(width, height);
+        }
+    }
+
+    void Editor::setGamePreview(bool isWanted)
+    {
+        if (isWanted == m_isPreviewing)
+        {
+            return;
+        }
+        m_isPreviewing = isWanted;
+        m_needsPreviewMode = true;
+        if (isWanted)
+        {
+            std::pair<int, int> display = m_project.logicalSize(m_platform);
+            wantSize(display.first, display.second);
+        }
+        else if (m_sceneWidth > 0)
+        {
+            wantSize(m_sceneWidth, m_sceneHeight);
+        }
+        m_needsRender = true;
+        changed();
+    }
+
+    void Editor::wantSize(int width, int height)
+    {
         width = std::clamp(width / 2 * 2, 160, 4096);
         height = std::clamp(height / 2 * 2, 120, 4096);
         if (width != m_wantedWidth || height != m_wantedHeight)
@@ -522,6 +561,11 @@ namespace fried::editor
             m_session.load(m_document.data(), logicalView.first, logicalView.second);
             m_needsRender = true;
         }
+        if (m_needsPreviewMode)
+        {
+            m_needsPreviewMode = false;
+            m_session.setPreview(m_isPreviewing);
+        }
         if (m_needsCamera)
         {
             m_needsCamera = false;
@@ -539,6 +583,7 @@ namespace fried::editor
             m_isRenderInFlight = true;
             m_inFlightView = m_sentView;
             m_inFlightView3D = m_sentView3D;
+            m_isPreviewInFlight = m_isPreviewing;
             m_session.render();
         }
     }
@@ -926,6 +971,11 @@ namespace fried::editor
     {
         m_platform = platform;
         m_needsLoad = true;
+        if (m_isPreviewing)
+        {
+            std::pair<int, int> display = m_project.logicalSize(m_platform);
+            wantSize(display.first, display.second);
+        }
         if (m_status == Status::Ready)
         {
             m_message = "Playing on " + platformLabel(m_platform);

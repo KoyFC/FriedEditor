@@ -692,6 +692,13 @@ namespace editor_ui
         return isDrawn;
     }
 
+    bool Panels::takeSceneDrawn()
+    {
+        bool isDrawn = m_isSceneDrawn;
+        m_isSceneDrawn = false;
+        return isDrawn;
+    }
+
     void Panels::releaseGame()
     {
         ImGui::SetWindowFocus("Scene###Viewport");
@@ -703,11 +710,31 @@ namespace editor_ui
         m_isGameDrawn = true;
         m_isGameFocused = ImGui::IsWindowFocused() && m_editor.isPlaying();
         const fried::editor::GameFrame &frame = m_editor.gameFrame();
-        if (m_uploadedGameSerial != m_editor.gameFrameSerial() && frame.m_width > 0 && frame.m_rgba.size() == (size_t)frame.m_width * frame.m_height * 4)
+        const bool isPlaying = m_editor.isPlaying();
+        if (isPlaying)
         {
-            m_gameFrame.upload(frame.m_rgba.data(), frame.m_width, frame.m_height);
-            m_uploadedGameSerial = m_editor.gameFrameSerial();
+            if ((m_isTextureThePreview || m_uploadedGameSerial != m_editor.gameFrameSerial()) && frame.m_width > 0
+                && frame.m_rgba.size() == (size_t)frame.m_width * frame.m_height * 4)
+            {
+                m_gameFrame.upload(frame.m_rgba.data(), frame.m_width, frame.m_height);
+                m_uploadedGameSerial = m_editor.gameFrameSerial();
+                m_isTextureThePreview = false;
+            }
         }
+        else
+        {
+            // Without the game running the tab shows the scene as the game would draw it, as Unity's does.
+            const fried::editor::Frame &preview = m_editor.previewFrame();
+            if ((!m_isTextureThePreview || m_uploadedPreviewSerial != m_editor.previewFrameSerial()) && preview.m_width > 0
+                && preview.m_rgba.size() == (size_t)preview.m_width * preview.m_height * 4)
+            {
+                m_gameFrame.upload(preview.m_rgba.data(), preview.m_width, preview.m_height);
+                m_uploadedPreviewSerial = m_editor.previewFrameSerial();
+                m_isTextureThePreview = true;
+            }
+        }
+        // What is on screen is the game's own frame only once it has sent one.
+        const bool isGameShown = isPlaying && !m_isTextureThePreview;
 
         ImGui::SetNextItemWidth(scaled(72));
         const char *scales[] = {"Fit", "1x", "2x", "3x"};
@@ -736,7 +763,7 @@ namespace editor_ui
         ImDrawList *draw = ImGui::GetWindowDrawList();
         draw->AddRectFilled(origin, ImVec2(origin.x + region.x, origin.y + region.y), IM_COL32(12, 12, 14, 255));
 
-        if (!m_editor.isPlaying() || m_gameFrame.isEmpty())
+        if (m_gameFrame.isEmpty())
         {
             m_frameTimes.clear();
             std::string message = m_editor.isStartingPlay() ? "Starting the game..." : "Press Play (F5) to run the game here";
@@ -752,6 +779,17 @@ namespace editor_ui
         draw->AddImage(m_gameFrame.id(), corner, end);
 
         // The game's own pixels are what it asks for, so the mouse is sent in them.
+        if (!isGameShown)
+        {
+            if (!isPlaying)
+            {
+                const char *hint = "Press Play (F5) to run the game";
+                ImVec2 extent = ImGui::CalcTextSize(hint);
+                draw->AddText(ImVec2(origin.x + (region.x - extent.x) / 2, origin.y + region.y - extent.y - scaled(10)), IM_COL32(150, 150, 160, 255), hint);
+            }
+            draw->PopClipRect();
+            return;
+        }
         fried::editor::GameSession &session = m_editor.gameSession();
         ImGuiIO &io = ImGui::GetIO();
         int gameX = (int)std::floor((io.MousePos.x - corner.x) / scale);
@@ -845,6 +883,7 @@ namespace editor_ui
 
     void Panels::viewport()
     {
+        m_isSceneDrawn = true;
         const fried::editor::Frame &frame = m_editor.frame();
         if (m_uploadedSerial != m_editor.frameSerial() && frame.m_rgba.size() == (size_t)frame.m_width * frame.m_height * 4)
         {

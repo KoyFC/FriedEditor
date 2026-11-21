@@ -191,6 +191,26 @@ namespace editor_ui
         int startupFrame = 0;
         fried::editor::GameRunner::State previousGameState = editor.gameState();
         bool wasPlaying = false;
+        std::string tabBeforePlay;
+        bool hasLeftGame = false;
+        int framesPlaying = 0;
+        // The name of the window whose tab is on show in the group of tabs that holds the named window, or empty when it is not in one.
+        auto foregroundTab = [](const char *name) -> std::string {
+            ImGuiWindow *window = ImGui::FindWindowByName(name);
+            if (!window || !window->DockNode || !window->DockNode->TabBar)
+            {
+                return std::string();
+            }
+            ImGuiID selected = window->DockNode->TabBar->SelectedTabId;
+            for (ImGuiWindow *other : window->DockNode->Windows)
+            {
+                if (other->TabId == selected)
+                {
+                    return other->Name;
+                }
+            }
+            return std::string();
+        };
         std::set<int> heldGameKeys;
 
         while (isRunning)
@@ -270,7 +290,31 @@ namespace editor_ui
             previousGameState = gameState;
             if (editor.isPlaying() && !wasPlaying)
             {
+                // The game comes to the front, remembering the tab it covered so that Stop can put it back.
+                std::string covered = foregroundTab("Game###Game");
+                tabBeforePlay = covered == "Game###Game" ? std::string() : covered;
+                hasLeftGame = false;
+                framesPlaying = 0;
                 ImGui::SetWindowFocus("Game###Game");
+            }
+            else if (editor.isPlaying() && ++framesPlaying > 3)
+            {
+                // Going to another panel while the game runs, which the toolbar's Stop does not count as, means Stop must not take that panel's place.
+                ImGuiWindow *focused = ImGui::GetCurrentContext()->NavWindow;
+                ImGuiWindow *root = focused ? focused->RootWindow : nullptr;
+                if (root && root->DockNode && std::string(root->Name) != "Game###Game")
+                {
+                    hasLeftGame = true;
+                }
+            }
+            else if (!editor.isPlaying() && wasPlaying)
+            {
+                // Only if the game is still the tab on show: whoever went to another tab meanwhile stays in it.
+                if (!hasLeftGame && !tabBeforePlay.empty() && foregroundTab("Game###Game") == "Game###Game")
+                {
+                    ImGui::SetWindowFocus(tabBeforePlay.c_str());
+                }
+                tabBeforePlay.clear();
             }
             if (!editor.isPlaying() || !panels.isGameFocused())
             {
@@ -557,10 +601,13 @@ namespace editor_ui
             panel("Game###Game", &isGameShown, [&] { panels.gameView(); });
             // The game sends frames only while there is a window to show them in.
             bool isGameDrawn = panels.takeGameDrawn();
+            bool isSceneDrawn = panels.takeSceneDrawn();
             if (editor.isPlaying())
             {
                 editor.gameSession().setShowing(isGameDrawn);
             }
+            // The one player draws either the scene or the game's preview, and the scene wins when both are on screen.
+            editor.setGamePreview(isGameDrawn && !isSceneDrawn && !editor.isPlaying());
             panel("Hierarchy", &isHierarchyShown, [&] { panels.hierarchy(); });
             panel("Inspector", &isInspectorShown, [&] { panels.inspector(); });
             panel("Assets", &isAssetsShown, [&] { panels.assets(); });

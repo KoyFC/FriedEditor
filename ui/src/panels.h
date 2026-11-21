@@ -32,6 +32,8 @@ namespace editor_ui
         bool isGameFocused() const { return m_isGameFocused; }
         // Whether the game's window was drawn since this was last asked, which is whether it is on screen for the game to send frames to.
         bool takeGameDrawn();
+        // The same for the scene view, which the game's preview and the scene take turns with.
+        bool takeSceneDrawn();
         // Gives the focus back to the scene, which is how the keyboard is taken back from the game.
         void releaseGame();
 
@@ -107,6 +109,9 @@ namespace editor_ui
         int m_gameScale = 0;
         bool m_isStatsShown = false;
         bool m_isGameDrawn = false;
+        bool m_isSceneDrawn = false;
+        bool m_isTextureThePreview = false;
+        unsigned long long m_uploadedPreviewSerial = 0;
         bool m_isGameFocused = false;
         bool m_isGameButtonDown[3] = {false, false, false};
         int m_gameMouseX = -1;
