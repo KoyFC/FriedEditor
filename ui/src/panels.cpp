@@ -2648,6 +2648,11 @@ namespace editor_ui
                 ImGui::TextUnformatted(name.c_str());
                 ImGui::PopTextWrapPos();
                 ImGui::EndGroup();
+                // The cell is covered by a button so it has an item of its own: it takes the click and the drag, and the context menu and the double click read it.
+                ImVec2 cellLow = ImGui::GetItemRectMin();
+                ImVec2 cellSize = ImGui::GetItemRectSize();
+                ImGui::SetCursorScreenPos(cellLow);
+                ImGui::InvisibleButton("##cell", cellSize);
                 isHovered = ImGui::IsItemHovered();
                 if (isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath()))
                 {
@@ -2660,8 +2665,7 @@ namespace editor_ui
             {
                 ImGui::SetTooltip("%s", reference.c_str());
             }
-            // A cell of the grid is a group with no item of its own, which a drag can only start from when it is allowed to have no ID.
-            if (!isFolder && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+            if (!isFolder && ImGui::BeginDragDropSource())
             {
                 ImGui::SetDragDropPayload(s_assetPayload, reference.c_str(), reference.size() + 1);
                 ImGui::TextUnformatted(name.c_str());
