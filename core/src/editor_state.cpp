@@ -105,14 +105,16 @@ namespace fried::editor
         std::ifstream file(path);
         if (path.empty() || !file)
         {
-            return "default";
+            return "godot";
         }
         Json state = Json::parse(file, nullptr, false);
         if (!state.is_object() || !state.contains("layout") || !state["layout"].is_string())
         {
-            return "default";
+            return "godot";
         }
-        return state["layout"].get<std::string>();
+        // The layout that was called Default is Unity's, so whoever chose it keeps it.
+        std::string layout = state["layout"].get<std::string>();
+        return layout == "default" ? "unity" : layout;
     }
 
     void EditorState::setLayout(const std::string &value)

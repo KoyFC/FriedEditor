@@ -106,3 +106,18 @@ TEST_CASE("the editor reopens the scene it had open, and shows the build while i
     second.stopGame();
     CHECK_FALSE(second.buildProgress().m_isVisible);
 }
+
+TEST_CASE("the layout is Godot's until one is chosen, and the layout once called Default is Unity's")
+{
+    StateFolder folder;
+    CHECK(EditorState::layout() == "godot");
+
+    EditorState::setLayout("2x3");
+    CHECK(EditorState::layout() == "2x3");
+
+    EditorState::setLayout("default");
+    CHECK(EditorState::layout() == "unity");
+
+    EditorState::setLayout("unity");
+    CHECK(EditorState::layout() == "unity");
+}

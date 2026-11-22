@@ -45,8 +45,25 @@ namespace editor_ui
 
         constexpr int s_scalePercents[] = {75, 100, 125, 150, 175, 200, 250, 300};
 
-        // The panels as an editor has them by default: the hierarchy on the left, the inspector on the right, the scene and the game in the middle, and the assets, console and issues underneath.
-        void buildDefaultLayout(ImGuiID dockspace)
+        // Godot's: the hierarchy over the assets on the left, the scene and the game in the middle with the console and the issues underneath, and the inspector on the right.
+        void buildGodotLayout(ImGuiID dockspace)
+        {
+            ImGuiID center = dockspace;
+            ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.23f, nullptr, &center);
+            ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.24f, nullptr, &center);
+            ImGuiID leftBottom = ImGui::DockBuilderSplitNode(left, ImGuiDir_Down, 0.42f, nullptr, &left);
+            ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, nullptr, &center);
+            ImGui::DockBuilderDockWindow("Hierarchy", left);
+            ImGui::DockBuilderDockWindow("Assets", leftBottom);
+            ImGui::DockBuilderDockWindow("Console###Console", bottom);
+            ImGui::DockBuilderDockWindow("Issues###Issues", bottom);
+            ImGui::DockBuilderDockWindow("Scene###Viewport", center);
+            ImGui::DockBuilderDockWindow("Game###Game", center);
+            ImGui::DockBuilderDockWindow("Inspector", right);
+        }
+
+        // Unity's default: the hierarchy on the left, the inspector on the right, the scene and the game in the middle, and the assets, console and issues underneath.
+        void buildUnityLayout(ImGuiID dockspace)
         {
             ImGuiID center = dockspace;
             ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.20f, nullptr, &center);
@@ -88,9 +105,13 @@ namespace editor_ui
             {
                 buildTwoByThreeLayout(dockspace);
             }
+            else if (layout == "unity")
+            {
+                buildUnityLayout(dockspace);
+            }
             else
             {
-                buildDefaultLayout(dockspace);
+                buildGodotLayout(dockspace);
             }
             ImGui::DockBuilderFinish(dockspace);
         }
@@ -614,7 +635,8 @@ namespace editor_ui
                                 isLayoutResetAsked = true;
                             }
                         };
-                        choose("Default", "default");
+                        choose("Godot Default", "godot");
+                        choose("Unity Default", "unity");
                         choose("2 by 3", "2x3");
                         ImGui::EndMenu();
                     }
