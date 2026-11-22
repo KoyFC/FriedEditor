@@ -109,6 +109,10 @@ namespace fried::editor
             send({{"type", "showGame"}, {"visible", m_isShowing}});
             send({{"type", "frameLimit"}, {"fps", m_frameLimit}, {"refresh", m_refreshRate}});
             send({{"type", "watch"}, {"selected", m_watchedId}, {"all", m_isWatchingAll}});
+            if (m_speed != 1.0)
+            {
+                send({{"type", "speed"}, {"scale", m_speed}});
+            }
             m_state = State::Running;
         }
         else if (type == "gameFrame")
@@ -193,6 +197,32 @@ namespace fried::editor
             {
                 send({{"type", "frameLimit"}, {"fps", fps}, {"refresh", refreshRate}});
             }
+        }
+    }
+
+    void GameSession::setPaused(bool isPaused)
+    {
+        m_isPaused = isPaused;
+        if (m_state == State::Running)
+        {
+            send({{"type", "pause"}, {"paused", isPaused}});
+        }
+    }
+
+    void GameSession::stepFrame()
+    {
+        if (m_state == State::Running && m_isPaused)
+        {
+            send({{"type", "step"}});
+        }
+    }
+
+    void GameSession::setSpeed(double scale)
+    {
+        m_speed = scale;
+        if (m_state == State::Running)
+        {
+            send({{"type", "speed"}, {"scale", scale}});
         }
     }
 

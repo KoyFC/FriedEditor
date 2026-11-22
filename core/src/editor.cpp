@@ -482,10 +482,39 @@ namespace fried::editor
             changed();
             return;
         }
+        m_play.setSpeed(m_playSpeed);
         m_commands->hold();
         m_isPlaying = true;
         m_gameFrame = GameFrame();
         m_message = "Playing the game";
+        changed();
+    }
+
+    void Editor::setPaused(bool isPaused)
+    {
+        if (m_isPlaying)
+        {
+            m_play.setPaused(isPaused);
+            m_message = isPaused ? "Paused the game" : "Playing the game";
+            changed();
+        }
+    }
+
+    void Editor::stepFrame()
+    {
+        if (m_isPlaying && m_play.isPaused())
+        {
+            m_play.stepFrame();
+        }
+    }
+
+    void Editor::setPlaySpeed(double scale)
+    {
+        m_playSpeed = scale;
+        if (m_isPlaying)
+        {
+            m_play.setSpeed(scale);
+        }
         changed();
     }
 

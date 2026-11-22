@@ -218,6 +218,13 @@ namespace fried::editor
         void startPlay(bool isFromStartScene);
         void stopPlay();
         bool isPlaying() const { return m_isPlaying; }
+
+        // While the game runs: pausing it, letting one frame through while it is paused, and how fast its time goes compared to real time, which the editor remembers from one run to the next.
+        bool isPaused() const { return m_isPlaying && m_play.isPaused(); }
+        void setPaused(bool isPaused);
+        void stepFrame();
+        double playSpeed() const { return m_playSpeed; }
+        void setPlaySpeed(double scale);
         // True from pressing Play until the game is on screen, which includes building the player.
         bool isStartingPlay() const { return m_pendingPlay.has_value() || (m_isPlaying && m_play.state() == GameSession::State::Waiting); }
         GameSession &gameSession() { return m_play; }
@@ -544,6 +551,7 @@ namespace fried::editor
         mutable unsigned long m_inspectorVersion = 0;
         mutable std::optional<std::string> m_inspectorSelected;
         mutable std::size_t m_inspectorSchemaSize = 0;
+        double m_playSpeed = 1.0;
         mutable std::vector<AssetEntry> m_assetsCache;
         mutable std::vector<std::string> m_directoriesCache;
         mutable std::chrono::steady_clock::time_point m_assetsAt;

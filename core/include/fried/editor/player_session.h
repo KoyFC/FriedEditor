@@ -104,7 +104,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 4;
+        static constexpr int s_protocol = 5;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);

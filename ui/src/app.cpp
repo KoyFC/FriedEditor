@@ -457,6 +457,14 @@ namespace editor_ui
                 {
                     panels.showQuickOpen();
                 }
+                else if (ImGui::IsKeyPressed(ImGuiKey_F7, false) && editor.isPlaying())
+                {
+                    editor.setPaused(!editor.isPaused());
+                }
+                else if (ImGui::IsKeyPressed(ImGuiKey_F10, false))
+                {
+                    editor.stepFrame();
+                }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_N, false))
                 {
                     panels.showNewScene();

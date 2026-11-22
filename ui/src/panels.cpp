@@ -449,7 +449,7 @@ namespace editor_ui
         bool isBuilding = game == GameRunner::State::Building;
         bool isPlaying = m_editor.isPlaying() || m_editor.isStartingPlay();
         float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
-        float playWidth = side * 2 + ImGui::GetStyle().ItemSpacing.x;
+        float playWidth = side * 4 + ImGui::GetStyle().ItemSpacing.x * 3;
         float middle = (ImGui::GetWindowWidth() - playWidth) / 2;
         ImGui::SameLine();
         ImGui::SetCursorPosX(std::max(middle, leftEnd + gap));
@@ -464,6 +464,51 @@ namespace editor_ui
             m_editor.startPlay(true);
         }
         ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!m_editor.isPlaying());
+        if (Icons::button("pause", Icon::Pause, m_editor.isPaused() ? "Resume the game (F7)" : "Pause the game (F7)", m_editor.isPaused()))
+        {
+            m_editor.setPaused(!m_editor.isPaused());
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!m_editor.isPaused());
+        if (Icons::button("next-frame", Icon::NextFrame, "Run one frame of the paused game (F10)"))
+        {
+            m_editor.stepFrame();
+        }
+        ImGui::EndDisabled();
+        if (m_editor.isPlaying())
+        {
+            // How fast the game's time goes compared to real time, from a sixteenth to sixteen times.
+            static const double s_speeds[] = {0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0};
+            static const char *s_speedNames[] = {"1/16x", "1/8x", "1/4x", "1/2x", "1x", "2x", "4x", "8x", "16x"};
+            int current = 4;
+            for (int index = 0; index < 9; ++index)
+            {
+                if (s_speeds[index] == m_editor.playSpeed())
+                {
+                    current = index;
+                }
+            }
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(scaled(70));
+            if (ImGui::BeginCombo("##play-speed", s_speedNames[current]))
+            {
+                for (int index = 0; index < 9; ++index)
+                {
+                    if (ImGui::Selectable(s_speedNames[index], index == current))
+                    {
+                        m_editor.setPlaySpeed(s_speeds[index]);
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("How fast the game's time goes, on top of its own time scale");
+            }
+        }
         if (isBuilding)
         {
             ImGui::SameLine();
