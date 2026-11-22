@@ -217,6 +217,7 @@ namespace editor_ui
         bool isRunning = true;
         bool isCloseAsked = false;
         bool isSettingsOpen = false;
+        bool isPlayerSettingsOpen = false;
         bool isLayoutBuilt = false;
         bool isLayoutResetAsked = false;
         std::string layout = fried::editor::EditorState::layout();
@@ -530,9 +531,9 @@ namespace editor_ui
                         editor.rebuildPlayer();
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Project Settings...", nullptr, isSettingsOpen))
+                    if (ImGui::MenuItem("Player Settings...", nullptr, isPlayerSettingsOpen))
                     {
-                        isSettingsOpen = !isSettingsOpen;
+                        isPlayerSettingsOpen = !isPlayerSettingsOpen;
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("Quit"))
@@ -567,6 +568,11 @@ namespace editor_ui
                     if (ImGui::MenuItem("Paste", "Ctrl+V"))
                     {
                         pasteNode(editor);
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Project Settings...", nullptr, isSettingsOpen))
+                    {
+                        isSettingsOpen = !isSettingsOpen;
                     }
                     ImGui::EndMenu();
                 }
@@ -713,6 +719,10 @@ namespace editor_ui
             if (isSettingsOpen)
             {
                 panels.projectSettings(&isSettingsOpen);
+            }
+            if (isPlayerSettingsOpen)
+            {
+                panels.playerSettings(&isPlayerSettingsOpen);
             }
             panels.buildWindow();
             panels.quickOpen();

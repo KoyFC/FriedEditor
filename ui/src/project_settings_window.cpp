@@ -39,14 +39,29 @@ namespace
 
 namespace editor_ui
 {
+    // What the game is, whatever it is built for: where it starts, how it draws and how often it steps.
     void Panels::projectSettings(bool *isOpen)
+    {
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(scaled(640), scaled(560)), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowClass(ownWindowClass());
+        if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
+        {
+            projectPage();
+        }
+        ImGui::End();
+    }
+
+    // What the builds are made of: the game's name and version, the platforms it is built for, and for each its icon, package text and build.
+    void Panels::playerSettings(bool *isOpen)
     {
         m_isSettingsShown = false;
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(scaled(820), scaled(600)), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowClass(ownWindowClass());
-        if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
+        if (ImGui::Begin("Player Settings", isOpen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
         {
             m_isSettingsShown = true;
             if (m_settingsPage > 0 && !m_editor.project().declares(fried::core::s_platforms[m_settingsPage - 1]))
@@ -62,7 +77,7 @@ namespace editor_ui
                 stripHeight = rows * ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().WindowPadding.y * 2 + ImGui::GetStyle().ItemSpacing.y;
             }
             ImGui::BeginChild("##pages", ImVec2(scaled(s_listBase), -stripHeight), ImGuiChildFlags_Borders);
-            if (ImGui::Selectable("Project", m_settingsPage == 0))
+            if (ImGui::Selectable("General", m_settingsPage == 0))
             {
                 m_settingsPage = 0;
             }
@@ -87,7 +102,7 @@ namespace editor_ui
             ImGui::BeginChild("##page", ImVec2(0, -stripHeight));
             if (m_settingsPage == 0)
             {
-                projectPage();
+                playerPage();
             }
             else
             {
@@ -132,7 +147,7 @@ namespace editor_ui
         }
     }
 
-    void Panels::projectPage()
+    void Panels::playerPage()
     {
         fried::editor::ProjectSettings &settings = m_editor.projectSettings();
         const fried::editor::Project &project = m_editor.project();
@@ -161,6 +176,15 @@ namespace editor_ui
             ImGui::TextWrapped("%s", platformProblem->second.c_str());
             ImGui::PopStyleColor();
         }
+
+        ImGui::Spacing();
+        ImGui::TextDisabled("Every change is saved to project.fried as it is made.");
+    }
+
+    void Panels::projectPage()
+    {
+        fried::editor::ProjectSettings &settings = m_editor.projectSettings();
+        const fried::editor::Project &project = m_editor.project();
 
         ImGui::SeparatorText("Start");
         row("Start scene");

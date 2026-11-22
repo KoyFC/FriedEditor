@@ -74,6 +74,7 @@ namespace editor_ui
 
         // The project's own settings and, for each platform, its icon, its packaging text and its build.
         void projectSettings(bool *isOpen);
+        void playerSettings(bool *isOpen);
 
         // A file dropped on the editor from outside it, which the settings window takes as an icon when it is open on a platform.
         void fileDropped(const std::string &file);
@@ -91,6 +92,7 @@ namespace editor_ui
         void vectorEditor(const std::string &label, const std::vector<const fried::editor::FieldView *> &axes);
         bool textField(const char *label, std::string *value);
         void projectPage();
+        void playerPage();
         void platformPage(fried::editor::Platform platform);
         void iconSection(fried::editor::Platform platform);
         void packagingSection(fried::editor::Platform platform);
