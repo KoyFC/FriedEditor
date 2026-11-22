@@ -921,6 +921,8 @@ namespace fried::editor
         m_selected.reset();
         chooseViewMode();
         m_needsLoad = true;
+        // The view the scene remembers is not the one the player has, so it is sent with the scene.
+        m_needsCamera = true;
         changed();
     }
 
