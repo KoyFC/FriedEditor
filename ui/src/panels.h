@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -67,6 +68,15 @@ namespace editor_ui
 
         // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets.
         void showQuickOpen() { m_isQuickOpenAsked = true; }
+
+        // Godot's Create New Node window: a search and the tree of the node classes, for a node under a parent, or for a node that changes class. It is drawn by createNodeDialog.
+        void showCreateNode(const std::optional<std::string> &parent);
+        void showChangeType(const std::string &id);
+        void createNodeDialog();
+
+        // A key that went down, by its SDL scancode, for the input map page to bind.
+        void noteKey(int scancode);
+        void inputMapPage();
 
         // Asks for a name and the class of the root node of a new scene. The question is drawn by newSceneDialog.
         void showNewScene() { m_isNewSceneAsked = true; }
@@ -133,7 +143,11 @@ namespace editor_ui
         int m_assetFilter = 0;
         std::string m_assetFolder;
         bool m_isAssetFolderLoaded = false;
-        bool m_isAssetList = false;
+        // How the Assets panel is laid out. Auto shows the folder tree beside the files, and the files as a grid, only when the panel is wide enough.
+        int m_assetColumns = 0;
+        int m_assetFileView = 0;
+        std::set<std::string> m_assetOpen;
+        bool m_isAssetOpenSet = false;
         float m_assetCell = 84;
         float m_assetTreeWidth = 190;
         std::vector<std::string> m_folders;
@@ -177,6 +191,12 @@ namespace editor_ui
         std::string m_consoleKeyText;
         int m_consoleKeyMask = 0;
         bool m_isQuickOpenAsked = false;
+        bool m_isCreateNodeAsked = false;
+        bool m_isChangingType = false;
+        std::optional<std::string> m_createParent;
+        std::string m_changeTypeId;
+        std::string m_createFilter;
+        std::string m_createChosen;
         bool m_isNewSceneAsked = false;
         std::string m_newSceneName;
         std::string m_newSceneType = "Node2D";
@@ -198,6 +218,23 @@ namespace editor_ui
         int m_settingsPage = 0;
         bool m_isSettingsShown = false;
         std::map<std::string, std::string> m_settingErrors;
+
+        // The input map page: the source being chosen, the key the person pressed to choose it, and the texts being typed.
+        struct InputPick
+        {
+            int m_map = 0;
+            int m_action = 0;
+            int m_binding = 0;
+            int m_part = 0;
+            std::string m_kind;
+        };
+        InputPick m_inputPick;
+        std::string m_inputPickFilter;
+        int m_inputKeyPressed = -1;
+        int m_inputMap = 0;
+        int m_inputAction = 0;
+        int m_inputBinding = -1;
+        std::map<ImGuiID, std::string> m_inputBuffers;
         std::string m_iconSource;
         std::vector<std::string> m_iconNotes;
         std::string m_iconError;

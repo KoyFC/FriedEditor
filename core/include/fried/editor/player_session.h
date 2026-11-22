@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fried/editor/input_map.h"
 #include "fried/editor/message_channel.h"
 #include "fried/editor/transport.h"
 
@@ -119,6 +120,9 @@ namespace fried::editor
         State state() const { return m_state; }
         const std::string &platform() const { return m_platform; }
         const std::vector<ClassSchema> &schema() const { return m_schema; }
+
+        // The names of keys, buttons and axes the engine writes input actions with, which arrive with the schema.
+        const InputNames &inputNames() const { return m_inputNames; }
         const ClassSchema *classNamed(const std::string &name) const;
 
         // The class and every class above it, the most derived first, which is the order an inspector shows them in.
@@ -156,5 +160,6 @@ namespace fried::editor
         State m_state = State::Waiting;
         std::string m_platform;
         std::vector<ClassSchema> m_schema;
+        InputNames m_inputNames;
     };
 }

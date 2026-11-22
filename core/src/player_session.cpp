@@ -120,6 +120,7 @@ namespace fried::editor
                 }
                 m_schema.push_back(std::move(schema));
             }
+            m_inputNames = InputNames::fromJson(header.contains("inputNames") ? header["inputNames"] : nlohmann::json());
             m_state = State::Ready;
             if (m_onReady)
             {

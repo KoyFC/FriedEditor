@@ -66,6 +66,9 @@ namespace fried::editor
         // How many frames a second the game is held to: 0 for as many as it can draw, or a negative number for the project's own rule, which follows the rate of the display when the project waits for vsync. The display's rate is what the editor is shown on.
         void setFrameLimit(int fps, int refreshRate);
 
+        // The input actions the game runs with, the `input` block of the project as the editor has it now. They go with `play`, and a change while the game runs replaces them in it, so no build is needed to try a binding.
+        void setInput(const nlohmann::json &block);
+
         // A paused game draws and listens to the editor but runs no update and no physics. A step lets one frame through while it is paused, and the speed is a factor on the game's own time scale.
         void setPaused(bool isPaused);
         void stepFrame();
@@ -107,6 +110,7 @@ namespace fried::editor
         bool m_isShowing = true;
         std::string m_watchedId;
         bool m_isWatchingAll = false;
+        nlohmann::json m_input;
         bool m_isPaused = false;
         double m_speed = 1.0;
         int m_frameLimit = -1;

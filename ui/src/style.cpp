@@ -83,7 +83,7 @@ namespace editor_ui
         style.TabCloseButtonMinWidthSelected = 0;
         style.TabCloseButtonMinWidthUnselected = 0;
         style.TabBarBorderSize = 0;
-        style.TabBarOverlineSize = 2;
+        style.TabBarOverlineSize = 3;
         style.SeparatorTextBorderSize = 1;
 
         using namespace palette;
@@ -126,10 +126,10 @@ namespace editor_ui
         colors[ImGuiCol_Border] = line;
         colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
         colors[ImGuiCol_TabHovered] = raised;
-        colors[ImGuiCol_TabSelected] = panel;
+        colors[ImGuiCol_TabSelected] = raisedHot;
         colors[ImGuiCol_TabSelectedOverline] = accentHot;
         colors[ImGuiCol_TabDimmed] = base;
-        colors[ImGuiCol_TabDimmedSelected] = panel;
+        colors[ImGuiCol_TabDimmedSelected] = raised;
         colors[ImGuiCol_TabDimmedSelectedOverline] = accent;
         colors[ImGuiCol_DockingPreview] = raisedHot;
         colors[ImGuiCol_DockingEmptyBg] = base;

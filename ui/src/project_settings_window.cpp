@@ -47,11 +47,24 @@ namespace editor_ui
     {
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(scaled(640), scaled(560)), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(scaled(760), scaled(600)), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowClass(ownWindowClass());
         if (ImGui::Begin("Project Settings", isOpen, ownWindowFlags("Project Settings")))
         {
-            projectPage();
+            if (ImGui::BeginTabBar("##project-settings-tabs"))
+            {
+                if (ImGui::BeginTabItem("General"))
+                {
+                    projectPage();
+                    ImGui::EndTabItem();
+                }
+                if (ImGui::BeginTabItem("Input Map"))
+                {
+                    inputMapPage();
+                    ImGui::EndTabItem();
+                }
+                ImGui::EndTabBar();
+            }
         }
         ImGui::End();
     }

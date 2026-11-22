@@ -11,6 +11,7 @@ add_library(fried_editor_core STATIC
     src/game_runner.cpp
     src/game_session.cpp
     src/gizmo.cpp
+    src/input_map.cpp
     src/log_tail.cpp
     src/message_channel.cpp
     src/player_builder.cpp

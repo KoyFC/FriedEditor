@@ -52,6 +52,7 @@ add_library(fried_editor_ui STATIC
     src/panels.h
     src/pointer.cpp
     src/project_settings_window.cpp
+    src/input_map_page.cpp
     src/pointer.h
     src/dialog_window.cpp
     src/style.cpp

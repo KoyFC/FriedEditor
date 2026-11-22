@@ -286,6 +286,10 @@ namespace editor_ui
             {
                 ImGui_ImplSDL2_ProcessEvent(&event);
                 pointer.handleEvent(event);
+                if (event.type == SDL_KEYDOWN && !event.key.repeat)
+                {
+                    panels.noteKey((int)event.key.keysym.scancode);
+                }
                 if (editor.isPlaying() && panels.isGameFocused() && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
                 {
                     // The game has the keyboard while its window has the focus. Escape takes it back, and Shift+Escape is the game's own Escape. F5 stops the game.
@@ -464,6 +468,10 @@ namespace editor_ui
                 else if (ImGui::IsKeyPressed(ImGuiKey_F10, false))
                 {
                     editor.stepFrame();
+                }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_A, false))
+                {
+                    panels.showCreateNode(editor.selected());
                 }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_N, false))
                 {
@@ -776,6 +784,7 @@ namespace editor_ui
             panels.quickOpen();
             panels.sceneChangeDialog();
             panels.newSceneDialog();
+            panels.createNodeDialog();
 
             if (isCloseAsked)
             {

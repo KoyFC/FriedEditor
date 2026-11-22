@@ -232,6 +232,10 @@ namespace fried::editor
     // The scene is laid out against the display, so a change to the project is a reason to lay it out again.
     void Editor::projectChanged()
     {
+        if (m_isPlaying)
+        {
+            m_play.setInput(m_project.inputBlock());
+        }
         m_needsLoad = true;
         changed();
     }
@@ -483,6 +487,7 @@ namespace fried::editor
             return;
         }
         m_play.setSpeed(m_playSpeed);
+        m_play.setInput(m_project.inputBlock());
         m_commands->hold();
         m_isPlaying = true;
         m_gameFrame = GameFrame();

@@ -204,6 +204,9 @@ namespace fried::editor
 
         // The project's own settings, which are saved as they are changed, and its builds for each platform.
         ProjectSettings &projectSettings() { return m_settings; }
+
+        // The names the engine writes input actions with, once its player has said them.
+        const InputNames &inputNames() const { return m_session.inputNames(); }
         ProjectBuild &projectBuild() { return m_projectBuild; }
 
         // Saves the scene and builds the project for a platform. False with the reason in error when it cannot, or while something else is being built.

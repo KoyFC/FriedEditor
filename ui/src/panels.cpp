@@ -1316,20 +1316,19 @@ namespace editor_ui
 
     void Panels::hierarchy()
     {
-        if (Icons::button("add", Icon::Add, "Add a node"))
+        if (Icons::button("add", Icon::Add, m_editor.selected() ? "Add a node under the selected one (Ctrl+A)" : "Add a node to the scene (Ctrl+A)"))
+        {
+            showCreateNode(m_editor.selected());
+        }
+        ImGui::SameLine();
+        if (Icons::button("instance", Icon::PackedScene, "Instance a scene as a child of the selected node"))
         {
             ImGui::OpenPopup("add-node");
         }
         if (ImGui::BeginPopup("add-node"))
         {
-            ImGui::TextDisabled(m_editor.selected() ? "Add under the selected node" : "Add to the scene");
-            classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, m_editor.selected()); });
-            ImGui::Separator();
-            if (ImGui::BeginMenu("Instance Scene"))
-            {
-                instanceMenu(m_editor.selected());
-                ImGui::EndMenu();
-            }
+            ImGui::TextDisabled(m_editor.selected() ? "Instance under the selected node" : "Instance in the scene");
+            instanceMenu(m_editor.selected());
             ImGui::EndPopup();
         }
         ImGui::SameLine();
@@ -1602,10 +1601,9 @@ namespace editor_ui
                 if (ImGui::BeginPopupContextItem(("node-menu-" + row.m_id).c_str()))
                 {
                     m_editor.select(row.m_id);
-                    if (ImGui::BeginMenu("Add Child"))
+                    if (ImGui::MenuItem("Add Child Node..."))
                     {
-                        classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, row.m_id); });
-                        ImGui::EndMenu();
+                        showCreateNode(row.m_id);
                     }
                     if (ImGui::BeginMenu("Instance Child Scene"))
                     {
@@ -1616,10 +1614,9 @@ namespace editor_ui
                     {
                         openSceneFile(m_editor.scenePathOf(row.m_instance));
                     }
-                    if (row.m_instance.empty() && ImGui::BeginMenu("Change Type"))
+                    if (row.m_instance.empty() && ImGui::MenuItem("Change Type..."))
                     {
-                        classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.changeType(row.m_id, type); });
-                        ImGui::EndMenu();
+                        showChangeType(row.m_id);
                     }
                     if (ImGui::MenuItem("Rename"))
                     {
@@ -2667,8 +2664,16 @@ namespace editor_ui
         float sliderWidth = scaled(80);
         float buttonSide = Icons::size() + style.FramePadding.y * 2;
         float controls = searchWidth + kindWidth + sliderWidth + buttonSide + style.ItemSpacing.x * 3;
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX() + scaled(12), ImGui::GetWindowWidth() - controls - style.WindowPadding.x));
+        // A panel too narrow for the breadcrumb and the controls side by side puts the controls on a line of their own.
+        if (ImGui::GetCursorPosX() + scaled(12) + controls + style.WindowPadding.x <= ImGui::GetWindowWidth())
+        {
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX() + scaled(12), ImGui::GetWindowWidth() - controls - style.WindowPadding.x));
+        }
+        else
+        {
+            searchWidth = std::max(scaled(80), ImGui::GetWindowWidth() - style.WindowPadding.x * 2 - kindWidth - sliderWidth - buttonSide - style.ItemSpacing.x * 3);
+        }
         ImGui::SetNextItemWidth(searchWidth);
         ImGui::InputTextWithHint("##asset-search", "Search", &m_assetSearch);
         ImGui::SameLine();
@@ -2696,15 +2701,40 @@ namespace editor_ui
             ImGui::SetTooltip("The size of the thumbnails");
         }
         ImGui::SameLine();
-        if (Icons::button("asset-list", Icon::FileList, "Show the files as a list", m_isAssetList))
+        if (Icons::button("asset-options", Icon::FileList, "How the panel is laid out"))
         {
-            m_isAssetList = !m_isAssetList;
+            ImGui::OpenPopup("asset-options");
+        }
+        if (ImGui::BeginPopup("asset-options"))
+        {
+            ImGui::TextDisabled("Folders");
+            ImGui::PushID("columns");
+            if (ImGui::RadioButton("Automatic", m_assetColumns == 0)) { m_assetColumns = 0; }
+            if (ImGui::RadioButton("Tree beside the files", m_assetColumns == 1)) { m_assetColumns = 1; }
+            if (ImGui::RadioButton("Files only", m_assetColumns == 2)) { m_assetColumns = 2; }
+            ImGui::PopID();
+            ImGui::Separator();
+            ImGui::TextDisabled("Files");
+            ImGui::PushID("view");
+            if (ImGui::RadioButton("Automatic", m_assetFileView == 0)) { m_assetFileView = 0; }
+            if (ImGui::RadioButton("Grid", m_assetFileView == 1)) { m_assetFileView = 1; }
+            if (ImGui::RadioButton("List", m_assetFileView == 2)) { m_assetFileView = 2; }
+            ImGui::PopID();
+            ImGui::EndPopup();
         }
         ImGui::Separator();
 
+        // A narrow panel has no room for two columns, so it shows the files as a list under the breadcrumb unless the person chose otherwise.
+        const bool isWide = ImGui::GetWindowWidth() >= scaled(620);
+        const bool hasTree = m_assetColumns == 1 || (m_assetColumns == 0 && isWide);
+        bool isList = m_assetFileView == 2 || (m_assetFileView == 0 && !isWide);
+
         // The folders on the left, and what is in the one chosen on the right.
         ImVec2 available = ImGui::GetContentRegionAvail();
+        if (hasTree)
+        {
         ImGui::BeginChild("##asset-tree", ImVec2(scaled(m_assetTreeWidth), available.y), ImGuiChildFlags_None);
+        }
         std::function<void(const std::string &)> folderNode = [&](const std::string &folder) {
             std::vector<std::string> children = fried::editor::childFolders(m_folders, folder);
             ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
@@ -2738,33 +2768,79 @@ namespace editor_ui
                 ImGui::TreePop();
             }
         };
-        for (const std::string &root : fried::editor::childFolders(m_folders, ""))
+        if (hasTree)
         {
-            folderNode(root);
-        }
-        ImGui::EndChild();
+            for (const std::string &root : fried::editor::childFolders(m_folders, ""))
+            {
+                folderNode(root);
+            }
+            ImGui::EndChild();
 
-        ImGui::SameLine(0, 0);
-        ImGui::InvisibleButton("##asset-split", ImVec2(scaled(5), available.y));
-        if (ImGui::IsItemHovered() || ImGui::IsItemActive())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+            ImGui::SameLine(0, 0);
+            ImGui::InvisibleButton("##asset-split", ImVec2(scaled(5), available.y));
+            if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+            {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+            }
+            if (ImGui::IsItemActive())
+            {
+                m_assetTreeWidth = std::clamp(m_assetTreeWidth + ImGui::GetIO().MouseDelta.x / uiScale(), 100.0f, 400.0f);
+            }
+            ImGui::SameLine(0, 0);
         }
-        if (ImGui::IsItemActive())
-        {
-            m_assetTreeWidth = std::clamp(m_assetTreeWidth + ImGui::GetIO().MouseDelta.x / uiScale(), 100.0f, 400.0f);
-        }
-        ImGui::SameLine(0, 0);
 
         // What the content shows: the folders in the one chosen and the files that pass the filter, or, with a search, every file below it that matches.
         struct Item
         {
             std::string m_folder;
             const fried::editor::AssetEntry *m_entry = nullptr;
+            int m_depth = 0;
+            bool m_isOpen = false;
+            bool m_hasChildren = false;
         };
         std::vector<Item> items;
         bool isSearching = !m_assetSearch.empty();
-        if (!isSearching && m_assetFilter == 0)
+
+        // With no room for the folder tree beside the files, the files are shown in one tree, as Godot's FileSystem does: each folder opens to its folders and its files.
+        const bool isTree = !hasTree && !isSearching && m_assetFilter == 0;
+        if (isTree)
+        {
+            isList = true;
+            if (!m_isAssetOpenSet)
+            {
+                m_isAssetOpenSet = true;
+                m_assetOpen.insert("game");
+            }
+            std::function<void(const std::string &, int)> walk = [&](const std::string &folder, int depth) {
+                std::vector<std::string> children = fried::editor::childFolders(m_folders, folder);
+                std::vector<const fried::editor::AssetEntry *> files;
+                for (const fried::editor::AssetEntry &entry : entries)
+                {
+                    if (fried::editor::assetFolderOf(entry) == folder)
+                    {
+                        files.push_back(&entry);
+                    }
+                }
+                bool isOpen = m_assetOpen.count(folder) > 0;
+                items.push_back({folder, nullptr, depth, isOpen, !children.empty() || !files.empty()});
+                if (isOpen)
+                {
+                    for (const std::string &child : children)
+                    {
+                        walk(child, depth + 1);
+                    }
+                    for (const fried::editor::AssetEntry *file : files)
+                    {
+                        items.push_back({std::string(), file, depth + 1, false, false});
+                    }
+                }
+            };
+            for (const std::string &root : fried::editor::childFolders(m_folders, ""))
+            {
+                walk(root, 0);
+            }
+        }
+        else if (!isSearching && m_assetFilter == 0)
         {
             for (const std::string &folder : fried::editor::childFolders(m_folders, m_assetFolder))
             {
@@ -2773,6 +2849,10 @@ namespace editor_ui
         }
         for (const fried::editor::AssetEntry &entry : entries)
         {
+            if (isTree)
+            {
+                break;
+            }
             if (m_assetFilter != 0 && entry.m_kind != kinds[m_assetFilter])
             {
                 continue;
@@ -2804,7 +2884,7 @@ namespace editor_ui
             bool isFolder = item.m_entry == nullptr;
             std::string reference = isFolder ? item.m_folder : item.m_entry->reference();
             std::string name = reference.substr(reference.rfind('/') == std::string::npos ? 0 : reference.rfind('/') + 1);
-            if (!m_isAssetList && placed++ % columns != 0)
+            if (!isList && placed++ % columns != 0)
             {
                 ImGui::SameLine();
             }
@@ -2813,7 +2893,7 @@ namespace editor_ui
             bool isHovered = false;
             bool isScene = !isFolder && item.m_entry->m_kind == AssetKind::Scene;
             ImDrawList *list = ImGui::GetWindowDrawList();
-            if (m_isAssetList)
+            if (isList)
             {
                 ImVec2 row = ImGui::GetCursorScreenPos();
                 ImGui::Selectable("##row", !isFolder && isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath()), ImGuiSelectableFlags_AllowDoubleClick);
@@ -2825,8 +2905,38 @@ namespace editor_ui
                             : isScene                                  ? Icon::PackedScene
                                                                        : Icon::File;
                 float centre = row.y + ImGui::GetItemRectSize().y / 2;
-                Icons::draw(list, icon, ImVec2(row.x + scaled(4), centre - Icons::size() / 2), ImGui::GetColorU32(isFolder ? palette::accentText : palette::white));
-                list->AddText(ImVec2(row.x + Icons::size() + scaled(12), centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+                float indent = isTree ? item.m_depth * scaled(16) + scaled(16) : 0;
+                if (isTree && isFolder)
+                {
+                    float arrow = row.x + indent - scaled(10);
+                    ImU32 arrowColor = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+                    float side = scaled(4);
+                    if (item.m_hasChildren)
+                    {
+                        if (item.m_isOpen)
+                        {
+                            list->AddTriangleFilled(ImVec2(arrow - side, centre - side / 2), ImVec2(arrow + side, centre - side / 2), ImVec2(arrow, centre + side), arrowColor);
+                        }
+                        else
+                        {
+                            list->AddTriangleFilled(ImVec2(arrow - side / 2, centre - side), ImVec2(arrow - side / 2, centre + side), ImVec2(arrow + side, centre), arrowColor);
+                        }
+                    }
+                    if (ImGui::IsItemClicked(0))
+                    {
+                        if (item.m_isOpen)
+                        {
+                            m_assetOpen.erase(item.m_folder);
+                        }
+                        else
+                        {
+                            m_assetOpen.insert(item.m_folder);
+                        }
+                        m_assetFolder = item.m_folder;
+                    }
+                }
+                Icons::draw(list, icon, ImVec2(row.x + scaled(4) + indent, centre - Icons::size() / 2), ImGui::GetColorU32(isFolder ? palette::accentText : palette::white));
+                list->AddText(ImVec2(row.x + Icons::size() + scaled(12) + indent, centre - ImGui::GetFontSize() / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
                 if (isSearching && !isFolder)
                 {
                     float x = row.x + Icons::size() + scaled(24) + ImGui::CalcTextSize(name.c_str()).x;
@@ -2963,9 +3073,12 @@ namespace editor_ui
             {
                 if (isFolder)
                 {
-                    enterAssetFolder(item.m_folder);
-                    ImGui::PopID();
-                    break;
+                    if (!isTree)
+                    {
+                        enterAssetFolder(item.m_folder);
+                        ImGui::PopID();
+                        break;
+                    }
                 }
                 else if (isScene)
                 {
@@ -3014,6 +3127,155 @@ namespace editor_ui
         }
         m_pendingScene = path;
         m_isSceneChangeAsked = true;
+    }
+
+    void Panels::showCreateNode(const std::optional<std::string> &parent)
+    {
+        m_isCreateNodeAsked = true;
+        m_isChangingType = false;
+        m_createParent = parent;
+    }
+
+    void Panels::showChangeType(const std::string &id)
+    {
+        m_isCreateNodeAsked = true;
+        m_isChangingType = true;
+        m_changeTypeId = id;
+    }
+
+    void Panels::createNodeDialog()
+    {
+        if (m_isCreateNodeAsked)
+        {
+            m_isCreateNodeAsked = false;
+            m_createFilter.clear();
+            m_createChosen = m_isChangingType ? m_editor.document().typeOf(m_changeTypeId) : std::string("Node");
+            ImGui::OpenPopup("Create New Node");
+        }
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(scaled(520), scaled(560)), ImGuiCond_Appearing);
+        if (!ImGui::BeginPopupModal("Create New Node", nullptr, ImGuiWindowFlags_NoSavedSettings))
+        {
+            return;
+        }
+        const std::vector<fried::editor::ClassSchema> &classes = m_editor.classes();
+        bool isCreating = false;
+        if (m_isChangingType)
+        {
+            ImGui::TextDisabled("Change the class of %s", m_changeTypeId.c_str());
+        }
+        else
+        {
+            ImGui::TextDisabled(m_createParent ? "Create a node under %s" : "Create a node in the scene", m_createParent ? m_createParent->c_str() : "");
+        }
+        if (ImGui::IsWindowAppearing())
+        {
+            ImGui::SetKeyboardFocusHere();
+        }
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        ImGui::InputTextWithHint("##create-filter", "Search nodes", &m_createFilter);
+
+        ImGui::BeginChild("##create-classes", ImVec2(0, -scaled(38)), ImGuiChildFlags_Borders);
+        const bool isFiltering = !m_createFilter.empty();
+        auto row = [&](const std::string &name, bool isLeaf, const std::string &note) {
+            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_DefaultOpen;
+            flags |= isLeaf ? ImGuiTreeNodeFlags_Leaf : 0;
+            flags |= name == m_createChosen ? ImGuiTreeNodeFlags_Selected : 0;
+            ImGui::PushStyleColor(ImGuiCol_Header, palette::accentAt(0.45f));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1, 1, 1, 0.07f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, scaled(3)));
+            bool isOpen = ImGui::TreeNodeEx(name.c_str(), flags, "%s", "");
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(2);
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+            {
+                m_createChosen = name;
+            }
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+            {
+                m_createChosen = name;
+                isCreating = true;
+            }
+            ImVec2 low = ImGui::GetItemRectMin();
+            ImVec2 high = ImGui::GetItemRectMax();
+            float x = low.x + ImGui::GetTreeNodeToLabelSpacing();
+            ImDrawList *list = ImGui::GetWindowDrawList();
+            Icons::draw(list, iconOf(name), ImVec2(x, (low.y + high.y - Icons::size()) / 2));
+            float textX = x + Icons::size() + scaled(6);
+            list->AddText(ImVec2(textX, (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+            if (!note.empty())
+            {
+                list->AddText(ImVec2(textX + ImGui::CalcTextSize(name.c_str()).x + scaled(8), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_TextDisabled),
+                              note.c_str());
+            }
+            return isOpen;
+        };
+        if (isFiltering)
+        {
+            // A search is a flat list, each class with the one it extends.
+            for (const fried::editor::ClassSchema &schema : classes)
+            {
+                if (containsIgnoringCase(schema.m_name, m_createFilter))
+                {
+                    if (row(schema.m_name, true, schema.m_parent.empty() ? std::string() : "extends " + schema.m_parent))
+                    {
+                        ImGui::TreePop();
+                    }
+                }
+            }
+        }
+        else
+        {
+            std::function<void(const std::string &)> tree = [&](const std::string &parent) {
+                for (const fried::editor::ClassSchema &schema : classes)
+                {
+                    if (schema.m_parent != parent)
+                    {
+                        continue;
+                    }
+                    bool hasSubclasses = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &other) { return other.m_parent == schema.m_name; });
+                    if (row(schema.m_name, !hasSubclasses, std::string()))
+                    {
+                        tree(schema.m_name);
+                        ImGui::TreePop();
+                    }
+                }
+            };
+            tree("");
+        }
+        ImGui::EndChild();
+
+        bool isKnown = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &schema) { return schema.m_name == m_createChosen; });
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled("%s", isKnown ? m_createChosen.c_str() : "Nothing chosen");
+        float buttons = scaled(170);
+        ImGui::SameLine(ImGui::GetWindowWidth() - buttons - ImGui::GetStyle().WindowPadding.x);
+        ImGui::BeginDisabled(!isKnown);
+        if (ImGui::Button(m_isChangingType ? "Change" : "Create", ImVec2(scaled(80), 0)) || (isKnown && ImGui::IsKeyPressed(ImGuiKey_Enter)))
+        {
+            isCreating = true;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        bool isCancelled = ImGui::Button("Cancel", ImVec2(scaled(80), 0)) || ImGui::IsKeyPressed(ImGuiKey_Escape);
+        if (isCreating && isKnown)
+        {
+            if (m_isChangingType)
+            {
+                m_editor.changeType(m_changeTypeId, m_createChosen);
+            }
+            else
+            {
+                m_editor.addNode(m_createChosen, m_createParent);
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        else if (isCancelled)
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 
     void Panels::newSceneDialog()

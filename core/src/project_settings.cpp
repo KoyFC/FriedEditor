@@ -129,6 +129,12 @@ namespace fried::editor
         return apply(problem, [&](Project &project) { project.setAutoloads(scenes); });
     }
 
+    std::string ProjectSettings::setInputBlock(const nlohmann::json &block, const InputNames &names)
+    {
+        std::vector<std::string> problems = checkInputBlock(block, names);
+        return apply(problems.empty() ? std::string() : problems.front(), [&](Project &project) { project.setInputBlock(block); });
+    }
+
     std::string ProjectSettings::setVitaTitleId(const std::string &value)
     {
         return apply(named("The title ID", Project::checkVitaTitleId(value)), [&](Project &project) { project.setVitaTitleId(value); });

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fried/editor/core_types.h"
+#include "fried/editor/input_map.h"
 #include "fried/editor/core_types.h"
 
 #include "fried/core/build.h"
@@ -41,6 +42,9 @@ namespace fried::editor
 
         // What the game loads once at startup and keeps, in order. Each is a node class of the project or one of its scenes, and none can be listed twice.
         std::string setAutoloads(const std::vector<std::string> &names);
+
+        // The input actions of the game, the `input` block as a whole. It is checked with the names the engine reports and refused with the first thing that is wrong.
+        std::string setInputBlock(const nlohmann::json &block, const InputNames &names);
 
         // The node classes the project itself has, which the editor fills in from the player. A scene of the project or a class from this list can be an autoload.
         std::function<std::vector<std::string>()> m_projectClasses;

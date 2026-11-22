@@ -105,7 +105,12 @@ namespace fried::editor
                 }
                 return;
             }
-            send({{"type", "play"}, {"name", m_sceneName}, {"scene", m_scene}, {"fromStart", m_isFromStartScene}});
+            nlohmann::json play = {{"type", "play"}, {"name", m_sceneName}, {"scene", m_scene}, {"fromStart", m_isFromStartScene}};
+            if (m_input.is_object() && !m_input.empty())
+            {
+                play["input"] = m_input;
+            }
+            send(play);
             send({{"type", "showGame"}, {"visible", m_isShowing}});
             send({{"type", "frameLimit"}, {"fps", m_frameLimit}, {"refresh", m_refreshRate}});
             send({{"type", "watch"}, {"selected", m_watchedId}, {"all", m_isWatchingAll}});
@@ -197,6 +202,15 @@ namespace fried::editor
             {
                 send({{"type", "frameLimit"}, {"fps", fps}, {"refresh", refreshRate}});
             }
+        }
+    }
+
+    void GameSession::setInput(const nlohmann::json &block)
+    {
+        m_input = block;
+        if (m_state == State::Running)
+        {
+            send({{"type", "inputMap"}, {"input", block.is_object() ? block : nlohmann::json::object()}});
         }
     }
 
