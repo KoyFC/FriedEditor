@@ -362,7 +362,7 @@ namespace editor_ui
         };
         bool isFirst = true;
         for (const Mode &mode : {Mode{"move", Icon::ToolMove, "Move (W)", GizmoMode::Move}, Mode{"rotate", Icon::ToolRotate, "Rotate (E)", GizmoMode::Rotate},
-                                 Mode{"scale", Icon::ToolScale, "Scale (R)", GizmoMode::Scale}})
+                                 Mode{"scale", Icon::ToolScale, "Scale (T)", GizmoMode::Scale}})
         {
             bool isDisabled = !is2D && mode.m_mode != GizmoMode::Move;
             if (isDisabled)
@@ -1128,7 +1128,73 @@ namespace editor_ui
         double frameX = (mouse.x - corner.x) / scale;
         double frameY = (mouse.y - corner.y) / scale;
 
-        if (isHovered)
+        ImGuiIO &modalIo = ImGui::GetIO();
+        bool isModalFrame = m_editor.isModal();
+        if (!isModalFrame && isTwoD && isHovered && m_dragKind == 0 && !modalIo.WantTextInput && !modalIo.KeyCtrl && !modalIo.KeyAlt && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_G, false))
+            {
+                m_editor.beginModal(Editor::Modal::Move, frameX, frameY);
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+            {
+                m_editor.beginModal(Editor::Modal::Rotate, frameX, frameY);
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_S, false))
+            {
+                m_editor.beginModal(Editor::Modal::Scale, frameX, frameY);
+            }
+            isModalFrame = m_editor.isModal();
+        }
+        else if (isModalFrame)
+        {
+            m_editor.modalMove(frameX, frameY);
+            if (ImGui::IsKeyPressed(ImGuiKey_X, false))
+            {
+                m_editor.modalAxis('x');
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Y, false))
+            {
+                m_editor.modalAxis('y');
+            }
+            for (int digit = 0; digit <= 9; ++digit)
+            {
+                if (ImGui::IsKeyPressed((ImGuiKey)(ImGuiKey_0 + digit)) || ImGui::IsKeyPressed((ImGuiKey)(ImGuiKey_Keypad0 + digit)))
+                {
+                    m_editor.modalType((char)('0' + digit));
+                }
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract))
+            {
+                m_editor.modalType('-');
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Period) || ImGui::IsKeyPressed(ImGuiKey_KeypadDecimal))
+            {
+                m_editor.modalType('.');
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
+            {
+                m_editor.modalBackspace();
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) || ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                m_editor.confirmModal();
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            {
+                m_editor.cancelModal();
+            }
+        }
+        if (m_editor.isModal() || isModalFrame)
+        {
+            std::string text = m_editor.modalText();
+            if (!text.empty())
+            {
+                draw->AddText(ImVec2(corner.x + scaled(10), end.y - scaled(26)), IM_COL32(255, 220, 120, 255), text.c_str());
+            }
+        }
+
+        if (isHovered && !isModalFrame)
         {
             for (int button : {0, 1, 2})
             {

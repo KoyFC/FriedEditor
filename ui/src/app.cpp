@@ -434,7 +434,7 @@ namespace editor_ui
                 }
             }
             // The keys are the game's while it has the focus.
-            if (!io.WantTextInput && !(editor.isPlaying() && panels.isGameFocused()))
+            if (!io.WantTextInput && !editor.isModal() && !(editor.isPlaying() && panels.isGameFocused()))
             {
                 bool isControl = io.KeyCtrl;
                 if (isControl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
@@ -500,7 +500,7 @@ namespace editor_ui
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Rotate);
                 }
-                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_R, false))
+                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_T, false))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Scale);
                 }

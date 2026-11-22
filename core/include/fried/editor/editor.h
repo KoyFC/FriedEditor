@@ -416,6 +416,33 @@ namespace fried::editor
         };
         PointerTarget pointerTarget(double frameX, double frameY) const;
 
+        // A change of the selected node's transform that follows the pointer without a button held, as Blender's G, R and S keys do.
+        enum class Modal
+        {
+            Move,
+            Rotate,
+            Scale
+        };
+
+        // Starts one at a point of the frame. Only in the 2D view, with a node selected that is not locked.
+        bool beginModal(Modal kind, double frameX, double frameY);
+        bool isModal() const { return m_modal.has_value(); }
+
+        // Limits the change to one axis, "x" or "y", and frees it when it is asked for again.
+        void modalAxis(char axis);
+
+        // Types a number that replaces the pointer: pixels for a move, degrees for a rotation, a factor for a scale.
+        void modalType(char character);
+        void modalBackspace();
+        void modalMove(double frameX, double frameY);
+        void confirmModal();
+
+        // Puts the node back as it was and leaves nothing to undo or redo.
+        void cancelModal();
+
+        // What the change in progress is, as "Move X: 12", for the status line.
+        std::string modalText() const;
+
         // Whether a point is inside the selected node's box, whatever is drawn over it.
         bool isOverSelected(double frameX, double frameY) const;
 
@@ -602,5 +629,23 @@ namespace fried::editor
             std::optional<AxisHandle> m_axisHandle;
             double m_startValue = 0;
         } m_drag;
+
+        struct ModalState
+        {
+            Modal m_kind = Modal::Move;
+            char m_axis = 0;
+            std::string m_typed;
+            std::string m_id;
+            TransformValues m_start;
+            double m_startFrameX = 0;
+            double m_startFrameY = 0;
+            double m_originFrameX = 0;
+            double m_originFrameY = 0;
+            double m_frameX = 0;
+            double m_frameY = 0;
+        };
+        std::optional<ModalState> m_modal;
+
+        void applyModal();
     };
 }

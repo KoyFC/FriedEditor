@@ -43,6 +43,16 @@ namespace fried::editor
         }
     }
 
+    void CommandStack::undoAndForget()
+    {
+        if (canUndo())
+        {
+            m_commands[--m_position]->revert(m_document);
+            m_commands.resize(m_position);
+            notify();
+        }
+    }
+
     void CommandStack::redo()
     {
         if (canRedo())

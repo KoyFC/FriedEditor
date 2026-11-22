@@ -797,3 +797,64 @@ TEST_CASE("the root node cannot be deleted, duplicated or moved, and what has no
     REQUIRE(editor.paste(""));
     CHECK(editor.document().parentOf(*editor.selected()) == root);
 }
+
+TEST_CASE("G, R and S change the selected node with the pointer or a typed number, and cancelling leaves no trace" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+    pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 3; });
+    REQUIRE(editor.frame().m_bounds.size() == 3);
+
+    const Viewport &view = editor.viewport();
+    editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
+    editor.pointerUp();
+    REQUIRE(editor.selected() == std::optional<std::string>("sprite"));
+    REQUIRE(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+
+    double startX = view.worldToFrameX(320);
+    double startY = view.worldToFrameY(200);
+
+    // Moving follows the pointer, and an axis holds the other one still.
+    REQUIRE(editor.beginModal(Editor::Modal::Move, startX, startY));
+    editor.modalAxis('x');
+    editor.modalMove(startX + 30 * view.zoom(), startY + 50 * view.zoom());
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(318));
+    CHECK(editor.document().nodeField("sprite", "y") == nlohmann::json(160));
+    CHECK(editor.modalText() == "Move X");
+    editor.confirmModal();
+    CHECK_FALSE(editor.isModal());
+    editor.commands().undo();
+    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+
+    // A typed number replaces the pointer.
+    REQUIRE(editor.beginModal(Editor::Modal::Move, startX, startY));
+    editor.modalAxis('y');
+    editor.modalType('-');
+    editor.modalType('1');
+    editor.modalType('2');
+    CHECK(editor.modalText() == "Move Y: -12");
+    CHECK(editor.document().nodeField("sprite", "y") == nlohmann::json(148));
+    editor.modalBackspace();
+    CHECK(editor.document().nodeField("sprite", "y") == nlohmann::json(159));
+    editor.confirmModal();
+    editor.commands().undo();
+
+    // Cancelling puts the node back and there is nothing to redo.
+    REQUIRE(editor.beginModal(Editor::Modal::Scale, startX + 10, startY));
+    editor.modalType('3');
+    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(24));
+    editor.cancelModal();
+    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(8));
+    CHECK_FALSE(editor.commands().canRedo());
+
+    REQUIRE(editor.beginModal(Editor::Modal::Rotate, startX + 10, startY));
+    editor.modalType('9');
+    editor.modalType('0');
+    CHECK(editor.document().nodeField("sprite", "rotation") == nlohmann::json(90.0));
+    editor.cancelModal();
+    CHECK(editor.commands().canRedo() == false);
+}

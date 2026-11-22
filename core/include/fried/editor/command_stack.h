@@ -41,6 +41,9 @@ namespace fried::editor
         void undo();
         void redo();
 
+        // Takes back the last command and drops it, so it cannot be redone either.
+        void undoAndForget();
+
         // Edits made from now on are temporary: nothing made before can be undone or merged into, and revertHeld() takes back all of them, so the document is what it was when the hold began.
         void hold();
         bool isHeld() const { return m_isHeld; }

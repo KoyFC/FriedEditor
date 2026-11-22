@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <set>
 
@@ -2739,6 +2740,16 @@ namespace fried::editor
         list.insert(list.end(), handles.begin(), handles.end());
         DrawList anchors = anchorOverlay();
         list.insert(list.end(), anchors.begin(), anchors.end());
+        if (m_modal && m_modal->m_axis != 0 && m_modal->m_kind != Modal::Rotate)
+        {
+            // The line through the node that the change is held to, in the color of the axis.
+            double reach = 4000;
+            double originX = m_frameView.worldToFrameX(m_viewport.frameToWorldX(m_modal->m_originFrameX));
+            double originY = m_frameView.worldToFrameY(m_viewport.frameToWorldY(m_modal->m_originFrameY));
+            bool isX = m_modal->m_axis == 'x';
+            unsigned int color = isX ? 0xffe05050 : 0xff50d060;
+            list.push_back({DrawCommand::Kind::Line, isX ? originX - reach : originX, isX ? originY : originY - reach, isX ? reach * 2 : 0, isX ? 0 : reach * 2, color});
+        }
         return list;
     }
 
@@ -2976,6 +2987,187 @@ namespace fried::editor
             target.m_kind = PointerTarget::Kind::Object;
         }
         return target;
+    }
+
+    bool Editor::beginModal(Modal kind, double frameX, double frameY)
+    {
+        if (m_viewMode != ViewMode::TwoD || !m_selected || isLocked(*m_selected) || m_modal)
+        {
+            return false;
+        }
+        const ObjectBounds *box = boundsOf(*m_selected);
+        if (!box)
+        {
+            return false;
+        }
+        m_drag = Drag();
+        ModalState state;
+        state.m_kind = kind;
+        state.m_id = *m_selected;
+        state.m_start = transformOf(*m_selected);
+        state.m_startFrameX = state.m_frameX = frameX;
+        state.m_startFrameY = state.m_frameY = frameY;
+        std::pair<double, double> origin = box->m_origin ? *box->m_origin : std::make_pair(box->m_x, box->m_y);
+        state.m_originFrameX = m_viewport.worldToFrameX(origin.first);
+        state.m_originFrameY = m_viewport.worldToFrameY(origin.second);
+        m_modal = state;
+        changed();
+        return true;
+    }
+
+    void Editor::modalAxis(char axis)
+    {
+        if (m_modal)
+        {
+            m_modal->m_axis = m_modal->m_axis == axis ? 0 : axis;
+            applyModal();
+        }
+    }
+
+    void Editor::modalType(char character)
+    {
+        if (!m_modal)
+        {
+            return;
+        }
+        std::string &typed = m_modal->m_typed;
+        bool isDigit = character >= '0' && character <= '9';
+        bool isPoint = character == '.' && typed.find('.') == std::string::npos;
+        bool isSign = character == '-' && typed.empty();
+        if (isDigit || isPoint || isSign)
+        {
+            typed += character;
+            applyModal();
+        }
+    }
+
+    void Editor::modalBackspace()
+    {
+        if (m_modal && !m_modal->m_typed.empty())
+        {
+            m_modal->m_typed.pop_back();
+            applyModal();
+        }
+    }
+
+    void Editor::modalMove(double frameX, double frameY)
+    {
+        if (m_modal && (m_modal->m_frameX != frameX || m_modal->m_frameY != frameY))
+        {
+            m_modal->m_frameX = frameX;
+            m_modal->m_frameY = frameY;
+            applyModal();
+        }
+    }
+
+    void Editor::applyModal()
+    {
+        const ModalState &modal = *m_modal;
+        bool isTyped = !modal.m_typed.empty() && modal.m_typed != "-" && modal.m_typed != ".";
+        double typed = isTyped ? std::atof(modal.m_typed.c_str()) : 0.0;
+        std::map<std::string, double> fields;
+        if (modal.m_kind == Modal::Move)
+        {
+            double deltaX = (modal.m_frameX - modal.m_startFrameX) / m_viewport.zoom();
+            double deltaY = (modal.m_frameY - modal.m_startFrameY) / m_viewport.zoom();
+            if (isTyped)
+            {
+                deltaX = modal.m_axis == 'y' ? 0 : typed;
+                deltaY = modal.m_axis == 'y' ? typed : 0;
+            }
+            else if (modal.m_axis == 'x')
+            {
+                deltaY = 0;
+            }
+            else if (modal.m_axis == 'y')
+            {
+                deltaX = 0;
+            }
+            fields = {{"x", std::round(modal.m_start.m_x + deltaX)}, {"y", std::round(modal.m_start.m_y + deltaY)}};
+            if (!isTyped)
+            {
+                fields = snapped(fields);
+            }
+            fields = dragFields(modal.m_id, fields);
+        }
+        else if (modal.m_kind == Modal::Rotate)
+        {
+            double degrees = typed;
+            if (!isTyped)
+            {
+                double start = std::atan2(modal.m_startFrameY - modal.m_originFrameY, modal.m_startFrameX - modal.m_originFrameX);
+                double now = std::atan2(modal.m_frameY - modal.m_originFrameY, modal.m_frameX - modal.m_originFrameX);
+                degrees = (now - start) * 180 / 3.14159265358979323846;
+            }
+            fields["rotation"] = std::round((modal.m_start.m_rotation + degrees) * 10) / 10;
+            if (!isTyped)
+            {
+                fields = snapped(fields);
+            }
+        }
+        else
+        {
+            double factor = typed;
+            if (!isTyped)
+            {
+                double startDistance = std::max(1.0, std::hypot(modal.m_startFrameX - modal.m_originFrameX, modal.m_startFrameY - modal.m_originFrameY));
+                factor = std::hypot(modal.m_frameX - modal.m_originFrameX, modal.m_frameY - modal.m_originFrameY) / startDistance;
+            }
+            if (modal.m_axis != 'y')
+            {
+                fields["scaleX"] = std::round(modal.m_start.m_scaleX * factor * 100) / 100;
+            }
+            if (modal.m_axis != 'x')
+            {
+                fields["scaleY"] = std::round(modal.m_start.m_scaleY * factor * 100) / 100;
+            }
+            if (!isTyped)
+            {
+                fields = snapped(fields);
+            }
+        }
+        setTransformFields(modal.m_id, fields, m_drag.m_hasMoved);
+        m_drag.m_hasMoved = true;
+        changed();
+    }
+
+    void Editor::confirmModal()
+    {
+        m_modal.reset();
+        m_drag = Drag();
+        changed();
+    }
+
+    void Editor::cancelModal()
+    {
+        if (!m_modal)
+        {
+            return;
+        }
+        if (m_drag.m_hasMoved)
+        {
+            m_commands->undoAndForget();
+        }
+        confirmModal();
+    }
+
+    std::string Editor::modalText() const
+    {
+        if (!m_modal)
+        {
+            return std::string();
+        }
+        const char *names[] = {"Move", "Rotate", "Scale"};
+        std::string text = names[(int)m_modal->m_kind];
+        if (m_modal->m_axis != 0)
+        {
+            text += std::string(" ") + (char)std::toupper(m_modal->m_axis);
+        }
+        if (!m_modal->m_typed.empty())
+        {
+            text += ": " + m_modal->m_typed;
+        }
+        return text;
     }
 
     void Editor::pointerMove(double frameX, double frameY)
