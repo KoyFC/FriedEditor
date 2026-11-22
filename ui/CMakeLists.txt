@@ -53,6 +53,7 @@ add_library(fried_editor_ui STATIC
     src/pointer.cpp
     src/project_settings_window.cpp
     src/pointer.h
+    src/dialog_window.cpp
     src/style.cpp
     src/style.h
     src/textures.cpp
@@ -60,3 +61,10 @@ add_library(fried_editor_ui STATIC
 )
 target_include_directories(fried_editor_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src PRIVATE ${PROJECT_SOURCE_DIR}/third_party ${PROJECT_SOURCE_DIR}/third_party/nanosvg)
 target_link_libraries(fried_editor_ui PUBLIC fried_editor_core imgui)
+
+# On X11 a window the editor opens is made a dialog of the main one, which needs Xlib.
+find_package(X11 QUIET)
+if(X11_FOUND AND NOT WIN32 AND NOT APPLE)
+    target_link_libraries(fried_editor_ui PRIVATE X11::X11)
+    target_compile_definitions(fried_editor_ui PRIVATE FRIED_EDITOR_X11)
+endif()

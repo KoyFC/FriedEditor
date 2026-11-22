@@ -1,4 +1,5 @@
 #include "app.h"
+#include "dialog_window.h"
 
 #include "opengl.h"
 #include "panels.h"
@@ -21,6 +22,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <set>
 
 namespace editor_ui
@@ -207,6 +209,8 @@ namespace editor_ui
         io.IniFilename = s_layout.c_str();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_ViewportsEnable;
         io.ConfigViewportsNoTaskBarIcon = true;
+        // The windows that leave the editor have the system's title bar and border, as in Unity, so the window manager moves, resizes and closes them.
+        io.ConfigViewportsNoDecoration = false;
         applyStyle();
         setUiScale(fried::editor::EditorState::uiScale());
         ImGui_ImplSDL2_InitForOpenGL(window, context);
@@ -252,6 +256,7 @@ namespace editor_ui
             return std::string();
         };
         std::set<int> heldGameKeys;
+        std::set<Uint32> dialogsDone;
 
         while (isRunning)
         {
@@ -304,6 +309,11 @@ namespace editor_ui
                 }
                 // The windows of the panels have their own events, which are theirs to handle.
                 bool isMainWindow = event.type != SDL_WINDOWEVENT || event.window.windowID == SDL_GetWindowID(window);
+                // SDL sets a hint of its own when it shows a window, so the dialog hint is set again after it.
+                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_SHOWN)
+                {
+                    dialogsDone.erase(event.window.windowID);
+                }
                 if (event.type == SDL_WINDOWEVENT && isMainWindow && event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
                 {
                     editor.refreshAssets();
@@ -770,6 +780,22 @@ namespace editor_ui
                 SDL_Window *current = SDL_GL_GetCurrentWindow();
                 SDL_GLContext currentContext = SDL_GL_GetCurrentContext();
                 ImGui::UpdatePlatformWindows();
+                // The windows the editor itself opens, the ones of its own window class, are dialogs of the main one, so the window manager keeps them above it until they are closed, and only above it. Menus, tooltips and panels dragged out are left alone.
+                ImGuiPlatformIO &platform = ImGui::GetPlatformIO();
+                for (int index = 1; index < platform.Viewports.Size; ++index)
+                {
+                    if (!(platform.Viewports[index]->Flags & ImGuiViewportFlags_NoAutoMerge))
+                    {
+                        continue;
+                    }
+                    // The backend keeps the number of the window as the viewport's handle.
+                    Uint32 id = (Uint32)(intptr_t)platform.Viewports[index]->PlatformHandle;
+                    SDL_Window *handle = SDL_GetWindowFromID(id);
+                    if (handle && !dialogsDone.count(id) && keepDialogOf(handle, window))
+                    {
+                        dialogsDone.insert(id);
+                    }
+                }
                 ImGui::RenderPlatformWindowsDefault();
                 SDL_GL_MakeCurrent(current, currentContext);
             }

@@ -40,6 +40,9 @@ namespace editor_ui
     // For a window that is to be an operating system window of its own, such as the settings, and stay one instead of merging back into the editor's when they overlap.
     const ImGuiWindowClass *ownWindowClass();
 
+    // The flags of such a window, which has no title bar of its own once it is an operating system window with one.
+    ImGuiWindowFlags ownWindowFlags(const char *name);
+
     // Enlarges the text and every size of the style from the unscaled one, so it can be called again with another value.
     void setUiScale(float scale);
     float uiScale();

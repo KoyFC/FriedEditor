@@ -49,7 +49,7 @@ namespace editor_ui
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(scaled(640), scaled(560)), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowClass(ownWindowClass());
-        if (ImGui::Begin("Project Settings", isOpen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
+        if (ImGui::Begin("Project Settings", isOpen, ownWindowFlags("Project Settings")))
         {
             projectPage();
         }
@@ -64,7 +64,7 @@ namespace editor_ui
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(scaled(820), scaled(600)), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowClass(ownWindowClass());
-        if (ImGui::Begin("Player Settings", isOpen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking))
+        if (ImGui::Begin("Player Settings", isOpen, ownWindowFlags("Player Settings")))
         {
             m_isSettingsShown = true;
             if (m_settingsPage > 0 && !m_editor.project().declares(fried::core::s_platforms[m_settingsPage - 1]))

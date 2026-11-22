@@ -3,6 +3,7 @@
 #include "icons.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 namespace editor_ui
 {
@@ -26,6 +27,12 @@ namespace editor_ui
             return windowClass;
         }();
         return &s_class;
+    }
+
+    ImGuiWindowFlags ownWindowFlags(const char *name)
+    {
+        const ImGuiWindow *window = ImGui::FindWindowByName(name);
+        return ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking | (window && window->ViewportOwned ? ImGuiWindowFlags_NoTitleBar : 0);
     }
 
     void setUiScale(float scale)
