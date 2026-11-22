@@ -43,13 +43,9 @@ namespace editor_ui
 
         constexpr int s_scalePercents[] = {75, 100, 125, 150, 175, 200, 250, 300};
 
-        // The first time there is no saved layout, so the panels are put where an editor has them.
-        void buildLayout(ImGuiID dockspace, ImVec2 size)
+        // The panels as an editor has them by default: the hierarchy on the left, the inspector on the right, the scene and the game in the middle, and the assets, console and issues underneath.
+        void buildDefaultLayout(ImGuiID dockspace)
         {
-            ImGui::DockBuilderRemoveNode(dockspace);
-            ImGui::DockBuilderAddNode(dockspace, ImGuiDockNodeFlags_DockSpace);
-            ImGui::DockBuilderSetNodeSize(dockspace, size);
-
             ImGuiID center = dockspace;
             ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.20f, nullptr, &center);
             ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.26f, nullptr, &center);
@@ -61,6 +57,39 @@ namespace editor_ui
             ImGui::DockBuilderDockWindow("Console###Console", bottom);
             ImGui::DockBuilderDockWindow("Scene###Viewport", center);
             ImGui::DockBuilderDockWindow("Game###Game", center);
+        }
+
+        // Unity's 2 by 3: the hierarchy over the assets on the left, the scene over the game in the middle, and the inspector the full height on the right.
+        void buildTwoByThreeLayout(ImGuiID dockspace)
+        {
+            ImGuiID center = dockspace;
+            ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.22f, nullptr, &center);
+            ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.26f, nullptr, &center);
+            ImGuiID leftBottom = ImGui::DockBuilderSplitNode(left, ImGuiDir_Down, 0.45f, nullptr, &left);
+            ImGuiID centerBottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.45f, nullptr, &center);
+            ImGui::DockBuilderDockWindow("Hierarchy", left);
+            ImGui::DockBuilderDockWindow("Assets", leftBottom);
+            ImGui::DockBuilderDockWindow("Console###Console", leftBottom);
+            ImGui::DockBuilderDockWindow("Issues###Issues", leftBottom);
+            ImGui::DockBuilderDockWindow("Scene###Viewport", center);
+            ImGui::DockBuilderDockWindow("Game###Game", centerBottom);
+            ImGui::DockBuilderDockWindow("Inspector", right);
+        }
+
+        // The first time there is no saved layout, so the panels are put where the chosen layout has them.
+        void buildLayout(ImGuiID dockspace, ImVec2 size, const std::string &layout)
+        {
+            ImGui::DockBuilderRemoveNode(dockspace);
+            ImGui::DockBuilderAddNode(dockspace, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace, size);
+            if (layout == "2x3")
+            {
+                buildTwoByThreeLayout(dockspace);
+            }
+            else
+            {
+                buildDefaultLayout(dockspace);
+            }
             ImGui::DockBuilderFinish(dockspace);
         }
 
@@ -181,6 +210,7 @@ namespace editor_ui
         bool isSettingsOpen = false;
         bool isLayoutBuilt = false;
         bool isLayoutResetAsked = false;
+        std::string layout = fried::editor::EditorState::layout();
         bool isViewportShown = true;
         bool isGameShown = true;
         bool isHierarchyShown = true;
@@ -530,6 +560,20 @@ namespace editor_ui
                     ImGui::MenuItem("Console", nullptr, &isConsoleShown);
                     ImGui::MenuItem("Issues", nullptr, &isIssuesShown);
                     ImGui::Separator();
+                    if (ImGui::BeginMenu("Layout"))
+                    {
+                        auto choose = [&](const char *label, const char *key) {
+                            if (ImGui::MenuItem(label, nullptr, layout == key))
+                            {
+                                layout = key;
+                                fried::editor::EditorState::setLayout(layout);
+                                isLayoutResetAsked = true;
+                            }
+                        };
+                        choose("Default", "default");
+                        choose("2 by 3", "2x3");
+                        ImGui::EndMenu();
+                    }
                     if (ImGui::MenuItem("Reset layout"))
                     {
                         isLayoutResetAsked = true;
@@ -571,7 +615,7 @@ namespace editor_ui
                 {
                     if (!std::filesystem::exists(s_layout) || std::filesystem::file_size(s_layout) < 64)
                     {
-                        buildLayout(dockspace, ImGui::GetMainViewport()->Size);
+                        buildLayout(dockspace, ImGui::GetMainViewport()->Size, layout);
                     }
                 }
             }
@@ -580,7 +624,7 @@ namespace editor_ui
             {
                 isLayoutResetAsked = false;
                 isViewportShown = isGameShown = isHierarchyShown = isInspectorShown = isAssetsShown = isConsoleShown = isIssuesShown = true;
-                buildLayout(dockspace, ImGui::GetMainViewport()->Size);
+                buildLayout(dockspace, ImGui::GetMainViewport()->Size, layout);
             }
 
             // A panel is drawn while its window is open, which its tab's close button and the Window menu change.

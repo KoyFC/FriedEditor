@@ -99,6 +99,44 @@ namespace fried::editor
         std::ofstream(path) << state.dump(2) << "\n";
     }
 
+    std::string EditorState::layout()
+    {
+        std::string path = filePath();
+        std::ifstream file(path);
+        if (path.empty() || !file)
+        {
+            return "default";
+        }
+        Json state = Json::parse(file, nullptr, false);
+        if (!state.is_object() || !state.contains("layout") || !state["layout"].is_string())
+        {
+            return "default";
+        }
+        return state["layout"].get<std::string>();
+    }
+
+    void EditorState::setLayout(const std::string &value)
+    {
+        std::string path = filePath();
+        if (path.empty())
+        {
+            return;
+        }
+        Json state = Json::object();
+        {
+            std::ifstream file(path);
+            Json read = file ? Json::parse(file, nullptr, false) : Json();
+            if (read.is_object())
+            {
+                state = read;
+            }
+        }
+        state["layout"] = value;
+        std::error_code ignored;
+        fs::create_directories(fs::path(path).parent_path(), ignored);
+        std::ofstream(path) << state.dump(2) << "\n";
+    }
+
     Json EditorState::projectValue(const std::string &projectDirectory, const std::string &key)
     {
         std::string path = filePath();

@@ -22,6 +22,10 @@ namespace fried::editor
         static float uiScale();
         static void setUiScale(float value);
 
+        // How the panels are arranged: "default" or "2x3". It belongs to the user, and "default" is what nothing chosen means.
+        static std::string layout();
+        static void setLayout(const std::string &value);
+
     private:
         static std::string filePath();
     };
