@@ -169,6 +169,7 @@ namespace editor_ui
         bool m_isAssetRenameAsked = false;
         std::string m_assetRenameReference;
         std::string m_assetRenameText;
+        std::string m_assetSelected;
         bool m_isNewFolderAsked = false;
         std::string m_newFolderParent;
         std::string m_newFolderText;
@@ -206,6 +207,7 @@ namespace editor_ui
         std::string m_changeTypeId;
         std::string m_createFilter;
         std::string m_createChosen;
+        bool m_isCreateScrollAsked = false;
         bool m_isNewSceneAsked = false;
         std::string m_newSceneName;
         std::string m_newSceneType = "Node2D";

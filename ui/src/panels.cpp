@@ -1692,6 +1692,19 @@ namespace editor_ui
             fried::editor::EditorState::setProjectValue(m_editor.project().directory(), "collapsed", remembered);
         }
 
+        if (m_editor.selected() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F2, false))
+        {
+            for (const fried::editor::HierarchyRow &row : rows)
+            {
+                if (row.m_id == *m_editor.selected())
+                {
+                    m_renameId = row.m_id;
+                    m_renameText = row.m_name;
+                    m_isRenameAsked = true;
+                    break;
+                }
+            }
+        }
         if (m_isRenameAsked)
         {
             ImGui::OpenPopup("rename-node");
@@ -2878,6 +2891,9 @@ namespace editor_ui
         float width = ImGui::GetContentRegionAvail().x;
         int columns = std::max(1, (int)(width / (cell + ImGui::GetStyle().ItemSpacing.x)));
         int placed = 0;
+        auto isEditableReference = [](const std::string &reference) {
+            return reference.compare(0, 5, "game/") == 0 && reference != "game" && !(reference == "game/scenes" || reference.compare(0, 12, "game/scenes/") == 0);
+        };
 
         for (const Item &item : items)
         {
@@ -2896,7 +2912,7 @@ namespace editor_ui
             if (isList)
             {
                 ImVec2 row = ImGui::GetCursorScreenPos();
-                ImGui::Selectable("##row", !isFolder && isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath()), ImGuiSelectableFlags_AllowDoubleClick);
+                ImGui::Selectable("##row", reference == m_assetSelected || (!isFolder && isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath())), ImGuiSelectableFlags_AllowDoubleClick);
                 isHovered = ImGui::IsItemHovered();
                 Icon icon = isFolder ? Icon::Folder
                             : item.m_entry->m_kind == AssetKind::Image ? Icon::Image
@@ -2984,6 +3000,10 @@ namespace editor_ui
                 ImGui::SetCursorScreenPos(cellLow);
                 ImGui::InvisibleButton("##cell", cellSize);
                 isHovered = ImGui::IsItemHovered();
+                if (reference == m_assetSelected)
+                {
+                    list->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(palette::accentAt(0.3f)), 3.0f);
+                }
                 if (isScene && isOpenScene(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path), m_editor.scenePath()))
                 {
                     // The scene that is being edited.
@@ -3006,7 +3026,11 @@ namespace editor_ui
                 ImGui::PopID();
                 break;
             }
-            const bool isEditable = reference.compare(0, 5, "game/") == 0 && reference != "game" && !(reference == "game/scenes" || reference.compare(0, 12, "game/scenes/") == 0);
+            const bool isEditable = isEditableReference(reference);
+            if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right))
+            {
+                m_assetSelected = reference;
+            }
 
             // A double click does what suits the file: a folder is entered, a scene opens, and an image or a font is added to the scene.
             bool isUsable = isFolder || isScene || item.m_entry->m_kind == AssetKind::Image || item.m_entry->m_kind == AssetKind::Font;
@@ -3101,6 +3125,13 @@ namespace editor_ui
             }
             ImGui::EndPopup();
         }
+        // F2 renames what is chosen, while the panel has the keyboard and no text is being typed.
+        if (!m_assetSelected.empty() && isEditableReference(m_assetSelected) && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F2, false))
+        {
+            m_assetRenameReference = m_assetSelected;
+            m_assetRenameText = m_assetSelected.substr(m_assetSelected.rfind('/') + 1);
+            m_isAssetRenameAsked = true;
+        }
         assetQuestions();
         ImGui::EndChild();
     }
@@ -3178,7 +3209,9 @@ namespace editor_ui
 
         ImGui::BeginChild("##create-classes", ImVec2(0, -scaled(38)), ImGuiChildFlags_Borders);
         const bool isFiltering = !m_createFilter.empty();
+        std::vector<std::string> listed;
         auto row = [&](const std::string &name, bool isLeaf, const std::string &note) {
+            listed.push_back(name);
             ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_DefaultOpen;
             flags |= isLeaf ? ImGuiTreeNodeFlags_Leaf : 0;
             flags |= name == m_createChosen ? ImGuiTreeNodeFlags_Selected : 0;
@@ -3196,6 +3229,11 @@ namespace editor_ui
             {
                 m_createChosen = name;
                 isCreating = true;
+            }
+            if (m_isCreateScrollAsked && name == m_createChosen)
+            {
+                ImGui::SetScrollHereY();
+                m_isCreateScrollAsked = false;
             }
             ImVec2 low = ImGui::GetItemRectMin();
             ImVec2 high = ImGui::GetItemRectMax();
@@ -3245,6 +3283,20 @@ namespace editor_ui
             tree("");
         }
         ImGui::EndChild();
+
+        // The arrows move the choice through the rows that are showing, and Enter creates what is chosen.
+        bool isDown = ImGui::IsKeyPressed(ImGuiKey_DownArrow);
+        if ((isDown || ImGui::IsKeyPressed(ImGuiKey_UpArrow)) && !listed.empty())
+        {
+            auto at = std::find(listed.begin(), listed.end(), m_createChosen);
+            std::size_t index = at == listed.end() ? (isDown ? 0 : listed.size() - 1) : (std::size_t)(at - listed.begin());
+            if (at != listed.end())
+            {
+                index = isDown ? std::min(index + 1, listed.size() - 1) : (index == 0 ? 0 : index - 1);
+            }
+            m_createChosen = listed[index];
+            m_isCreateScrollAsked = true;
+        }
 
         bool isKnown = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &schema) { return schema.m_name == m_createChosen; });
         ImGui::AlignTextToFramePadding();
