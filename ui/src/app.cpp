@@ -772,6 +772,10 @@ namespace editor_ui
                 ++startupFrame;
             }
 
+            if (panels.takeInputMapRequest())
+            {
+                isSettingsOpen = true;
+            }
             if (isSettingsOpen)
             {
                 panels.projectSettings(&isSettingsOpen);

@@ -1787,6 +1787,15 @@ namespace fried::editor
         return issues;
     }
 
+    std::vector<std::string> Editor::inputIssues() const
+    {
+        if (m_session.inputNames().isEmpty())
+        {
+            return {};
+        }
+        return checkInputBlock(m_project.inputBlock(), m_session.inputNames());
+    }
+
     void Editor::chooseInstanceScene(const std::string &id, const std::string &sceneName)
     {
         m_commands->execute(std::make_unique<SetNodeField>(id, "instance", Json(sceneName)));

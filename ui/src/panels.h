@@ -56,7 +56,7 @@ namespace editor_ui
         // How many problems the assets have for the platform being previewed, for the tab and the status bar.
         // Looks for the problems now if the list is old, whether or not the tab that shows them is the one open.
         void refreshIssues(bool isForced = false);
-        int issueCount() const { return (int)(m_issues.size() + m_sceneIssues.size()); }
+        int issueCount() const { return (int)(m_issues.size() + m_sceneIssues.size() + m_inputIssues.size()); }
         void statusBar();
 
         // Opens a scene in a tab, or goes to its tab.
@@ -77,6 +77,15 @@ namespace editor_ui
         // A key that went down, by its SDL scancode, for the input map page to bind.
         void noteKey(int scancode);
         void inputMapPage();
+
+        // The Issues panel asks for the Input Map tab of Project Settings, which the app opens.
+        bool takeInputMapRequest()
+        {
+            bool isAsked = m_isInputMapAsked;
+            m_isInputMapAsked = false;
+            m_isInputTabSelected = m_isInputTabSelected || isAsked;
+            return isAsked;
+        }
 
         // Asks for a name and the class of the root node of a new scene. The question is drawn by newSceneDialog.
         void showNewScene() { m_isNewSceneAsked = true; }
@@ -231,6 +240,10 @@ namespace editor_ui
         InputPick m_inputPick;
         std::string m_inputPickFilter;
         int m_inputKeyPressed = -1;
+        bool m_isInputMapAsked = false;
+        bool m_isInputTabSelected = false;
+        std::vector<std::string> m_inputIssues;
+        int m_inputColumn = 1;
         int m_inputMap = 0;
         int m_inputAction = 0;
         int m_inputBinding = -1;

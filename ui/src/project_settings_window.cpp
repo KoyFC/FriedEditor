@@ -58,8 +58,9 @@ namespace editor_ui
                     projectPage();
                     ImGui::EndTabItem();
                 }
-                if (ImGui::BeginTabItem("Input Map"))
+                if (ImGui::BeginTabItem("Input Map", nullptr, m_isInputTabSelected ? ImGuiTabItemFlags_SetSelected : 0))
                 {
+                    m_isInputTabSelected = false;
                     inputMapPage();
                     ImGui::EndTabItem();
                 }

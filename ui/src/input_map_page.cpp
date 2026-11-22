@@ -101,7 +101,11 @@ namespace editor_ui
             ImGui::PopStyleColor();
         }
 
-        auto nameField = [&](const char *id, const std::string &current, std::string *result) {
+        auto nameField = [&](const char *id, const std::string &current, std::string *result, bool isFocusAsked) {
+            if (isFocusAsked)
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
             ImGuiID key = ImGui::GetID(id);
             std::string &buffer = m_inputBuffers[key];
             if (ImGui::GetActiveID() != key)
@@ -145,6 +149,29 @@ namespace editor_ui
             ImGui::PopStyleColor();
             ImGui::EndGroup();
         };
+        // F2 renames what is chosen and Delete removes it, while the window has the keyboard and no text is being typed.
+        const bool hasKeys = (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)) && !ImGui::GetIO().WantTextInput;
+        const bool isRenameAsked = hasKeys && ImGui::IsKeyPressed(ImGuiKey_F2, false);
+        if (hasKeys && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+        {
+            if (m_inputColumn == 0 && map)
+            {
+                int index = m_inputMap;
+                later = [&maps, index] { maps.erase(maps.begin() + index); };
+            }
+            else if (action && m_inputBinding >= 0)
+            {
+                int index = m_inputBinding;
+                Json *bindings = &(*action)["bindings"];
+                later = [bindings, index] { bindings->erase(bindings->begin() + index); };
+            }
+            else if (action)
+            {
+                int index = m_inputAction;
+                later = [actions, index] { actions->erase(actions->begin() + index); };
+            }
+        }
+
         // A row of a list: an action is a bold line with its type as a badge, and a binding sits under it with a mark and a line down its side, so what belongs to what is seen without reading.
         auto choice = [&](const std::string &label, const std::string &badge, bool isSelected, bool isBinding, bool isLast) {
             ImVec2 start = ImGui::GetCursorScreenPos();
@@ -205,6 +232,7 @@ namespace editor_ui
                 ImGui::PushID(index);
                 if (choice(mapNames[index].empty() ? "(unnamed)" : mapNames[index], std::string(), index == m_inputMap, false, false))
                 {
+                    m_inputColumn = 0;
                     m_inputMap = index;
                     m_inputAction = 0;
                     m_inputBinding = -1;
@@ -252,6 +280,7 @@ namespace editor_ui
                 }
                 if (choice(entry.value("name", ""), entry.value("type", "button"), isHere && m_inputBinding < 0, false, false))
                 {
+                    m_inputColumn = 1;
                     m_inputAction = actionIndex;
                     m_inputBinding = -1;
                 }
@@ -304,6 +333,7 @@ namespace editor_ui
                         ImGui::PushID(bindingIndex);
                         if (choice((kind == "single" ? std::string() : kindTitle(kind) + ": ") + text, std::string(), isHere && m_inputBinding == bindingIndex, true, bindingIndex + 1 == (int)entry["bindings"].size()))
                         {
+                            m_inputColumn = 1;
                             m_inputAction = actionIndex;
                             m_inputBinding = bindingIndex;
                         }
@@ -343,12 +373,12 @@ namespace editor_ui
             {
                 // Only the map's own properties.
             }
-            if (map && (m_inputBinding < 0 && action == nullptr))
+            if (map && (m_inputColumn == 0 || (m_inputBinding < 0 && action == nullptr)))
             {
                 ImGui::SeparatorText("Map");
                 std::string renamed;
                 labelled("Name");
-                if (nameField("##map-name", (*map).value("name", ""), &renamed))
+                if (nameField("##map-name", (*map).value("name", ""), &renamed, isRenameAsked && m_inputColumn == 0))
                 {
                     (*map)["name"] = renamed;
                     isChanged = true;
@@ -360,14 +390,20 @@ namespace editor_ui
                     (*map)["enabled"] = isEnabled;
                     isChanged = true;
                 }
+                ImGui::Spacing();
+                if (ImGui::Button("Delete Map"))
+                {
+                    int index = m_inputMap;
+                    later = [&maps, index] { maps.erase(maps.begin() + index); };
+                }
             }
-            if (map && action && m_inputBinding < 0)
+            if (map && action && m_inputBinding < 0 && m_inputColumn != 0)
             {
                 ImGui::SeparatorText("Action");
                 std::string type = (*action).value("type", "button");
                 std::string newName;
                 labelled("Name");
-                if (nameField("##action-name", (*action).value("name", ""), &newName))
+                if (nameField("##action-name", (*action).value("name", ""), &newName, isRenameAsked && m_inputColumn == 1))
                 {
                     (*action)["name"] = newName;
                     isChanged = true;
@@ -428,7 +464,7 @@ namespace editor_ui
                     later = [actions, index] { actions->erase(actions->begin() + index); };
                 }
             }
-            if (map && action && m_inputBinding >= 0)
+            if (map && action && m_inputBinding >= 0 && m_inputColumn != 0)
             {
                 Json &binding = (*action)["bindings"][m_inputBinding];
                 std::string kind = fried::editor::bindingKind(binding);
@@ -502,40 +538,92 @@ namespace editor_ui
                     choose(fried::editor::sourceText("key", key));
                 }
             }
-            ImGui::BeginChild("##pick-list", ImVec2(scaled(260), scaled(260)), ImGuiChildFlags_Borders);
-            auto section = [&](const char *title, const std::vector<InputName> &entries, const std::string &kind) {
-                bool isTitled = false;
+            ImGui::BeginChild("##pick-list", ImVec2(scaled(300), scaled(320)), ImGuiChildFlags_Borders);
+            const bool isFiltering = !m_inputPickFilter.empty();
+            // A group of sources under a header that folds. A search opens every group and keeps only what matches.
+            auto group = [&](const char *title, const std::vector<InputName> &entries, const std::string &kind, const std::function<bool(const std::string &)> &belongs) {
+                std::vector<const InputName *> shown;
                 for (const InputName &entry : entries)
                 {
-                    if (!containsText(entry.m_name, m_inputPickFilter) && !containsText(title, m_inputPickFilter))
+                    if (belongs(entry.m_name) && (containsText(entry.m_name, m_inputPickFilter) || containsText(title, m_inputPickFilter)))
                     {
-                        continue;
+                        shown.push_back(&entry);
                     }
-                    if (!isTitled)
+                }
+                if (shown.empty())
+                {
+                    return;
+                }
+                if (isFiltering)
+                {
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+                }
+                else
+                {
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
+                }
+                if (ImGui::CollapsingHeader((std::string(title) + "###" + kind + title).c_str()))
+                {
+                    for (const InputName *entry : shown)
                     {
-                        ImGui::TextDisabled("%s", title);
-                        isTitled = true;
-                    }
-                    if (ImGui::Selectable((entry.m_name + "##" + kind).c_str()))
-                    {
-                        choose(fried::editor::sourceText(kind, entry.m_name));
+                        if (ImGui::Selectable((entry->m_name + "##" + kind).c_str()))
+                        {
+                            choose(fried::editor::sourceText(kind, entry->m_name));
+                        }
                     }
                 }
             };
+            auto anyName = [](const std::string &) { return true; };
+            auto isOneOf = [](std::vector<std::string> list) {
+                return [list](const std::string &name) { return std::find(list.begin(), list.end(), name) != list.end(); };
+            };
+            auto isLetter = [](const std::string &name) { return name.size() == 1 && std::isalpha((unsigned char)name[0]); };
+            auto isNumber = [](const std::string &name) { return name.compare(0, 3, "Num") == 0; };
+            auto isFunction = [](const std::string &name) { return name.size() > 1 && name[0] == 'F' && std::isdigit((unsigned char)name[1]); };
+            auto isArrow = isOneOf({"Up", "Down", "Left", "Right"});
+            auto isModifier = isOneOf({"LCtrl", "LShift", "LAlt", "RCtrl", "RShift", "RAlt"});
+            auto isOtherKey = [&](const std::string &name) { return !isLetter(name) && !isNumber(name) && !isFunction(name) && !isArrow(name) && !isModifier(name); };
+            auto keyboard = [&] {
+                group("Letters", names.m_keys, "key", isLetter);
+                group("Numbers", names.m_keys, "key", isNumber);
+                group("Arrows", names.m_keys, "key", isArrow);
+                group("Function keys", names.m_keys, "key", isFunction);
+                group("Modifiers", names.m_keys, "key", isModifier);
+                group("Other keys", names.m_keys, "key", isOtherKey);
+            };
+            std::vector<InputName> mouse = names.m_mouseButtons;
+            mouse.push_back({"ScrollX", 0});
+            mouse.push_back({"ScrollY", 0});
+            auto mouseGroups = [&] {
+                group("Buttons", mouse, "mouse", [](const std::string &name) { return name.compare(0, 6, "Scroll") != 0; });
+                group("Wheel", mouse, "mouse", [](const std::string &name) { return name.compare(0, 6, "Scroll") == 0; });
+            };
+            auto gamepad = [&] {
+                group("Face buttons", names.m_gamepadButtons, "pad", isOneOf({"South", "East", "West", "North"}));
+                group("Shoulders and triggers", names.m_gamepadButtons, "pad", isOneOf({"L1", "R1", "L2", "R2"}));
+                group("D-pad", names.m_gamepadButtons, "pad", isOneOf({"DpadUp", "DpadDown", "DpadLeft", "DpadRight"}));
+                group("Sticks and menu", names.m_gamepadButtons, "pad", isOneOf({"LeftStick", "RightStick", "Select", "Start", "Home"}));
+                group("Axes", names.m_gamepadAxes, "padAxis", anyName);
+            };
+            auto touch = [&] { group("Devices", {{"0", 0}, {"1", 1}}, "touch", anyName); };
             if (isStick)
             {
-                section("Gamepad axes", names.m_gamepadAxes, "");
+                group("Gamepad axes", names.m_gamepadAxes, "", anyName);
             }
-            else
+            else if (isFiltering)
             {
-                section("Keys", names.m_keys, "key");
-                std::vector<InputName> mouse = names.m_mouseButtons;
-                mouse.push_back({"ScrollX", 0});
-                mouse.push_back({"ScrollY", 0});
-                section("Mouse", mouse, "mouse");
-                section("Gamepad buttons", names.m_gamepadButtons, "pad");
-                section("Gamepad axes", names.m_gamepadAxes, "padAxis");
-                section("Touch", {{"0", 0}, {"1", 1}}, "touch");
+                keyboard();
+                mouseGroups();
+                gamepad();
+                touch();
+            }
+            else if (ImGui::BeginTabBar("##pick-device"))
+            {
+                if (ImGui::BeginTabItem("Keyboard")) { keyboard(); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Mouse")) { mouseGroups(); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Gamepad")) { gamepad(); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Touch")) { touch(); ImGui::EndTabItem(); }
+                ImGui::EndTabBar();
             }
             ImGui::EndChild();
             ImGui::EndPopup();

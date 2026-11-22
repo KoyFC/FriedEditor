@@ -262,6 +262,9 @@ namespace fried::editor
 
         // The instances of the open scene that cannot be built, each fixed by removing it or by choosing another scene for it.
         std::vector<SceneIssue> sceneIssues() const;
+
+        // What is wrong with the project's input actions, one sentence each. Empty until the player has told the names of the keys, since they cannot be checked before.
+        std::vector<std::string> inputIssues() const;
         void chooseInstanceScene(const std::string &id, const std::string &sceneName);
 
         // Puts a copy of the selected node and what is under it next to it, with new ids and a name that is not its siblings'.

@@ -740,7 +740,7 @@ namespace editor_ui
         auto &commands = m_editor.commands();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(m_editor.message().c_str());
-        std::string right = (m_issues.empty() && m_sceneIssues.empty() ? std::string() : std::to_string(m_issues.size() + m_sceneIssues.size()) + " issues   ") + (m_editor.hasModifiedScenes() ? "Unsaved changes" : "Saved");
+        std::string right = (m_issues.empty() && m_sceneIssues.empty() && m_inputIssues.empty() ? std::string() : std::to_string(m_issues.size() + m_sceneIssues.size() + m_inputIssues.size()) + " issues   ") + (m_editor.hasModifiedScenes() ? "Unsaved changes" : "Saved");
         ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - scaled(20));
         ImGui::TextColored(m_editor.hasModifiedScenes() ? palette::warning : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", right.c_str());
     }
@@ -3419,6 +3419,7 @@ namespace editor_ui
         {
             m_issues = m_editor.issues();
             m_sceneIssues = m_editor.sceneIssues();
+            m_inputIssues = m_editor.inputIssues();
             m_issuesCheckedAt = now;
             m_issuesPlatform = m_editor.platform();
         }
@@ -3453,9 +3454,24 @@ namespace editor_ui
         }
         ImGui::Separator();
 
-        if (m_issues.empty() && m_sceneIssues.empty())
+        if (m_issues.empty() && m_sceneIssues.empty() && m_inputIssues.empty())
         {
             ImGui::TextDisabled("The assets suit this platform.");
+        }
+        for (std::size_t position = 0; position < m_inputIssues.size(); ++position)
+        {
+            ImGui::PushID((int)position + 200000);
+            ImGui::TextColored(palette::tomato, "Error");
+            ImGui::SameLine();
+            ImGui::TextUnformatted("Input Map");
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", m_inputIssues[position].c_str());
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Open Input Map"))
+            {
+                m_isInputMapAsked = true;
+            }
+            ImGui::PopID();
         }
         for (std::size_t position = 0; position < m_sceneIssues.size(); ++position)
         {
