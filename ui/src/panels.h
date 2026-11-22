@@ -135,6 +135,7 @@ namespace editor_ui
         std::vector<std::string> m_folders;
         std::size_t m_foldersKey = 0;
         std::string m_assetSearch;
+        std::string m_autoloadFilter;
         std::string m_pendingScene;
         bool m_isSceneChangeAsked = false;
         std::string m_lastActiveScene;

@@ -105,6 +105,7 @@ namespace fried::editor
                 ClassSchema schema;
                 schema.m_name = entry.value("name", "");
                 schema.m_parent = entry.contains("parent") && entry["parent"].is_string() ? entry["parent"].get<std::string>() : "";
+                schema.m_isBuiltin = entry.value("builtin", false);
                 for (const auto &field : listOf(entry, "fields"))
                 {
                     FieldSchema fieldSchema;

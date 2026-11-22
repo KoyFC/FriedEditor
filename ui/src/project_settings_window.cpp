@@ -4,6 +4,9 @@
 
 #include "fried/core/icon.h"
 
+#include "fried/editor/fuzzy.h"
+
+#include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
 #include <algorithm>
@@ -206,8 +209,9 @@ namespace editor_ui
         }
 
         ImGui::SeparatorText("Autoload");
-        ImGui::TextDisabled("Scenes loaded once when the game starts and kept while it runs, for what the whole game needs. Their nodes are reached with SceneManager.autoload.");
+        ImGui::TextDisabled("Node classes of the project, or scenes, loaded once when the game starts and kept while it runs, for what the whole game needs. They are reached with SceneManager.autoload. A scene dragged from the Assets tab is added too.");
         {
+            const ImVec2 sectionLow = ImGui::GetCursorScreenPos();
             std::vector<std::string> listed = project.autoloads();
             std::vector<std::string> next = listed;
             bool isChanged = false;
@@ -240,17 +244,69 @@ namespace editor_ui
                     break;
                 }
             }
-            if (ImGui::BeginCombo("##addAutoload", "Add a scene..."))
+            // What can be added is the project's classes and scenes that are not listed yet, found by typing a part of the name.
+            std::vector<std::string> candidates;
+            for (const std::string &name : settings.autoloadChoices())
             {
-                for (const std::string &scene : settings.startSceneChoices())
+                if (std::find(listed.begin(), listed.end(), name) == listed.end())
                 {
-                    if (std::find(listed.begin(), listed.end(), scene) == listed.end() && ImGui::Selectable(scene.c_str()))
+                    candidates.push_back(name);
+                }
+            }
+            if (ImGui::Button("Add a node class or a scene...", ImVec2(scaled(260), 0)))
+            {
+                m_autoloadFilter.clear();
+                ImGui::OpenPopup("add-autoload");
+            }
+            if (ImGui::BeginPopup("add-autoload"))
+            {
+                if (ImGui::IsWindowAppearing())
+                {
+                    ImGui::SetKeyboardFocusHere();
+                }
+                ImGui::SetNextItemWidth(scaled(320));
+                bool isEntered = ImGui::InputTextWithHint("##autoloadFilter", "Type to filter", &m_autoloadFilter, ImGuiInputTextFlags_EnterReturnsTrue);
+                std::vector<std::size_t> found = fried::editor::fuzzyRank(m_autoloadFilter, candidates);
+                ImGui::BeginChild("##autoloadChoices", ImVec2(scaled(320), scaled(220)));
+                for (std::size_t position = 0; position < found.size(); ++position)
+                {
+                    const std::string &name = candidates[found[position]];
+                    if (ImGui::Selectable(name.c_str(), position == 0 && !m_autoloadFilter.empty()) || (isEntered && position == 0))
                     {
-                        next.push_back(scene);
+                        next.push_back(name);
                         isChanged = true;
+                        ImGui::CloseCurrentPopup();
+                        break;
                     }
                 }
-                ImGui::EndCombo();
+                if (found.empty())
+                {
+                    ImGui::TextDisabled("Nothing matches");
+                }
+                ImGui::EndChild();
+                ImGui::EndPopup();
+            }
+            // A scene file dragged from the Assets tab onto the list is added as well.
+            ImRect target(ImVec2(sectionLow.x, sectionLow.y), ImVec2(sectionLow.x + ImGui::GetContentRegionAvail().x, ImGui::GetItemRectMax().y));
+            if (ImGui::BeginDragDropTargetCustom(target, ImGui::GetID("##autoloadDrop")))
+            {
+                if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_assetPayload))
+                {
+                    std::string root, path;
+                    const std::string suffix = ".scene.json";
+                    if (fried::editor::parseAssetReference(std::string((const char *)payload->Data, payload->DataSize - 1), &root, &path) && path.size() > suffix.size()
+                        && path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0)
+                    {
+                        std::string name = std::filesystem::path(path).filename().string();
+                        name.resize(name.size() - suffix.size());
+                        if (std::find(candidates.begin(), candidates.end(), name) != candidates.end())
+                        {
+                            next.push_back(name);
+                            isChanged = true;
+                        }
+                    }
+                }
+                ImGui::EndDragDropTarget();
             }
             if (isChanged)
             {

@@ -101,15 +101,25 @@ namespace fried::editor
         return apply(isKnown ? std::string() : "The project has no scene named " + value + ".", [&](Project &project) { project.setStartScene(value); });
     }
 
+    std::vector<std::string> ProjectSettings::autoloadChoices() const
+    {
+        std::vector<std::string> names = m_projectClasses ? m_projectClasses() : std::vector<std::string>();
+        for (const std::string &scene : startSceneChoices())
+        {
+            names.push_back(scene);
+        }
+        return names;
+    }
+
     std::string ProjectSettings::setAutoloads(const std::vector<std::string> &scenes)
     {
-        std::vector<std::string> known = startSceneChoices();
+        std::vector<std::string> known = autoloadChoices();
         std::string problem;
         for (std::size_t index = 0; index < scenes.size() && problem.empty(); ++index)
         {
             if (!contains(known, scenes[index]))
             {
-                problem = "The project has no scene named " + scenes[index] + ".";
+                problem = "The project has no scene or node class named " + scenes[index] + ".";
             }
             else if (std::count(scenes.begin(), scenes.end(), scenes[index]) > 1)
             {

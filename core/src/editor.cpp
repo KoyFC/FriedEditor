@@ -36,6 +36,17 @@ namespace fried::editor
         m_enginePath = enginePath;
         m_toolchains = machineToolchains();
         m_settings.m_onSaved = [this] { projectChanged(); };
+        m_settings.m_projectClasses = [this] {
+            std::vector<std::string> names;
+            for (const ClassSchema &schema : m_session.schema())
+            {
+                if (!schema.m_isBuiltin)
+                {
+                    names.push_back(schema.m_name);
+                }
+            }
+            return names;
+        };
 
         std::vector<std::string> scenes = scenePaths();
         if (scenes.empty())

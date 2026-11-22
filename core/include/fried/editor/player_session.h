@@ -26,6 +26,9 @@ namespace fried::editor
     {
         std::string m_name;
         std::string m_parent;
+
+        // Whether the engine has the class, as opposed to the project.
+        bool m_isBuiltin = false;
         std::vector<FieldSchema> m_fields;
     };
 

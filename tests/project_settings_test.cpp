@@ -342,6 +342,12 @@ TEST_CASE("the autoloads are saved in order and only name scenes of the project"
     CHECK(project.m_project.autoloads() == std::vector<std::string>({"menu", "main"}));
     CHECK(project.read("project.fried").find("\"autoload\"") != std::string::npos);
 
+    // A node class of the project is an autoload too, and the editor says which classes those are.
+    settings.m_projectClasses = [] { return std::vector<std::string>({"Shell"}); };
+    CHECK(settings.setAutoloads({"Shell", "menu"}).empty());
+    CHECK(settings.autoloadChoices() == std::vector<std::string>({"Shell", "main", "menu"}));
+    CHECK(settings.setAutoloads({"menu", "main"}).empty());
+
     CHECK_FALSE(settings.setAutoloads({"menu", "nothing"}).empty());
     CHECK_FALSE(settings.setAutoloads({"menu", "menu"}).empty());
     CHECK(project.m_project.autoloads() == std::vector<std::string>({"menu", "main"}));
