@@ -1713,7 +1713,14 @@ namespace editor_ui
         if (ImGui::BeginPopup("rename-node"))
         {
             ImGui::TextDisabled("Name");
-            ImGui::SetKeyboardFocusHere();
+            if (ImGui::IsWindowAppearing())
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+            {
+                ImGui::CloseCurrentPopup();
+            }
             ImGui::SetNextItemWidth(scaled(220));
             if (ImGui::InputText("##rename", &m_renameText, ImGuiInputTextFlags_EnterReturnsTrue))
             {
@@ -2527,6 +2534,10 @@ namespace editor_ui
                 ImGui::SetKeyboardFocusHere();
             }
             bool isEntered = ImGui::InputText(label, value, ImGuiInputTextFlags_EnterReturnsTrue);
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+            {
+                ImGui::CloseCurrentPopup();
+            }
             if (!m_assetQuestionError.empty())
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.4f, 1.0f));
