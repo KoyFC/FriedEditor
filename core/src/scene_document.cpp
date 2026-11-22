@@ -28,7 +28,7 @@ namespace fried::editor
 
         bool isReserved(const std::string &field)
         {
-            return field == "id" || field == "type" || field == "children";
+            return field == "id" || field == "type" || field == "children" || field == "instance";
         }
 
         void collectIds(const Json &node, std::vector<std::string> *ids)
@@ -65,7 +65,9 @@ namespace fried::editor
                 *error = "A node in the scene file has no id.";
                 return false;
             }
-            if (!node.contains("type") || !node["type"].is_string())
+            bool hasType = node.contains("type") && node["type"].is_string();
+            bool isInstance = node.contains("instance") && node["instance"].is_string() && !node.contains("type");
+            if (!hasType && !isInstance)
             {
                 *error = "The node " + id + " has no type.";
                 return false;
@@ -214,7 +216,22 @@ namespace fried::editor
     std::string SceneDocument::typeOf(const std::string &id) const
     {
         const Json *found = node(id);
-        return found ? found->value("type", "") : "";
+        if (!found)
+        {
+            return "";
+        }
+        if (found->contains("type") && (*found)["type"].is_string())
+        {
+            return (*found)["type"].get<std::string>();
+        }
+        std::string scene = instanceOf(id);
+        return !scene.empty() && m_instanceType ? m_instanceType(scene) : "";
+    }
+
+    std::string SceneDocument::instanceOf(const std::string &id) const
+    {
+        const Json *found = node(id);
+        return found && found->contains("instance") && (*found)["instance"].is_string() && !found->contains("type") ? (*found)["instance"].get<std::string>() : "";
     }
 
     std::string SceneDocument::parentOf(const std::string &id) const
@@ -318,7 +335,9 @@ namespace fried::editor
                 return false;
             }
         }
-        if (!inserted.contains("type") || !inserted["type"].is_string())
+        bool isTyped = inserted.contains("type") && inserted["type"].is_string();
+        bool isInstance = inserted.contains("instance") && inserted["instance"].is_string();
+        if (!isTyped && !isInstance)
         {
             return false;
         }
@@ -410,7 +429,8 @@ namespace fried::editor
     bool SceneDocument::setNodeField(const std::string &id, const std::string &field, const std::optional<Json> &value)
     {
         Json *found = find(id);
-        if (!found || isReserved(field))
+        bool isInstanceChoice = field == "instance" && value && found && found->contains("instance") && !found->contains("type");
+        if (!found || (isReserved(field) && !isInstanceChoice))
         {
             return false;
         }
@@ -422,7 +442,7 @@ namespace fried::editor
     bool SceneDocument::replaceNode(const std::string &id, const Json &contents, Json *before)
     {
         Json *found = find(id);
-        if (!found || !contents.is_object() || contents.value("id", "") != id || !contents.contains("type"))
+        if (!found || !contents.is_object() || contents.value("id", "") != id || !(contents.contains("type") || contents.contains("instance")))
         {
             return false;
         }

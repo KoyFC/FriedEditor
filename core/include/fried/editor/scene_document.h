@@ -61,7 +61,11 @@ namespace fried::editor
         std::size_t nodeCount() const { return m_order.size(); }
         const nlohmann::json *node(const std::string &id) const;
         bool contains(const std::string &id) const { return m_index.count(id) > 0; }
+        // The class of the node. An instance of another scene has the class of that scene's root, which the document cannot know, so it asks m_instanceType.
         std::string typeOf(const std::string &id) const;
+
+        // The name of the scene an entry instances, or empty for a node of its own.
+        std::string instanceOf(const std::string &id) const;
 
         // The root has the empty id: its children are the scene's own nodes.
         std::string parentOf(const std::string &id) const;
@@ -100,6 +104,9 @@ namespace fried::editor
         void markSaved() { m_isModified = false; }
 
         std::function<void(const DocumentChange &)> m_onChange;
+
+        // The class of the root of a scene by its name, empty when there is none.
+        std::function<std::string(const std::string &)> m_instanceType;
 
     private:
         struct Location

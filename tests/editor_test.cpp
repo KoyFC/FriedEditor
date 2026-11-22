@@ -182,7 +182,7 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
     REQUIRE(editor.frame().m_bounds.size() == 14);
 
     editor.setGizmoMode(GizmoMode::Move);
-    for (const char *id : {"player-hitbox", "player", "post-0"})
+    for (const char *id : {"post-0-hitbox", "player", "post-0"})
     {
         const ObjectBounds *box = nullptr;
         for (const ObjectBounds &candidate : editor.frame().m_bounds)
@@ -206,18 +206,18 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
     const ObjectBounds *hitbox = nullptr;
     for (const ObjectBounds &candidate : editor.frame().m_bounds)
     {
-        if (candidate.m_id == "player")
+        if (candidate.m_id == "post-0")
         {
             player = &candidate;
         }
-        else if (candidate.m_id == "player-hitbox")
+        else if (candidate.m_id == "post-0-hitbox")
         {
             hitbox = &candidate;
         }
     }
     REQUIRE(player != nullptr);
     REQUIRE(hitbox != nullptr);
-    editor.select(std::string("player"));
+    editor.select(std::string("post-0"));
     const Viewport &view = editor.viewport();
     // A point where the hitbox is what a press would pick and no handle is, since other nodes and the gizmo can cover parts of it.
     double pressX = 0;
@@ -229,7 +229,7 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
         {
             double x = view.worldToFrameX(hitbox->m_x + hitbox->m_width * column / 8);
             double y = view.worldToFrameY(hitbox->m_y + hitbox->m_height * row / 8);
-            if (Viewport::hit(view, editor.frame().m_bounds, x, y) == std::optional<std::string>("player-hitbox") && !Gizmo::hit(editor.handlesFor(view), x, y))
+            if (Viewport::hit(view, editor.frame().m_bounds, x, y) == std::optional<std::string>("post-0-hitbox") && !Gizmo::hit(editor.handlesFor(view), x, y))
             {
                 pressX = x;
                 pressY = y;
@@ -239,15 +239,15 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
     }
     REQUIRE(found);
     CHECK(editor.pointerTarget(pressX, pressY).m_kind == Editor::PointerTarget::Kind::Object);
-    auto before = editor.document().nodeField("player", "x");
+    auto before = editor.document().nodeField("post-0", "x");
     editor.pointerDown(pressX, pressY, Editor::Pointer::Primary);
     editor.pointerMove(pressX + 20 * view.zoom(), pressY);
     editor.pointerUp();
-    CHECK(editor.selected() == std::optional<std::string>("player"));
-    CHECK(editor.document().nodeField("player", "x") != before);
+    CHECK(editor.selected() == std::optional<std::string>("post-0"));
+    CHECK(editor.document().nodeField("post-0", "x") != before);
 
     // The hitbox's own x and y are zero, its parent's are not, and the handle follows where it is drawn.
-    editor.select(std::string("player-hitbox"));
+    editor.select(std::string("post-0-hitbox"));
     CHECK(editor.handlesFor(editor.viewport())[0].m_originX != doctest::Approx(editor.viewport().worldToFrameX(0)));
 }
 
@@ -675,4 +675,90 @@ TEST_CASE("a locked node is not picked or moved in the view, and the lock is rem
     }
     setEnvironment("FRIED_EDITOR_CONFIG", "none");
     fs::remove_all(state);
+}
+
+TEST_CASE("scenes open in tabs that keep their own changes and history" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    std::string scenes = engine + "/sandbox/assets/scenes/";
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
+    CHECK(editor.activeSceneIndex() == (int)editor.openScenes().size() - 1);
+
+    editor.select(std::string("hints"));
+    editor.setField("text", nlohmann::json("changed"));
+    CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.json"));
+    CHECK_FALSE(editor.isSceneModified(scenes + "sandbox.scene.json"));
+
+    // Going to another tab leaves the change and its undo where they were.
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
+    CHECK(editor.scenePath() == scenes + "sandbox.scene.json");
+    CHECK_FALSE(editor.commands().canUndo());
+    CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.json"));
+    CHECK(editor.hasModifiedScenes());
+    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
+    CHECK(editor.commands().canUndo());
+    CHECK(editor.document().nodeField("hints", "text") == nlohmann::json("changed"));
+    editor.commands().undo();
+    CHECK_FALSE(editor.hasModifiedScenes());
+
+    size_t open = editor.openScenes().size();
+    REQUIRE(editor.closeScene(scenes + "sandbox_ui.scene.json", &error));
+    CHECK(editor.openScenes().size() == open - 1);
+    CHECK(editor.scenePath() != scenes + "sandbox_ui.scene.json");
+    while (editor.openScenes().size() > 1)
+    {
+        REQUIRE(editor.closeScene(editor.openScenes().back(), &error));
+    }
+    CHECK_FALSE(editor.closeScene(editor.openScenes().front(), &error));
+}
+
+TEST_CASE("a scene that instances another shows as one node of the class of the other's root" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    std::string scenes = engine + "/sandbox/assets/scenes/";
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready || editor.status() == Editor::Status::Failed; });
+    REQUIRE(editor.status() == Editor::Status::Ready);
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
+    CHECK(editor.instanceOf("player") == "player");
+    CHECK(editor.document().typeOf("player") == "Player");
+
+    // What the entry does not set is what the instanced file says, not the engine's default.
+    editor.select(std::string("player"));
+    bool isSpeedFound = false;
+    for (const ClassView &view : editor.inspector())
+    {
+        for (const FieldView &field : view.m_fields)
+        {
+            if (field.m_schema.m_name == "speed")
+            {
+                isSpeedFound = true;
+                CHECK_FALSE(field.m_isSet);
+                CHECK(field.m_value == nlohmann::json(240));
+            }
+        }
+    }
+    CHECK(isSpeedFound);
+
+    // A scene cannot hold itself, directly or through a scene it instances, and a scene with several top-level nodes cannot be instanced.
+    CHECK_FALSE(editor.instanceProblem("sandbox").empty());
+    CHECK(editor.instanceProblem("sandbox_ui").empty());
+    CHECK_FALSE(editor.instanceProblem("sandbox_3d").empty());
+    CHECK_FALSE(editor.instanceProblem("nothing-here").empty());
+    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
+    CHECK_FALSE(editor.instanceProblem("sandbox").empty());
+
+    // Adding one is a command like any other.
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
+    REQUIRE(editor.addInstance(scenes + "player.scene.json", std::nullopt, &error));
+    CHECK(editor.instanceOf("player-2") == "player");
+    editor.commands().undo();
+    CHECK_FALSE(editor.document().contains("player-2"));
+    CHECK(editor.sceneIssues().empty());
 }

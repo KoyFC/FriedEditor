@@ -4,6 +4,7 @@
 #include "fried/editor/editor_state.h"
 
 #include "fried/core/engine_location.h"
+#include <fstream>
 
 #include <algorithm>
 #include <cctype>
@@ -66,6 +67,41 @@ namespace fried::editor
         m_commands = std::make_unique<CommandStack>(m_document);
         m_commands->m_onChange = [this] { changed(); };
         m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
+        bind(m_document);
+        m_parked.clear();
+        m_tabs.clear();
+        Json openScenes = EditorState::projectValue(m_project.directory(), "openScenes");
+        if (openScenes.is_array())
+        {
+            std::error_code ignored;
+            for (const Json &name : openScenes)
+            {
+                std::string path = m_project.scenesDirectory() + "/" + (name.is_string() ? name.get<std::string>() : std::string());
+                if (!name.is_string() || std::find(m_tabs.begin(), m_tabs.end(), path) != m_tabs.end())
+                {
+                    continue;
+                }
+                if (path == m_scenePath)
+                {
+                    m_tabs.push_back(path);
+                    continue;
+                }
+                OpenScene opened;
+                opened.m_path = path;
+                std::string ignoredError;
+                if (fs::exists(path, ignored) && opened.m_document.load(path, &ignoredError))
+                {
+                    bind(opened.m_document);
+                    opened.m_commands = std::make_unique<CommandStack>(m_document);
+                    m_parked[path] = std::move(opened);
+                    m_tabs.push_back(path);
+                }
+            }
+        }
+        if (std::find(m_tabs.begin(), m_tabs.end(), m_scenePath) == m_tabs.end())
+        {
+            m_tabs.push_back(m_scenePath);
+        }
         m_viewport.setFrameSize(s_frameWidth, s_frameHeight);
         m_viewport.setCamera(s_frameWidth / 2.0, s_frameHeight / 2.0, 1.0);
         Json grid = EditorState::projectValue(m_project.directory(), "grid");
@@ -520,6 +556,7 @@ namespace fried::editor
         m_document.m_onChange = nullptr;
         m_document = std::move(document);
         m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
+        bind(m_document);
         m_commands = std::make_unique<CommandStack>(m_document);
         m_commands->m_onChange = [this] { changed(); };
         m_scenePath = path;
@@ -831,23 +868,120 @@ namespace fried::editor
             *error = "Stop the game to open another scene.";
             return false;
         }
-        SceneDocument loaded;
-        if (!loaded.load(path, error))
+        if (path == m_scenePath && std::find(m_tabs.begin(), m_tabs.end(), path) != m_tabs.end())
         {
-            return false;
+            return true;
         }
+        if (m_parked.find(path) == m_parked.end())
+        {
+            OpenScene opened;
+            opened.m_path = path;
+            if (!opened.m_document.load(path, error))
+            {
+                return false;
+            }
+            bind(opened.m_document);
+            opened.m_commands = std::make_unique<CommandStack>(m_document);
+            m_parked[path] = std::move(opened);
+            m_tabs.push_back(path);
+        }
+        activateParked(path);
+        return true;
+    }
+
+    // Puts the scene being edited aside, with its changes and its history, and edits the one of the tab.
+    void Editor::activateParked(const std::string &path)
+    {
         saveView();
+        OpenScene next = std::move(m_parked[path]);
+        m_parked.erase(path);
         m_document.m_onChange = nullptr;
-        m_document = std::move(loaded);
+        OpenScene current;
+        current.m_path = m_scenePath;
+        current.m_document = std::move(m_document);
+        current.m_commands = std::move(m_commands);
+        if (std::find(m_tabs.begin(), m_tabs.end(), m_scenePath) != m_tabs.end())
+        {
+            m_parked[m_scenePath] = std::move(current);
+        }
+        m_document = std::move(next.m_document);
         m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
-        m_commands = std::make_unique<CommandStack>(m_document);
+        m_commands = std::move(next.m_commands);
         m_commands->m_onChange = [this] { changed(); };
         m_scenePath = path;
         rememberScene();
+        rememberTabs();
         loadLocked();
         m_selected.reset();
         chooseViewMode();
         m_needsLoad = true;
+        changed();
+    }
+
+    void Editor::rememberTabs()
+    {
+        Json names = Json::array();
+        for (const std::string &path : m_tabs)
+        {
+            names.push_back(fs::path(path).filename().string());
+        }
+        EditorState::setProjectValue(m_project.directory(), "openScenes", names);
+    }
+
+    int Editor::activeSceneIndex() const
+    {
+        auto found = std::find(m_tabs.begin(), m_tabs.end(), m_scenePath);
+        return found == m_tabs.end() ? -1 : (int)(found - m_tabs.begin());
+    }
+
+    bool Editor::isSceneModified(const std::string &path) const
+    {
+        if (path == m_scenePath)
+        {
+            return !m_commands->isClean();
+        }
+        auto found = m_parked.find(path);
+        return found != m_parked.end() && !found->second.m_commands->isClean();
+    }
+
+    bool Editor::hasModifiedScenes() const
+    {
+        for (const std::string &path : m_tabs)
+        {
+            if (isSceneModified(path))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Editor::closeScene(const std::string &path, std::string *error)
+    {
+        if (m_isPlaying)
+        {
+            *error = "Stop the game to close a scene.";
+            return false;
+        }
+        auto found = std::find(m_tabs.begin(), m_tabs.end(), path);
+        if (found == m_tabs.end())
+        {
+            return true;
+        }
+        if (m_tabs.size() == 1)
+        {
+            *error = "The last open scene stays open.";
+            return false;
+        }
+        if (path == m_scenePath)
+        {
+            // The tab to the right takes over, or the one to the left when it was the last.
+            auto neighbor = found + 1 != m_tabs.end() ? found + 1 : found - 1;
+            activateParked(*neighbor);
+        }
+        m_parked.erase(path);
+        m_tabs.erase(std::find(m_tabs.begin(), m_tabs.end(), path));
+        rememberTabs();
         changed();
         return true;
     }
@@ -1090,7 +1224,43 @@ namespace fried::editor
             return false;
         }
         m_commands->markClean();
+        m_needsLoad = m_needsLoad || m_tabs.size() > 1;
         changed();
+        return true;
+    }
+
+    bool Editor::saveScene(const std::string &path, std::string *error)
+    {
+        if (path == m_scenePath)
+        {
+            return save(error);
+        }
+        auto found = m_parked.find(path);
+        if (found == m_parked.end())
+        {
+            return true;
+        }
+        std::error_code ignored;
+        fs::create_directories(fs::path(path).parent_path(), ignored);
+        if (!found->second.m_document.save(path, error))
+        {
+            return false;
+        }
+        found->second.m_commands->markClean();
+        m_needsLoad = true;
+        changed();
+        return true;
+    }
+
+    bool Editor::saveAll(std::string *error)
+    {
+        for (const std::string &path : m_tabs)
+        {
+            if (isSceneModified(path) && !saveScene(path, error))
+            {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -1132,7 +1302,7 @@ namespace fried::editor
         {
             const Json *node = m_document.node(id);
             std::string name = node && node->contains("name") && (*node)["name"].is_string() ? (*node)["name"].get<std::string>() : id;
-            m_hierarchyRows.push_back({id, std::move(name), m_document.typeOf(id), camera == id, m_document.depthOf(id), m_document.childCount(id) > 0});
+            m_hierarchyRows.push_back({id, std::move(name), m_document.typeOf(id), camera == id, m_document.instanceOf(id), m_document.depthOf(id), m_document.childCount(id) > 0});
         }
         m_hierarchyVersion = m_document.version();
         return m_hierarchyRows;
@@ -1345,6 +1515,180 @@ namespace fried::editor
         return insertCopy(source, parent, index, "Paste node");
     }
 
+    namespace
+    {
+        std::string sceneNameOf(const std::string &path)
+        {
+            std::string name = fs::path(path).filename().string();
+            const std::string suffix = ".scene.json";
+            return name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 ? name.substr(0, name.size() - suffix.size()) : name;
+        }
+
+        void collectInstances(const Json &node, std::vector<std::string> *names)
+        {
+            if (node.contains("instance") && node["instance"].is_string())
+            {
+                names->push_back(node["instance"].get<std::string>());
+            }
+            if (node.contains("children") && node["children"].is_array())
+            {
+                for (const Json &child : node["children"])
+                {
+                    collectInstances(child, names);
+                }
+            }
+        }
+    }
+
+    void Editor::bind(SceneDocument &document)
+    {
+        document.m_instanceType = [this](const std::string &name) {
+            std::optional<Json> root = sceneRoot(name);
+            return root && root->contains("type") && (*root)["type"].is_string() ? (*root)["type"].get<std::string>() : std::string();
+        };
+    }
+
+    std::string Editor::scenePathOf(const std::string &name) const
+    {
+        return m_project.scenesDirectory() + "/" + name + ".scene.json";
+    }
+
+    // The only top-level node of a scene, as the scene being edited or another open one has it now and as the file has it otherwise. Nothing when there is no such scene or it has not exactly one.
+    std::optional<Json> Editor::sceneRoot(const std::string &sceneName) const
+    {
+        std::string path = scenePathOf(sceneName);
+        const Json *data = nullptr;
+        if (path == m_scenePath)
+        {
+            data = &m_document.data();
+        }
+        else if (auto parked = m_parked.find(path); parked != m_parked.end())
+        {
+            data = &parked->second.m_document.data();
+        }
+        else
+        {
+            std::error_code ignored;
+            auto written = fs::last_write_time(path, ignored);
+            if (ignored)
+            {
+                return std::nullopt;
+            }
+            auto cached = m_sceneFiles.find(path);
+            if (cached == m_sceneFiles.end() || cached->second.first != written)
+            {
+                std::ifstream file(path);
+                m_sceneFiles[path] = std::make_pair(written, file ? Json::parse(file, nullptr, false) : Json());
+                cached = m_sceneFiles.find(path);
+            }
+            data = &cached->second.second;
+        }
+        if (!data->is_object() || !data->contains("nodes") || !(*data)["nodes"].is_array() || (*data)["nodes"].size() != 1 || !(*data)["nodes"][0].is_object())
+        {
+            return std::nullopt;
+        }
+        return (*data)["nodes"][0];
+    }
+
+    // Whether the scene, or a scene it instances at any depth, instances the target.
+    bool Editor::reaches(const std::string &from, const std::string &target, int depth) const
+    {
+        std::optional<Json> root = sceneRoot(from);
+        if (!root || depth > 16)
+        {
+            return false;
+        }
+        std::vector<std::string> names;
+        collectInstances(*root, &names);
+        for (const std::string &name : names)
+        {
+            if (name == target || reaches(name, target, depth + 1))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::string Editor::instanceProblem(const std::string &sceneName) const
+    {
+        std::error_code ignored;
+        std::string path = scenePathOf(sceneName);
+        if (path != m_scenePath && m_parked.find(path) == m_parked.end() && !fs::exists(path, ignored))
+        {
+            return "The project has no scene named " + sceneName + ".";
+        }
+        std::optional<Json> root = sceneRoot(sceneName);
+        if (!root)
+        {
+            return "The scene " + sceneName + " has more or fewer than one top-level node, and only a scene with exactly one can be instanced.";
+        }
+        if (root->contains("instance") && !root->contains("type"))
+        {
+            return "The root of " + sceneName + " is itself an instance, which is not supported.";
+        }
+        std::string current = sceneNameOf(m_scenePath);
+        if (sceneName == current || reaches(sceneName, current, 0))
+        {
+            return "Instancing " + sceneName + " here would make " + current + " contain itself.";
+        }
+        return "";
+    }
+
+    bool Editor::addInstance(const std::string &scenePath, const std::optional<std::string> &parentId, std::string *error)
+    {
+        std::string name = sceneNameOf(scenePath);
+        std::string problem = instanceProblem(name);
+        if (!problem.empty())
+        {
+            *error = problem;
+            return false;
+        }
+        Json root = *sceneRoot(name);
+        std::string id = m_document.uniqueId(root.value("id", name));
+        Json node = {{"id", id}, {"instance", name}};
+        std::string type = root.value("type", "");
+        if (isClassOf(type, "Node2D"))
+        {
+            node["x"] = std::round(m_viewport.cameraX());
+            node["y"] = std::round(m_viewport.cameraY());
+        }
+        else if (isClassOf(type, "Node3D"))
+        {
+            node["x"] = std::round(m_viewport3D.targetX() * 100) / 100;
+            node["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
+            node["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
+        }
+        std::string parent = parentId ? *parentId : "";
+        if (!m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node, "Instance scene")))
+        {
+            *error = "The scene could not be added.";
+            return false;
+        }
+        select(id);
+        return true;
+    }
+
+    std::vector<SceneIssue> Editor::sceneIssues() const
+    {
+        std::vector<SceneIssue> issues;
+        for (const std::string &id : m_document.nodeIds())
+        {
+            std::string scene = m_document.instanceOf(id);
+            std::string problem = scene.empty() ? std::string() : instanceProblem(scene);
+            if (!problem.empty())
+            {
+                issues.push_back({id, scene, problem});
+            }
+        }
+        return issues;
+    }
+
+    void Editor::chooseInstanceScene(const std::string &id, const std::string &sceneName)
+    {
+        m_commands->execute(std::make_unique<SetNodeField>(id, "instance", Json(sceneName)));
+    }
+
     void Editor::removeSelected()
     {
         if (m_selected && m_commands->execute(std::make_unique<RemoveNode>(*m_selected)))
@@ -1434,7 +1778,9 @@ namespace fried::editor
         {
             return views;
         }
-        std::vector<const ClassSchema *> chain = m_session.classChain(node->value("type", ""));
+        std::string instanced = m_document.instanceOf(*m_selected);
+        std::optional<Json> base = instanced.empty() ? std::nullopt : sceneRoot(instanced);
+        std::vector<const ClassSchema *> chain = m_session.classChain(m_document.typeOf(*m_selected));
         for (std::size_t position = 0; position < chain.size(); ++position)
         {
             const ClassSchema *schema = chain[position];
@@ -1446,7 +1792,7 @@ namespace fried::editor
                 FieldView name;
                 name.m_schema = {"name", "string", {}, Json(*m_selected)};
                 name.m_isSet = node->contains("name");
-                name.m_value = name.m_isSet ? (*node)["name"] : Json(*m_selected);
+                name.m_value = name.m_isSet ? (*node)["name"] : base && base->contains("name") ? (*base)["name"] : Json(*m_selected);
                 view.m_fields.push_back(std::move(name));
             }
             for (const FieldSchema &field : schema->m_fields)
@@ -1454,7 +1800,7 @@ namespace fried::editor
                 FieldView fieldView;
                 fieldView.m_schema = field;
                 fieldView.m_isSet = node->contains(field.m_name);
-                fieldView.m_value = fieldView.m_isSet ? (*node)[field.m_name] : field.m_default;
+                fieldView.m_value = fieldView.m_isSet ? (*node)[field.m_name] : base && base->contains(field.m_name) ? (*base)[field.m_name] : field.m_default;
                 if (live && live->contains(field.m_name))
                 {
                     fieldView.m_value = (*live)[field.m_name];

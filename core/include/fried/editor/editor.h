@@ -17,7 +17,9 @@
 #include "fried/editor/viewport3d.h"
 
 #include <chrono>
+#include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -33,8 +35,19 @@ namespace fried::editor
         std::string m_name;
         std::string m_type;
         bool m_isCamera = false;
+
+        // The scene this node instances, empty for a node of the scene's own.
+        std::string m_instance;
         int m_depth = 0;
         bool m_hasChildren = false;
+    };
+
+    // Something wrong with a scene that the editor can say how to put right.
+    struct SceneIssue
+    {
+        std::string m_node;
+        std::string m_scene;
+        std::string m_message;
     };
 
     // Where an anchor sits along one axis of the screen: at its start, middle or end, or spread across all of it.
@@ -157,8 +170,21 @@ namespace fried::editor
         CommandStack &commands() { return *m_commands; }
         const std::string &scenePath() const { return m_scenePath; }
 
+        // Opens the scene in a tab of its own, or goes to its tab when it is open. The scenes already open keep their changes and their undo history.
         bool openScene(const std::string &path, std::string *error);
+
+        // The scenes open, in the order of their tabs. While the game is on a scene with no tab, none of them is the one shown and activeSceneIndex is -1.
+        const std::vector<std::string> &openScenes() const { return m_tabs; }
+        int activeSceneIndex() const;
+        bool isSceneModified(const std::string &path) const;
+        bool hasModifiedScenes() const;
+
+        // Closes a tab and drops what was changed in it and not saved, which is for the caller to have asked about. The last tab cannot be closed, and none can while the game runs.
+        bool closeScene(const std::string &path, std::string *error);
+
         bool save(std::string *error);
+        bool saveScene(const std::string &path, std::string *error);
+        bool saveAll(std::string *error);
         std::vector<std::string> scenePaths() const;
 
         // The scenes opened last, the latest first, that are still in the project.
@@ -210,6 +236,20 @@ namespace fried::editor
         // Adds a node of a class as the last child of a node, or at the top of the scene with no parent, and selects it. A node that is placed by a position starts at the center of the view.
         void addNode(const std::string &type, const std::optional<std::string> &parentId = std::nullopt);
         void removeSelected();
+
+        // Adds a scene of the project as one node under a node, or at the top of the scene with no parent, and selects it. False with the reason in error for a scene that cannot be instanced here.
+        bool addInstance(const std::string &scenePath, const std::optional<std::string> &parentId, std::string *error);
+
+        // The scene an instance in the open scene is of, and the file it is in.
+        std::string instanceOf(const std::string &id) const { return m_document.instanceOf(id); }
+        std::string scenePathOf(const std::string &name) const;
+
+        // Why the scene cannot be instanced in the scene being edited: it is not there, it has more than one top-level node, or it would hold itself. Empty when it can.
+        std::string instanceProblem(const std::string &sceneName) const;
+
+        // The instances of the open scene that cannot be built, each fixed by removing it or by choosing another scene for it.
+        std::vector<SceneIssue> sceneIssues() const;
+        void chooseInstanceScene(const std::string &id, const std::string &sceneName);
 
         // Puts a copy of the selected node and what is under it next to it, with new ids and a name that is not its siblings'.
         bool duplicateSelected();
@@ -350,7 +390,20 @@ namespace fried::editor
         std::vector<GizmoHandle> handlesFor(const Viewport &view) const;
 
     private:
+        // A scene open in a tab that is not the one being edited, with its changes and its history.
+        struct OpenScene
+        {
+            std::string m_path;
+            SceneDocument m_document;
+            std::unique_ptr<CommandStack> m_commands;
+        };
+
         void startPlayer();
+        void activateParked(const std::string &path);
+        void bind(SceneDocument &document);
+        std::optional<nlohmann::json> sceneRoot(const std::string &sceneName) const;
+        bool reaches(const std::string &from, const std::string &target, int depth) const;
+        void rememberTabs();
         void launchPlay(bool isFromStartScene);
         // The game moved to another scene: the editor shows that one, as Unity's hierarchy does, until the game comes back to the first or stops.
         void followGameScene(const std::string &name);
@@ -407,6 +460,9 @@ namespace fried::editor
             std::unique_ptr<CommandStack> m_commands;
         };
         std::optional<PlayOrigin> m_origin;
+        std::vector<std::string> m_tabs;
+        mutable std::map<std::string, std::pair<std::filesystem::file_time_type, nlohmann::json>> m_sceneFiles;
+        std::map<std::string, OpenScene> m_parked;
         // The values the running game last reported for each node, over what the file holds. They show in the inspector and in the scene view while it runs.
         std::map<std::string, nlohmann::json> m_liveFields;
         unsigned long long m_liveSerial = 0;

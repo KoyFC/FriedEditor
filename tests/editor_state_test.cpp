@@ -80,12 +80,16 @@ TEST_CASE("the editor reopens the scene it had open, and shows the build while i
     {
         Editor first;
         REQUIRE(first.open(engine + "/sandbox", engine, &error));
-        CHECK(fs::path(first.scenePath()).filename() == "sandbox.scene.json");
+        REQUIRE(first.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
         REQUIRE(first.openScene(engine + "/sandbox/assets/scenes/sandbox_ui.scene.json", &error));
     }
     Editor second;
     REQUIRE(second.open(engine + "/sandbox", engine, &error));
     CHECK(fs::path(second.scenePath()).filename() == "sandbox_ui.scene.json");
+    // The scenes that were open in tabs come back in the same order, with the same one on top.
+    REQUIRE(second.openScenes().size() == 3);
+    CHECK(fs::path(second.openScenes()[1]).filename() == "sandbox.scene.json");
+    CHECK(second.activeSceneIndex() == 2);
 
     for (int attempt = 0; attempt < 120000 && second.status() != Editor::Status::Ready && second.status() != Editor::Status::Failed; ++attempt)
     {
