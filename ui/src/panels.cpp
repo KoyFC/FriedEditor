@@ -2660,7 +2660,8 @@ namespace editor_ui
             {
                 ImGui::SetTooltip("%s", reference.c_str());
             }
-            if (!isFolder && ImGui::BeginDragDropSource())
+            // A cell of the grid is a group with no item of its own, which a drag can only start from when it is allowed to have no ID.
+            if (!isFolder && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
                 ImGui::SetDragDropPayload(s_assetPayload, reference.c_str(), reference.size() + 1);
                 ImGui::TextUnformatted(name.c_str());
