@@ -1933,6 +1933,47 @@ namespace fried::editor
         }
     }
 
+    void Editor::addAssetNode(const std::string &root, const std::string &path, const std::string &parentId)
+    {
+        if (path.size() > 11 && path.compare(path.size() - 11, 11, ".scene.json") == 0)
+        {
+            std::string error;
+            if (!addInstance(assetFile(root, path), parentId.empty() ? std::nullopt : std::optional<std::string>(parentId), &error))
+            {
+                m_message = error;
+                changed();
+            }
+            return;
+        }
+        AssetKind kind = assetKindOf(path);
+        if (kind != AssetKind::Image && kind != AssetKind::Font)
+        {
+            return;
+        }
+
+        Json reference = {{"root", root}, {"path", path}};
+        std::string stem = fs::path(path).stem().stem().string();
+        std::string id = m_document.uniqueId(stem.empty() ? "asset" : stem);
+        Json node = newNode(kind == AssetKind::Image ? "Sprite" : "Label");
+        node["id"] = id;
+        node["name"] = stem;
+        if (kind == AssetKind::Image)
+        {
+            node["texture"] = reference;
+        }
+        else
+        {
+            reference["size"] = 16;
+            node["font"] = reference;
+            node["text"] = "Text";
+            node["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
+        }
+        if (m_commands->execute(std::make_unique<AddNode>(parentId, m_document.childCount(parentId), node)))
+        {
+            select(id);
+        }
+    }
+
     std::vector<AssetIssue> Editor::issues() const
     {
         return validateAssets(m_platform, m_project.directory());

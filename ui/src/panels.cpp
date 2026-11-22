@@ -1494,14 +1494,9 @@ namespace editor_ui
                     if (const ImGuiPayload *asset = ImGui::AcceptDragDropPayload(s_assetPayload))
                     {
                         std::string root, path;
-                        if (fried::editor::parseAssetReference(std::string((const char *)asset->Data, asset->DataSize - 1), &root, &path) && path.size() > 11
-                            && path.compare(path.size() - 11, 11, ".scene.json") == 0)
+                        if (fried::editor::parseAssetReference(std::string((const char *)asset->Data, asset->DataSize - 1), &root, &path))
                         {
-                            std::string error;
-                            if (!m_editor.addInstance(m_editor.assetFile(root, path), row.m_id, &error))
-                            {
-                                m_editor.setMessage(error);
-                            }
+                            m_editor.addAssetNode(root, path, row.m_id);
                         }
                     }
                     ImVec2 low = ImGui::GetItemRectMin();
@@ -1608,6 +1603,25 @@ namespace editor_ui
                     ImGui::EndPopup();
                 }
             }
+        }
+
+        // The space below the rows is the scene's top level, where an asset is dropped to add it there and a node to move it to the end.
+        ImGui::InvisibleButton("##hierarchy-end", ImVec2(std::max(1.0f, ImGui::GetContentRegionAvail().x), std::max(scaled(40), ImGui::GetContentRegionAvail().y)));
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload *asset = ImGui::AcceptDragDropPayload(s_assetPayload))
+            {
+                std::string root, path;
+                if (fried::editor::parseAssetReference(std::string((const char *)asset->Data, asset->DataSize - 1), &root, &path))
+                {
+                    m_editor.addAssetNode(root, path, "");
+                }
+            }
+            if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_nodePayload))
+            {
+                m_editor.reparent(std::string((const char *)payload->Data), "", m_editor.document().childCount(""));
+            }
+            ImGui::EndDragDropTarget();
         }
 
         if (isCollapseChanged)

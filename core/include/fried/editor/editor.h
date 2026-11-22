@@ -298,6 +298,9 @@ namespace fried::editor
         // An image dropped on a node that has a texture becomes its texture, and anywhere else a new Sprite. A font becomes a new Label.
         void dropAsset(const std::string &root, const std::string &path, double frameX, double frameY);
 
+        // Puts an asset in the tree as a child of a node, or at the top with no parent: a scene is instanced, an image becomes a Sprite and a font a Label. Anything else is left alone.
+        void addAssetNode(const std::string &root, const std::string &path, const std::string &parentId);
+
         // What is wrong with the project's assets for the platform being previewed, and putting one right.
         std::vector<AssetIssue> issues() const;
         bool fixIssue(const AssetIssue &issue, std::string *error);
