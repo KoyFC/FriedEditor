@@ -1428,8 +1428,78 @@ namespace editor_ui
         const ImVec2 windowPosition = ImGui::GetWindowPos();
         const float windowRight = windowPosition.x + ImGui::GetWindowWidth();
 
+        // Up and Down choose the row above or below, so the inspector follows, and the list scrolls to keep it in view.
+        int scrollTo = -1;
+        if (!m_visibleRows.empty() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput)
+        {
+            bool isDown = ImGui::IsKeyPressed(ImGuiKey_DownArrow);
+            if (isDown || ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+            {
+                int current = -1;
+                for (int visible = 0; visible < (int)m_visibleRows.size() && m_editor.selected(); ++visible)
+                {
+                    if (rows[m_visibleRows[visible]].m_id == *m_editor.selected())
+                    {
+                        current = visible;
+                    }
+                }
+                int target = current < 0 ? (isDown ? 0 : (int)m_visibleRows.size() - 1) : std::clamp(current + (isDown ? 1 : -1), 0, (int)m_visibleRows.size() - 1);
+                if (target != current)
+                {
+                    m_editor.select(rows[m_visibleRows[target]].m_id);
+                    scrollTo = target;
+                }
+            }
+            bool isRight = ImGui::IsKeyPressed(ImGuiKey_RightArrow);
+            if (!isFiltering && m_editor.selected() && (isRight || ImGui::IsKeyPressed(ImGuiKey_LeftArrow)))
+            {
+                // Right opens a folded node and then goes into it, and Left folds an open one and then goes up to its parent.
+                for (int visible = 0; visible < (int)m_visibleRows.size(); ++visible)
+                {
+                    const auto &row = rows[m_visibleRows[visible]];
+                    if (row.m_id != *m_editor.selected())
+                    {
+                        continue;
+                    }
+                    bool isFolded = m_collapsed.count(row.m_id) > 0;
+                    if (isRight && row.m_hasChildren && isFolded)
+                    {
+                        m_collapsed.erase(row.m_id);
+                        isCollapseChanged = true;
+                    }
+                    else if (isRight && row.m_hasChildren && visible + 1 < (int)m_visibleRows.size())
+                    {
+                        m_editor.select(rows[m_visibleRows[visible + 1]].m_id);
+                        scrollTo = visible + 1;
+                    }
+                    else if (!isRight && row.m_hasChildren && !isFolded)
+                    {
+                        m_collapsed.insert(row.m_id);
+                        isCollapseChanged = true;
+                    }
+                    else if (!isRight)
+                    {
+                        for (int above = visible - 1; above >= 0; --above)
+                        {
+                            if (rows[m_visibleRows[above]].m_depth < row.m_depth)
+                            {
+                                m_editor.select(rows[m_visibleRows[above]].m_id);
+                                scrollTo = above;
+                                break;
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
         ImGuiListClipper clipper;
         clipper.Begin((int)m_visibleRows.size(), rowHeight);
+        if (scrollTo >= 0)
+        {
+            clipper.IncludeItemByIndex(scrollTo);
+        }
         while (clipper.Step())
         {
             for (int visible = clipper.DisplayStart; visible < clipper.DisplayEnd; ++visible)
@@ -1527,6 +1597,10 @@ namespace editor_ui
                     }
                 }
 
+                if (visible == scrollTo)
+                {
+                    ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleEdgeY);
+                }
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isLockHovered)
                 {
                     m_editor.select(row.m_id);
