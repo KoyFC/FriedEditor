@@ -27,7 +27,7 @@ namespace
         {
             fs::remove_all(m_root);
             fs::create_directories(m_root / "assets" / "scenes");
-            write("project.fried", R"({"name": "Sample", "organization": "Org", "version": "01.00", "gameClass": "Main"})");
+            write("project.fried", R"({"name": "Sample", "organization": "Org", "version": "01.00", "customKey": "Main"})");
             write("assets/scenes/main.scene.json", "{}");
             write("assets/scenes/menu.scene.json", "{}");
             write("assets/scenes/notes.txt", "");
@@ -71,7 +71,7 @@ TEST_CASE("a setting that passes its check is written to the project file at onc
     CHECK(onDisk.vitaTitleId() == "SAMP00001");
     CHECK(onDisk.startScene() == "menu");
     CHECK(onDisk.packagingText("nds", "subtitle1") == "A line");
-    CHECK(project.read("project.fried").find("\"gameClass\": \"Main\"") != std::string::npos);
+    CHECK(project.read("project.fried").find("\"customKey\": \"Main\"") != std::string::npos);
 
     // Setting what is already there writes nothing.
     CHECK(settings.setName("Renamed").empty());
@@ -331,4 +331,21 @@ TEST_CASE("the game a build made is the executable or package in its build folde
     std::filesystem::permissions(project.m_root / "build" / "sample", std::filesystem::perms::owner_exec, std::filesystem::perm_options::add);
     CHECK(std::filesystem::path(build.builtFile()).filename() == "sample");
 #endif
+}
+
+TEST_CASE("the autoloads are saved in order and only name scenes of the project")
+{
+    TemporaryProject project("autoload");
+    ProjectSettings settings(project.m_project);
+
+    CHECK(settings.setAutoloads({"menu", "main"}).empty());
+    CHECK(project.m_project.autoloads() == std::vector<std::string>({"menu", "main"}));
+    CHECK(project.read("project.fried").find("\"autoload\"") != std::string::npos);
+
+    CHECK_FALSE(settings.setAutoloads({"menu", "nothing"}).empty());
+    CHECK_FALSE(settings.setAutoloads({"menu", "menu"}).empty());
+    CHECK(project.m_project.autoloads() == std::vector<std::string>({"menu", "main"}));
+
+    CHECK(settings.setAutoloads({}).empty());
+    CHECK(project.read("project.fried").find("\"autoload\"") == std::string::npos);
 }

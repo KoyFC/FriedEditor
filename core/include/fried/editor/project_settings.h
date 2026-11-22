@@ -39,6 +39,9 @@ namespace fried::editor
         std::string setPackagingText(const std::string &section, const std::string &key, const std::string &value);
         static int packagingTextLimit(const std::string &section);
 
+        // The scenes the game loads once at startup and keeps, in order. Each has to be a scene of the project, and none can be listed twice.
+        std::string setAutoloads(const std::vector<std::string> &scenes);
+
         // The project's scenes by the name the engine gives them, which is what "startScene" holds.
         std::vector<std::string> startSceneChoices() const;
 

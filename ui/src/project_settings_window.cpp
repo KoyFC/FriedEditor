@@ -205,6 +205,66 @@ namespace editor_ui
             ImGui::EndCombo();
         }
 
+        ImGui::SeparatorText("Autoload");
+        ImGui::TextDisabled("Scenes loaded once when the game starts and kept while it runs, for what the whole game needs. Their nodes are reached with SceneManager.autoload.");
+        {
+            std::vector<std::string> listed = project.autoloads();
+            std::vector<std::string> next = listed;
+            bool isChanged = false;
+            for (std::size_t position = 0; position < listed.size(); ++position)
+            {
+                ImGui::PushID((int)position);
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("%zu  %s", position + 1, listed[position].c_str());
+                ImGui::SameLine(scaled(s_labelBase) + scaled(120));
+                if (ImGui::SmallButton("Up") && position > 0)
+                {
+                    std::swap(next[position], next[position - 1]);
+                    isChanged = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Down") && position + 1 < next.size())
+                {
+                    std::swap(next[position], next[position + 1]);
+                    isChanged = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Remove"))
+                {
+                    next.erase(next.begin() + position);
+                    isChanged = true;
+                }
+                ImGui::PopID();
+                if (isChanged)
+                {
+                    break;
+                }
+            }
+            if (ImGui::BeginCombo("##addAutoload", "Add a scene..."))
+            {
+                for (const std::string &scene : settings.startSceneChoices())
+                {
+                    if (std::find(listed.begin(), listed.end(), scene) == listed.end() && ImGui::Selectable(scene.c_str()))
+                    {
+                        next.push_back(scene);
+                        isChanged = true;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            if (isChanged)
+            {
+                m_settingErrors["Autoload"] = settings.setAutoloads(next);
+            }
+            auto problem = m_settingErrors.find("Autoload");
+            if (problem != m_settingErrors.end() && !problem->second.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+                ImGui::TextWrapped("%s", problem->second.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
+
         ImGui::SeparatorText("Display");
         fried::editor::DisplaySettings display = project.display();
         bool isChanged = false;

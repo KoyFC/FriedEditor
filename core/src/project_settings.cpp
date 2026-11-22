@@ -101,6 +101,24 @@ namespace fried::editor
         return apply(isKnown ? std::string() : "The project has no scene named " + value + ".", [&](Project &project) { project.setStartScene(value); });
     }
 
+    std::string ProjectSettings::setAutoloads(const std::vector<std::string> &scenes)
+    {
+        std::vector<std::string> known = startSceneChoices();
+        std::string problem;
+        for (std::size_t index = 0; index < scenes.size() && problem.empty(); ++index)
+        {
+            if (!contains(known, scenes[index]))
+            {
+                problem = "The project has no scene named " + scenes[index] + ".";
+            }
+            else if (std::count(scenes.begin(), scenes.end(), scenes[index]) > 1)
+            {
+                problem = scenes[index] + " is listed twice.";
+            }
+        }
+        return apply(problem, [&](Project &project) { project.setAutoloads(scenes); });
+    }
+
     std::string ProjectSettings::setVitaTitleId(const std::string &value)
     {
         return apply(named("The title ID", Project::checkVitaTitleId(value)), [&](Project &project) { project.setVitaTitleId(value); });
