@@ -298,6 +298,18 @@ namespace fried::editor
         void refreshAssets() { m_assetsAt = std::chrono::steady_clock::time_point(); }
         std::string assetFile(const std::string &root, const std::string &path) const;
 
+        // The folders of the game's assets and the engine's, empty ones included, written like "game/sprites".
+        const std::vector<std::string> &assetDirectories() const;
+
+        // Changes to the game's asset files, named by reference ("game/sprites/hero.png"). Scene files hold the references that follow a moved file, so a move first saves the open scenes and then reads them again, and the undo history of the open scenes is dropped. The scenes' own files stay where they are.
+        bool createAssetFolder(const std::string &folder, const std::string &name, std::string *error);
+        bool moveAsset(const std::string &reference, const std::string &folder, const std::string &name, std::string *error);
+        bool deleteAsset(const std::string &reference, std::string *error);
+        bool duplicateAsset(const std::string &reference, std::string *error);
+
+        // The scene files that name the asset, or a file under it when it is a folder.
+        std::vector<std::string> assetUsers(const std::string &reference) const;
+
         // An image dropped on a node that has a texture becomes its texture, and anywhere else a new Sprite. A font becomes a new Label.
         void dropAsset(const std::string &root, const std::string &path, double frameX, double frameY);
 
@@ -405,6 +417,8 @@ namespace fried::editor
         };
 
         void startPlayer();
+        void reloadScenes();
+        bool gameAssetPath(const std::string &reference, std::string *path, std::string *error) const;
         void activateParked(const std::string &path);
         void bind(SceneDocument &document);
         std::optional<nlohmann::json> sceneRoot(const std::string &sceneName) const;
@@ -529,6 +543,7 @@ namespace fried::editor
         mutable std::optional<std::string> m_inspectorSelected;
         mutable std::size_t m_inspectorSchemaSize = 0;
         mutable std::vector<AssetEntry> m_assetsCache;
+        mutable std::vector<std::string> m_directoriesCache;
         mutable std::chrono::steady_clock::time_point m_assetsAt;
         bool m_mayResync = false;
 

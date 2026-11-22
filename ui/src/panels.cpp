@@ -2394,6 +2394,124 @@ namespace editor_ui
         fried::editor::EditorState::setProjectValue(m_editor.project().directory(), "assetFolder", folder);
     }
 
+    bool Panels::moveDroppedAsset(const std::string &folder)
+    {
+        bool isMoved = false;
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_assetPayload))
+            {
+                std::string reference((const char *)payload->Data, payload->DataSize - 1);
+                std::string error;
+                if (m_editor.moveAsset(reference, folder, std::string(), &error))
+                {
+                    isMoved = true;
+                }
+                else
+                {
+                    m_editor.setMessage(error);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        return isMoved;
+    }
+
+    // The windows the asset files ask for: a new name, a new folder and the confirmation of a delete.
+    void Panels::assetQuestions()
+    {
+        auto folderOf = [](const std::string &reference) { return reference.substr(0, reference.rfind('/')); };
+        auto text = [&](const char *label, std::string *value) {
+            ImGui::SetNextItemWidth(scaled(260));
+            if (ImGui::IsWindowAppearing())
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
+            bool isEntered = ImGui::InputText(label, value, ImGuiInputTextFlags_EnterReturnsTrue);
+            if (!m_assetQuestionError.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.4f, 1.0f));
+                ImGui::TextWrapped("%s", m_assetQuestionError.c_str());
+                ImGui::PopStyleColor();
+            }
+            return isEntered;
+        };
+
+        if (m_isAssetRenameAsked)
+        {
+            m_assetQuestionError.clear();
+            ImGui::OpenPopup("asset-rename");
+            m_isAssetRenameAsked = false;
+        }
+        if (ImGui::BeginPopup("asset-rename"))
+        {
+            ImGui::TextDisabled("New name");
+            if (text("##asset-rename-text", &m_assetRenameText))
+            {
+                if (m_editor.moveAsset(m_assetRenameReference, folderOf(m_assetRenameReference), m_assetRenameText, &m_assetQuestionError))
+                {
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        if (m_isNewFolderAsked)
+        {
+            m_assetQuestionError.clear();
+            ImGui::OpenPopup("asset-new-folder");
+            m_isNewFolderAsked = false;
+        }
+        if (ImGui::BeginPopup("asset-new-folder"))
+        {
+            ImGui::TextDisabled("Folder name");
+            if (text("##asset-folder-text", &m_newFolderText))
+            {
+                if (m_editor.createAssetFolder(m_newFolderParent, m_newFolderText, &m_assetQuestionError))
+                {
+                    enterAssetFolder(m_newFolderParent + "/" + m_newFolderText);
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        if (m_isAssetDeleteAsked)
+        {
+            ImGui::OpenPopup("Delete asset##confirm");
+            m_isAssetDeleteAsked = false;
+        }
+        if (ImGui::BeginPopupModal("Delete asset##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::Text("Delete %s?", m_assetDeleteReference.c_str());
+            if (!m_assetDeleteUsers.empty())
+            {
+                ImGui::Spacing();
+                ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.35f, 1.0f), "These scenes still use it:");
+                for (const std::string &scene : m_assetDeleteUsers)
+                {
+                    ImGui::BulletText("%s", scene.c_str());
+                }
+            }
+            ImGui::Spacing();
+            if (ImGui::Button("Delete"))
+            {
+                std::string error;
+                if (!m_editor.deleteAsset(m_assetDeleteReference, &error))
+                {
+                    m_editor.setMessage(error);
+                }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+
     void Panels::assets()
     {
         static const char *filters[] = {"All types", "Images", "Fonts", "Audio", "Scenes"};
@@ -2406,10 +2524,19 @@ namespace editor_ui
         {
             key = key * 31 + std::hash<std::string>()(entry.m_path);
         }
+        const std::vector<std::string> &directories = m_editor.assetDirectories();
+        for (const std::string &directory : directories)
+        {
+            key = key * 31 + std::hash<std::string>()(directory);
+        }
         if (key != m_foldersKey || m_folders.empty())
         {
             m_foldersKey = key;
+            // The folders that hold files, and the empty ones a folder made in the editor is until something is put in it.
             m_folders = fried::editor::assetFolders(entries);
+            m_folders.insert(m_folders.end(), directories.begin(), directories.end());
+            std::sort(m_folders.begin(), m_folders.end());
+            m_folders.erase(std::unique(m_folders.begin(), m_folders.end()), m_folders.end());
         }
         if (!m_isAssetFolderLoaded)
         {
@@ -2505,6 +2632,7 @@ namespace editor_ui
             {
                 enterAssetFolder(folder);
             }
+            moveDroppedAsset(folder);
             ImVec2 low = ImGui::GetItemRectMin();
             ImVec2 high = ImGui::GetItemRectMax();
             float x = low.x + ImGui::GetTreeNodeToLabelSpacing();
@@ -2668,12 +2796,18 @@ namespace editor_ui
             {
                 ImGui::SetTooltip("%s", reference.c_str());
             }
-            if (!isFolder && ImGui::BeginDragDropSource())
+            if (ImGui::BeginDragDropSource())
             {
                 ImGui::SetDragDropPayload(s_assetPayload, reference.c_str(), reference.size() + 1);
                 ImGui::TextUnformatted(name.c_str());
                 ImGui::EndDragDropSource();
             }
+            if (isFolder && moveDroppedAsset(item.m_folder))
+            {
+                ImGui::PopID();
+                break;
+            }
+            const bool isEditable = reference.compare(0, 5, "game/") == 0 && reference != "game" && !(reference == "game/scenes" || reference.compare(0, 12, "game/scenes/") == 0);
 
             // A double click does what suits the file: a folder is entered, a scene opens, and an image or a font is added to the scene.
             bool isUsable = isFolder || isScene || item.m_entry->m_kind == AssetKind::Image || item.m_entry->m_kind == AssetKind::Font;
@@ -2692,6 +2826,34 @@ namespace editor_ui
                 {
                     ImGui::SetClipboardText(reference.c_str());
                 }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Rename...", nullptr, false, isEditable))
+                {
+                    m_assetRenameReference = reference;
+                    m_assetRenameText = name;
+                    m_isAssetRenameAsked = true;
+                }
+                if (ImGui::MenuItem("Duplicate", nullptr, false, isEditable))
+                {
+                    std::string error;
+                    if (!m_editor.duplicateAsset(reference, &error))
+                    {
+                        m_editor.setMessage(error);
+                    }
+                }
+                if (ImGui::MenuItem("Delete", nullptr, false, isEditable))
+                {
+                    m_assetDeleteReference = reference;
+                    m_assetDeleteUsers = m_editor.assetUsers(reference);
+                    m_isAssetDeleteAsked = true;
+                }
+                if (ImGui::MenuItem("New Folder...", nullptr, false, reference.compare(0, 5, "game/") == 0 || reference == "game"))
+                {
+                    m_newFolderParent = isFolder ? reference : reference.substr(0, reference.rfind('/'));
+                    m_newFolderText = "New Folder";
+                    m_isNewFolderAsked = true;
+                }
+                ImGui::Separator();
                 if (ImGui::MenuItem("Show in folder"))
                 {
                     std::string file;
@@ -2727,6 +2889,17 @@ namespace editor_ui
             }
             ImGui::PopID();
         }
+        if (ImGui::BeginPopupContextWindow("asset-area", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        {
+            if (ImGui::MenuItem("New Folder...", nullptr, false, m_assetFolder.compare(0, 4, "game") == 0))
+            {
+                m_newFolderParent = m_assetFolder;
+                m_newFolderText = "New Folder";
+                m_isNewFolderAsked = true;
+            }
+            ImGui::EndPopup();
+        }
+        assetQuestions();
         ImGui::EndChild();
     }
 

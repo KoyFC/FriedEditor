@@ -1,5 +1,6 @@
 #include "fried/editor/editor.h"
 
+#include "fried/editor/asset_files.h"
 #include "fried/editor/commands.h"
 #include "fried/editor/editor_state.h"
 
@@ -1912,9 +1913,177 @@ namespace fried::editor
             m_assetsCache = listAssets("game", m_project.assetsDirectory());
             std::vector<AssetEntry> engine = listAssets("engine", m_enginePath + "/assets");
             m_assetsCache.insert(m_assetsCache.end(), engine.begin(), engine.end());
+            m_directoriesCache = listAssetDirectories("game", m_project.assetsDirectory());
+            std::vector<std::string> engineFolders = listAssetDirectories("engine", m_enginePath + "/assets");
+            m_directoriesCache.insert(m_directoriesCache.end(), engineFolders.begin(), engineFolders.end());
             m_assetsAt = now;
         }
         return m_assetsCache;
+    }
+
+    const std::vector<std::string> &Editor::assetDirectories() const
+    {
+        assets();
+        return m_directoriesCache;
+    }
+
+    bool Editor::gameAssetPath(const std::string &reference, std::string *path, std::string *error) const
+    {
+        if (reference == "game")
+        {
+            path->clear();
+            return true;
+        }
+        std::string root;
+        if (!parseAssetReference(reference, &root, path) || root != "game")
+        {
+            *error = "Only the game's own files can be changed, the engine's are read only.";
+            return false;
+        }
+        return true;
+    }
+
+    std::vector<std::string> Editor::assetUsers(const std::string &reference) const
+    {
+        std::string path, ignored;
+        return gameAssetPath(reference, &path, &ignored) && !path.empty() ? scenesUsingAsset(m_project.scenesDirectory(), path) : std::vector<std::string>();
+    }
+
+    bool Editor::createAssetFolder(const std::string &folder, const std::string &name, std::string *error)
+    {
+        std::string parent;
+        if (!gameAssetPath(folder, &parent, error))
+        {
+            return false;
+        }
+        if (!isAssetName(name))
+        {
+            *error = "A folder needs a name that is a file name, with no folders in it.";
+            return false;
+        }
+        if (!fried::editor::createAssetFolder(m_project.assetsDirectory(), parent.empty() ? name : parent + "/" + name, error))
+        {
+            return false;
+        }
+        m_assetsAt = std::chrono::steady_clock::time_point();
+        changed();
+        return true;
+    }
+
+    bool Editor::moveAsset(const std::string &reference, const std::string &folder, const std::string &name, std::string *error)
+    {
+        std::string from, destination;
+        if (!gameAssetPath(reference, &from, error) || !gameAssetPath(folder, &destination, error))
+        {
+            return false;
+        }
+        std::string newName = name.empty() ? fs::path(from).filename().string() : name;
+        if (!isAssetName(newName))
+        {
+            *error = "A name is a file name, with no folders in it.";
+            return false;
+        }
+        std::string to = destination.empty() ? newName : destination + "/" + newName;
+        if (from.empty() || to == from)
+        {
+            return true;
+        }
+        if (isSceneAssetPath(from) || isSceneAssetPath(to))
+        {
+            *error = "Scenes keep their place in the scenes folder, where the game finds them by name.";
+            return false;
+        }
+        if (!saveAll(error))
+        {
+            return false;
+        }
+        int rewritten = 0;
+        if (!fried::editor::moveAsset(m_project.assetsDirectory(), m_project.scenesDirectory(), from, to, &rewritten, error))
+        {
+            return false;
+        }
+        m_assetsAt = std::chrono::steady_clock::time_point();
+        reloadScenes();
+        m_message = rewritten == 0 ? "Moved " + from + " to " + to
+                                   : "Moved " + from + " to " + to + ", and " + std::to_string(rewritten) + (rewritten == 1 ? " reference" : " references") + " in the scenes follow it";
+        changed();
+        return true;
+    }
+
+    bool Editor::deleteAsset(const std::string &reference, std::string *error)
+    {
+        std::string path;
+        if (!gameAssetPath(reference, &path, error))
+        {
+            return false;
+        }
+        if (!fried::editor::deleteAsset(m_project.assetsDirectory(), path, error))
+        {
+            return false;
+        }
+        m_assetsAt = std::chrono::steady_clock::time_point();
+        m_message = "Deleted " + reference;
+        changed();
+        return true;
+    }
+
+    bool Editor::duplicateAsset(const std::string &reference, std::string *error)
+    {
+        std::string path;
+        if (!gameAssetPath(reference, &path, error) || path.empty())
+        {
+            return false;
+        }
+        if (isSceneAssetPath(path))
+        {
+            *error = "Scenes keep their place in the scenes folder, where the game finds them by name.";
+            return false;
+        }
+        fs::path source(path);
+        std::string stem = source.stem().string();
+        std::string extension = source.extension().string();
+        std::string to;
+        for (int number = 1;; ++number)
+        {
+            std::string name = stem + " copy" + (number > 1 ? " " + std::to_string(number) : std::string()) + extension;
+            to = (source.parent_path() / name).generic_string();
+            std::error_code ignored;
+            if (!fs::exists(fs::path(m_project.assetsDirectory()) / to, ignored))
+            {
+                break;
+            }
+        }
+        if (!fried::editor::copyAsset(m_project.assetsDirectory(), path, to, error))
+        {
+            return false;
+        }
+        m_assetsAt = std::chrono::steady_clock::time_point();
+        changed();
+        return true;
+    }
+
+    void Editor::reloadScenes()
+    {
+        std::string error;
+        for (auto &parked : m_parked)
+        {
+            SceneDocument document;
+            if (document.load(parked.first, &error))
+            {
+                bind(document);
+                parked.second.m_document = std::move(document);
+                parked.second.m_commands = std::make_unique<CommandStack>(m_document);
+            }
+        }
+        if (m_document.load(m_scenePath, &error))
+        {
+            bind(m_document);
+            m_commands = std::make_unique<CommandStack>(m_document);
+            m_commands->m_onChange = [this] { changed(); };
+            loadLocked();
+            m_selected.reset();
+            m_needsLoad = true;
+        }
     }
 
     std::string Editor::assetFile(const std::string &root, const std::string &path) const

@@ -138,6 +138,21 @@ namespace editor_ui
         float m_assetTreeWidth = 190;
         std::vector<std::string> m_folders;
         std::size_t m_foldersKey = 0;
+
+        // The questions the asset files raise: a new name for a file, the name of a new folder, and the confirmation of a delete.
+        // Makes the item just drawn take the asset dragged onto it into the folder. True when something was moved.
+        bool moveDroppedAsset(const std::string &folder);
+        void assetQuestions();
+        bool m_isAssetRenameAsked = false;
+        std::string m_assetRenameReference;
+        std::string m_assetRenameText;
+        bool m_isNewFolderAsked = false;
+        std::string m_newFolderParent;
+        std::string m_newFolderText;
+        bool m_isAssetDeleteAsked = false;
+        std::string m_assetDeleteReference;
+        std::vector<std::string> m_assetDeleteUsers;
+        std::string m_assetQuestionError;
         std::string m_assetSearch;
         std::string m_autoloadFilter;
         std::string m_pendingScene;
