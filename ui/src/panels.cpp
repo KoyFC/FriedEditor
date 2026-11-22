@@ -7,6 +7,7 @@
 #include "fried/editor/display_name.h"
 #include "fried/editor/editor_state.h"
 #include "fried/editor/fuzzy.h"
+#include "fried/editor/import_settings.h"
 
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -2454,8 +2455,195 @@ namespace editor_ui
         return isOpen;
     }
 
+    void Panels::assetInspector()
+    {
+        using fried::editor::ImportSettings;
+        std::string root, path;
+        const bool isReference = fried::editor::parseAssetReference(m_assetSelected, &root, &path);
+        const AssetKind kind = isReference ? fried::editor::assetKindOf(path) : AssetKind::Other;
+        const std::string name = m_assetSelected.substr(m_assetSelected.rfind('/') + 1);
+        Icon icon = kind == AssetKind::Image ? Icon::Image : kind == AssetKind::Audio ? Icon::AudioStreamWAV : kind == AssetKind::Font ? Icon::Font : kind == AssetKind::Scene ? Icon::PackedScene : Icon::File;
+        Icons::draw(ImGui::GetWindowDrawList(), icon, ImGui::GetCursorScreenPos());
+        ImGui::Dummy(ImVec2(Icons::size(), Icons::size()));
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(name.c_str());
+        ImGui::Separator();
+
+        if (kind != AssetKind::Image && kind != AssetKind::Audio)
+        {
+            ImGui::TextDisabled("This kind of file has no import settings.");
+            return;
+        }
+        const std::string file = m_editor.assetFile(root, path);
+        const bool isImage = kind == AssetKind::Image;
+        const std::string group = isImage ? "image" : "audio";
+        const bool isGame = root == "game";
+        if (!std::filesystem::exists(file))
+        {
+            ImGui::TextDisabled("The file is not there any more.");
+            return;
+        }
+
+        if (isImage)
+        {
+            fried::editor::ImageInfo info = fried::editor::readImageInfo(file);
+            if (info.m_isValid)
+            {
+                ImGui::TextDisabled("%d x %d px, %llu bytes", info.m_width, info.m_height, (unsigned long long)info.m_bytes);
+            }
+        }
+        else
+        {
+            fried::editor::SoundInfo info = fried::editor::readSoundInfo(file);
+            if (info.m_isValid)
+            {
+                ImGui::TextDisabled("%d Hz, %s, %d bit, %.2f s, %llu bytes", info.m_sampleRate, info.m_channels == 1 ? "mono" : "stereo", info.m_bits, info.m_seconds, (unsigned long long)info.m_bytes);
+            }
+            else
+            {
+                ImGui::TextDisabled("Only PCM WAV files are converted.");
+            }
+        }
+        if (!isGame)
+        {
+            ImGui::TextDisabled("The engine's assets are not changed from here.");
+            return;
+        }
+        ImGui::Spacing();
+
+        if (m_importFile != file)
+        {
+            m_importFile = file;
+            m_importSettings = fried::editor::loadImportSettings(file);
+        }
+
+        struct Tab
+        {
+            std::string m_key;
+            std::string m_label;
+        };
+        std::vector<Tab> tabs = {{"", "Default"}};
+        std::vector<fried::core::Platform> declared = m_editor.project().declaredPlatforms();
+        if (declared.empty())
+        {
+            declared.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
+        }
+        for (fried::core::Platform platform : declared)
+        {
+            const char *label = platform == fried::core::Platform::Pc ? "PC" : platform == fried::core::Platform::Vita ? "Vita" : platform == fried::core::Platform::Switch ? "Switch" : platform == fried::core::Platform::Nintendo3ds ? "3DS" : platform == fried::core::Platform::NintendoDs ? "DS" : platform == fried::core::Platform::Cg50 ? "CG50" : "Web";
+            tabs.push_back({fried::core::platformKey(platform), label});
+        }
+
+        bool isChanged = false;
+        if (ImGui::BeginTabBar("##import-platform", ImGuiTabBarFlags_FittingPolicyScroll))
+        {
+            for (const Tab &tab : tabs)
+            {
+                if (!ImGui::BeginTabItem(tab.m_label.c_str()))
+                {
+                    continue;
+                }
+                const std::string &platform = tab.m_key;
+                ImGui::PushID(tab.m_key.c_str());
+                bool hasOverride = platform.empty() || fried::editor::hasImportOverride(m_importSettings, platform, group);
+                if (!platform.empty())
+                {
+                    bool isOverriding = hasOverride;
+                    if (ImGui::Checkbox(("Override for " + tab.m_label).c_str(), &isOverriding))
+                    {
+                        if (isOverriding)
+                        {
+                            fried::editor::startImportOverride(&m_importSettings, platform, group, fried::editor::importDefaults(group));
+                        }
+                        else
+                        {
+                            fried::editor::clearImportOverride(&m_importSettings, platform, group);
+                        }
+                        isChanged = true;
+                        hasOverride = isOverriding;
+                    }
+                    if (!hasOverride)
+                    {
+                        ImGui::BeginDisabled();
+                    }
+                }
+
+                auto choice = [&](const char *label, const char *field, const std::vector<std::pair<nlohmann::json, std::string>> &options) {
+                    nlohmann::json current = fried::editor::importValue(m_importSettings, platform, group, field, fried::editor::importDefaults(group)[field]);
+                    std::string shown = current.dump();
+                    for (const auto &option : options)
+                    {
+                        if (option.first == current)
+                        {
+                            shown = option.second;
+                        }
+                    }
+                    if (ImGui::BeginCombo(label, shown.c_str()))
+                    {
+                        for (const auto &option : options)
+                        {
+                            if (ImGui::Selectable(option.second.c_str(), option.first == current))
+                            {
+                                fried::editor::setImportValue(&m_importSettings, platform, group, field, option.first);
+                                isChanged = true;
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                };
+
+                if (isImage)
+                {
+                    choice("Max size", "maxSize",
+                           {{0, "No limit"}, {32, "32"}, {64, "64"}, {128, "128"}, {256, "256"}, {512, "512"}, {1024, "1024"}, {2048, "2048"}, {4096, "4096"}});
+                    choice("Filter", "filter", {{"default", "Project default"}, {"nearest", "Nearest"}, {"linear", "Linear"}});
+                    choice("Format", "format", {{"rgba8", "RGBA 8888 (32 bit)"}, {"rgba4", "RGBA 4444 (16 bit)"}, {"rgb565", "RGB 565 (16 bit, no transparency)"}});
+                }
+                else
+                {
+                    choice("Channels", "mono", {{false, "Keep"}, {true, "Mix down to mono"}});
+                    choice("Sample rate", "sampleRate",
+                           {{0, "Keep"}, {8000, "8000 Hz"}, {11025, "11025 Hz"}, {16000, "16000 Hz"}, {22050, "22050 Hz"}, {32000, "32000 Hz"}, {44100, "44100 Hz"}, {48000, "48000 Hz"}});
+                    choice("Bits", "bits", {{0, "Keep"}, {8, "8"}, {16, "16"}});
+                }
+
+                if (!platform.empty() && !hasOverride)
+                {
+                    ImGui::EndDisabled();
+                }
+                ImGui::PopID();
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("Applied when the game is built for the platform. The editor shows the original file.");
+        ImGui::PopStyleColor();
+
+        if (isChanged)
+        {
+            std::string error;
+            if (!fried::editor::saveImportSettings(file, m_importSettings, &error))
+            {
+                m_editor.setMessage(error);
+            }
+        }
+    }
+
     void Panels::inspector()
     {
+        if (m_editor.selected() != m_lastInspectedNode)
+        {
+            m_lastInspectedNode = m_editor.selected();
+            m_isAssetInspected = false;
+        }
+        if (m_isAssetInspected && !m_assetSelected.empty())
+        {
+            assetInspector();
+            return;
+        }
         if (!m_editor.selected())
         {
             ImGui::TextDisabled("Nothing selected");
@@ -3219,6 +3407,7 @@ namespace editor_ui
             if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right))
             {
                 m_assetSelected = reference;
+                m_isAssetInspected = true;
             }
 
             // A double click does what suits the file: a folder is entered, a scene opens, and an image or a font is added to the scene.

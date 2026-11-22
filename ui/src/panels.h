@@ -46,6 +46,7 @@ namespace editor_ui
         bool takeValueDrag();
         void hierarchy();
         void inspector();
+        void assetInspector();
         void assets();
         void issues();
 
@@ -171,6 +172,13 @@ namespace editor_ui
         std::string m_assetRenameReference;
         std::string m_assetRenameText;
         std::string m_assetSelected;
+
+        // The inspector shows the asset last clicked until another node is selected.
+        bool m_isAssetInspected = false;
+        std::optional<std::string> m_lastInspectedNode;
+        std::string m_importPlatform;
+        std::string m_importFile;
+        nlohmann::json m_importSettings;
         bool m_isNewScriptAsked = false;
         std::string m_newScriptFolder;
         std::string m_newScriptName;
