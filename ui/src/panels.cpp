@@ -2569,6 +2569,7 @@ namespace editor_ui
                     }
                 }
 
+                const float labelColumn = ImGui::CalcTextSize("Sample rate").x + ImGui::GetStyle().ItemSpacing.x * 3;
                 auto choice = [&](const char *label, const char *field, const std::vector<std::pair<nlohmann::json, std::string>> &options) {
                     nlohmann::json current = fried::editor::importValue(m_importSettings, platform, group, field, fried::editor::importDefaults(group)[field]);
                     std::string shown = current.dump();
@@ -2579,7 +2580,12 @@ namespace editor_ui
                             shown = option.second;
                         }
                     }
-                    if (ImGui::BeginCombo(label, shown.c_str()))
+                    // The names are on the left in a column as wide as the longest, and the selectors fill the rest.
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::TextUnformatted(label);
+                    ImGui::SameLine(labelColumn);
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    if (ImGui::BeginCombo((std::string("##") + field).c_str(), shown.c_str()))
                     {
                         for (const auto &option : options)
                         {
