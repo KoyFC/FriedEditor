@@ -1,5 +1,7 @@
 #include "panels.h"
 
+#include "fried/editor/script_files.h"
+
 #include "style.h"
 
 #include "fried/editor/display_name.h"
@@ -3162,7 +3164,12 @@ namespace editor_ui
                 }
                 else if (isScript)
                 {
-                    SDL_OpenURL(("file://" + m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path)).c_str());
+                    // The folder of the project opens with the script in it, as Unity does, and a computer with no VS Code gives the file to the system.
+                    std::string file = m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path);
+                    if (!fried::editor::openInVsCode(m_editor.project().directory(), file))
+                    {
+                        SDL_OpenURL(("file://" + file).c_str());
+                    }
                 }
                 else
                 {

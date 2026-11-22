@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <regex>
@@ -44,6 +45,28 @@ namespace fried::editor
             }
             return count;
         }
+    }
+
+    bool openInVsCode(const std::string &projectDirectory, const std::string &file)
+    {
+        auto quoted = [](const std::string &text) {
+#ifdef _WIN32
+            return "\"" + text + "\"";
+#else
+            std::string result = "'";
+            for (char c : text)
+            {
+                result += c == '\'' ? std::string("'\\''") : std::string(1, c);
+            }
+            return result + "'";
+#endif
+        };
+#ifdef _WIN32
+        std::string command = "where code >nul 2>nul && start \"\" /b code " + quoted(projectDirectory) + " -g " + quoted(file);
+#else
+        std::string command = "command -v code >/dev/null 2>&1 && { nohup code " + quoted(projectDirectory) + " -g " + quoted(file) + " >/dev/null 2>&1 & }";
+#endif
+        return std::system(command.c_str()) == 0;
     }
 
     bool isScriptName(const std::string &name)

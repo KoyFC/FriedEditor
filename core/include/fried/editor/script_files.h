@@ -20,6 +20,9 @@ namespace fried::editor
     // Writes a new script into a folder under the source directory. Says what went wrong in error.
     bool createScript(const std::string &sourceDirectory, const std::string &folder, const std::string &name, const std::string &baseModule, std::string *error);
 
+    // Opens VS Code on the project's folder with the file open in it, as Unity does, and says whether it could: false when the `code` command is not found.
+    bool openInVsCode(const std::string &projectDirectory, const std::string &file);
+
     // Makes the package line of a script say where its file is, and the class that has the file's old name take the new one. Both are no-ops when nothing changes.
     bool fixScript(const std::string &file, const std::string &package, const std::string &oldName, const std::string &newName);
 
