@@ -1,5 +1,7 @@
 #include "fried/editor/asset_browser.h"
 
+#include "fried/editor/import_settings.h"
+
 #include <algorithm>
 #include <set>
 #include <cctype>
@@ -97,7 +99,7 @@ namespace fried::editor
         std::error_code ignored;
         for (auto entry = fs::recursive_directory_iterator(directory, ignored); entry != fs::recursive_directory_iterator(); entry.increment(ignored))
         {
-            if (!entry->is_regular_file(ignored) || entry->path().filename().string().front() == '.')
+            if (!entry->is_regular_file(ignored) || entry->path().filename().string().front() == '.' || isImportSidecar(entry->path().filename().string()))
             {
                 continue;
             }

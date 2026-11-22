@@ -14,6 +14,7 @@ add_executable(core_tests
     input_map_test.cpp
     log_tail_test.cpp
     game_session_test.cpp
+    import_settings_test.cpp
     player_session_test.cpp
     project_settings_test.cpp
     scene_document_test.cpp

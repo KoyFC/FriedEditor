@@ -10,6 +10,7 @@ add_library(fried_editor_core STATIC
     src/fuzzy.cpp
     src/game_runner.cpp
     src/game_session.cpp
+    src/import_settings.cpp
     src/gizmo.cpp
     src/input_map.cpp
     src/log_tail.cpp

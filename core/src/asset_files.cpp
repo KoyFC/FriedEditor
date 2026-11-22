@@ -1,5 +1,7 @@
 #include "fried/editor/asset_files.h"
 
+#include "fried/editor/import_settings.h"
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -158,11 +160,17 @@ namespace fried::editor
             *error = "There is already a file named " + target.filename().string() + " there.";
             return false;
         }
-        fs::copy(fs::path(assetsDirectory) / from, target, fs::copy_options::recursive, failure);
+        fs::path source = fs::path(assetsDirectory) / from;
+        fs::copy(source, target, fs::copy_options::recursive, failure);
         if (failure)
         {
             *error = "The copy failed: " + failure.message();
             return false;
+        }
+        // A folder takes its files' settings with it, and a file has to be given them.
+        if (fs::is_regular_file(source, failure) && fs::exists(importSidecarPath(source.string()), failure))
+        {
+            fs::copy_file(importSidecarPath(source.string()), importSidecarPath(target.string()), fs::copy_options::overwrite_existing, failure);
         }
         return true;
     }
@@ -175,6 +183,7 @@ namespace fried::editor
             return false;
         }
         std::error_code failure;
+        fs::remove(importSidecarPath((fs::path(assetsDirectory) / path).string()), failure);
         fs::remove_all(fs::path(assetsDirectory) / path, failure);
         if (failure)
         {
@@ -221,6 +230,11 @@ namespace fried::editor
         {
             *error = "The move failed: " + failure.message();
             return false;
+        }
+        // The settings of a file stay with it.
+        if (fs::exists(importSidecarPath(source.string()), failure))
+        {
+            fs::rename(importSidecarPath(source.string()), importSidecarPath(target.string()), failure);
         }
         for (const fs::path &file : sceneFiles(scenesDirectory))
         {
