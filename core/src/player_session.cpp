@@ -217,6 +217,14 @@ namespace fried::editor
         }
     }
 
+    void PlayerSession::setFields(const nlohmann::json &nodes)
+    {
+        if (m_channel)
+        {
+            m_channel->send({{"type", "setFields"}, {"nodes", nodes}});
+        }
+    }
+
     void PlayerSession::addNode(const std::string &parentId, int index, const nlohmann::json &node)
     {
         if (m_channel)

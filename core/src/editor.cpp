@@ -375,6 +375,34 @@ namespace fried::editor
             ++m_gameFrameSerial;
             changed();
         };
+        m_liveFields.clear();
+        ++m_liveSerial;
+        m_play.m_onState = [this](const Json &nodes) {
+            for (const Json &entry : nodes)
+            {
+                if (!entry.is_object() || !entry.contains("id") || !entry.contains("fields") || !entry["fields"].is_object())
+                {
+                    continue;
+                }
+                const std::string id = entry["id"].get<std::string>();
+                Json &live = m_liveFields[id];
+                for (const auto &field : entry["fields"].items())
+                {
+                    live[field.key()] = field.value();
+                }
+                if (m_selected && *m_selected == id)
+                {
+                    ++m_liveSerial;
+                }
+            }
+            // The scene view is the editor's own player, shown what the game reports. A whole scene on its way takes the values with it.
+            if (m_status == Status::Ready && !m_needsLoad)
+            {
+                m_session.setFields(nodes);
+            }
+            m_needsRender = true;
+            changed();
+        };
         m_play.m_onError = [this](const std::string &message) {
             m_message = message;
             changed();
@@ -411,6 +439,9 @@ namespace fried::editor
         }
         m_isPlaying = false;
         m_play.stop();
+        m_liveFields.clear();
+        ++m_liveSerial;
+        m_needsLoad = true;
         // What was edited while it ran goes with it, and the edit player, which was told of each change, is told of the undoing.
         m_commands->revertHeld();
         m_message = "Stopped the game";
@@ -508,6 +539,7 @@ namespace fried::editor
 
         if (m_isPlaying)
         {
+            m_play.setWatch(m_selected.value_or(std::string()), m_isSceneWatched);
             m_play.pump();
             if (m_play.state() == GameSession::State::Closed)
             {
@@ -559,6 +591,16 @@ namespace fried::editor
             // The scene is laid out against the size the game's screen has on the platform being previewed.
             std::pair<int, int> logicalView = m_project.logicalSize(m_platform);
             m_session.load(m_document.data(), logicalView.first, logicalView.second);
+            if (m_isPlaying)
+            {
+                // The game is what is on show, not the file, so what it last reported goes over the new scene.
+                Json restored = Json::array();
+                for (const auto &entry : m_liveFields)
+                {
+                    restored.push_back({{"id", entry.first}, {"fields", entry.second}});
+                }
+                m_session.setFields(restored);
+            }
             m_needsRender = true;
         }
         if (m_needsPreviewMode)
@@ -1286,7 +1328,7 @@ namespace fried::editor
     const std::vector<ClassView> &Editor::inspector() const
     {
         if (m_inspectorVersion == m_document.version() && m_inspectorVersion != 0 && m_inspectorSelected == m_selected
-            && m_inspectorSchemaSize == m_session.schema().size())
+            && m_inspectorSchemaSize == m_session.schema().size() && m_inspectorLiveSerial == m_liveSerial)
         {
             return m_inspectorViews;
         }
@@ -1295,6 +1337,13 @@ namespace fried::editor
         m_inspectorVersion = m_document.version();
         m_inspectorSelected = m_selected;
         m_inspectorSchemaSize = m_session.schema().size();
+        m_inspectorLiveSerial = m_liveSerial;
+        const Json *live = nullptr;
+        if (m_isPlaying && m_selected)
+        {
+            auto found = m_liveFields.find(*m_selected);
+            live = found != m_liveFields.end() ? &found->second : nullptr;
+        }
         const Json *node = m_selected ? m_document.node(*m_selected) : nullptr;
         if (!node)
         {
@@ -1321,6 +1370,10 @@ namespace fried::editor
                 fieldView.m_schema = field;
                 fieldView.m_isSet = node->contains(field.m_name);
                 fieldView.m_value = fieldView.m_isSet ? (*node)[field.m_name] : field.m_default;
+                if (live && live->contains(field.m_name))
+                {
+                    fieldView.m_value = (*live)[field.m_name];
+                }
                 view.m_fields.push_back(std::move(fieldView));
             }
             views.push_back(std::move(view));

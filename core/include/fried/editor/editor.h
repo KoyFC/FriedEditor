@@ -192,6 +192,8 @@ namespace fried::editor
         // True from pressing Play until the game is on screen, which includes building the player.
         bool isStartingPlay() const { return m_pendingPlay.has_value() || (m_isPlaying && m_play.state() == GameSession::State::Waiting); }
         GameSession &gameSession() { return m_play; }
+        // Whether the scene view is on screen, which is when the running game reports every node and not only the selected one.
+        void setSceneWatched(bool isWatched) { m_isSceneWatched = isWatched; }
         // The last frame the game sent, and a number that changes with each.
         const GameFrame &gameFrame() const { return m_gameFrame; }
         unsigned long long gameFrameSerial() const { return m_gameFrameSerial; }
@@ -392,6 +394,11 @@ namespace fried::editor
         GameRunner m_game;
         GameSession m_play;
         bool m_isPlaying = false;
+        bool m_isSceneWatched = false;
+        // The values the running game last reported for each node, over what the file holds. They show in the inspector and in the scene view while it runs.
+        std::map<std::string, nlohmann::json> m_liveFields;
+        unsigned long long m_liveSerial = 0;
+        mutable unsigned long long m_inspectorLiveSerial = 0;
         // Set while the player is rebuilt so that the game can start with it, true when it is to start from the project's start scene.
         std::optional<bool> m_pendingPlay;
         GameFrame m_gameFrame;

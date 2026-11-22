@@ -66,6 +66,9 @@ namespace fried::editor
         // How many frames a second the game is held to: 0 for as many as it can draw, or a negative number for the project's own rule, which follows the rate of the display when the project waits for vsync. The display's rate is what the editor is shown on.
         void setFrameLimit(int fps, int refreshRate);
 
+        // What the game reports the values of: the node being inspected, and every node while the scene view is on screen.
+        void setWatch(const std::string &selectedId, bool isWatchingAll);
+
         // The game sends no frames while nothing shows them.
         void setShowing(bool isShowing);
 
@@ -76,6 +79,8 @@ namespace fried::editor
         void mouseWheel(double x, double y);
 
         std::function<void(const GameFrame &)> m_onFrame;
+        // The fields that changed in the game since it last said, as a list of {id, fields}.
+        std::function<void(const nlohmann::json &)> m_onState;
         // The game answered a change with an error, or the link broke, in which case the state is Closed.
         std::function<void(const std::string &)> m_onError;
 
@@ -91,6 +96,8 @@ namespace fried::editor
         nlohmann::json m_scene;
         bool m_isFromStartScene = false;
         bool m_isShowing = true;
+        std::string m_watchedId;
+        bool m_isWatchingAll = false;
         int m_frameLimit = -1;
         int m_refreshRate = 60;
     };

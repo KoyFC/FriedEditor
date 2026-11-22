@@ -108,6 +108,7 @@ namespace fried::editor
             send({{"type", "play"}, {"name", m_sceneName}, {"scene", m_scene}, {"fromStart", m_isFromStartScene}});
             send({{"type", "showGame"}, {"visible", m_isShowing}});
             send({{"type", "frameLimit"}, {"fps", m_frameLimit}, {"refresh", m_refreshRate}});
+            send({{"type", "watch"}, {"selected", m_watchedId}, {"all", m_isWatchingAll}});
             m_state = State::Running;
         }
         else if (type == "gameFrame")
@@ -129,6 +130,13 @@ namespace fried::editor
             if (m_onFrame)
             {
                 m_onFrame(frame);
+            }
+        }
+        else if (type == "state")
+        {
+            if (m_onState && header.contains("nodes") && header["nodes"].is_array())
+            {
+                m_onState(header["nodes"]);
             }
         }
         else if (type == "error")
@@ -177,6 +185,19 @@ namespace fried::editor
             if (m_state == State::Running)
             {
                 send({{"type", "frameLimit"}, {"fps", fps}, {"refresh", refreshRate}});
+            }
+        }
+    }
+
+    void GameSession::setWatch(const std::string &selectedId, bool isWatchingAll)
+    {
+        if (selectedId != m_watchedId || isWatchingAll != m_isWatchingAll)
+        {
+            m_watchedId = selectedId;
+            m_isWatchingAll = isWatchingAll;
+            if (m_state == State::Running)
+            {
+                send({{"type", "watch"}, {"selected", selectedId}, {"all", isWatchingAll}});
             }
         }
     }

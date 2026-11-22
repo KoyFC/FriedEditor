@@ -45,8 +45,8 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     MessageChannel game(connectToLoopback(session.port(), &error));
     REQUIRE(game.send({{"type", "hello"}, {"protocol", PlayerSession::s_protocol}, {"platform", "pc"}}));
 
-    std::vector<Message> asked = pumpAndPoll(session, game, 3);
-    REQUIRE(asked.size() == 3);
+    std::vector<Message> asked = pumpAndPoll(session, game, 4);
+    REQUIRE(asked.size() == 4);
     CHECK(asked[0].m_header["type"] == "play");
     CHECK(asked[0].m_header["name"] == "main");
     CHECK(asked[0].m_header["scene"] == scene);
@@ -54,6 +54,7 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(asked[1].m_header["type"] == "showGame");
     CHECK(asked[2].m_header["type"] == "frameLimit");
     CHECK(asked[2].m_header["fps"] == -1);
+    CHECK(asked[3].m_header["type"] == "watch");
     CHECK(session.state() == GameSession::State::Running);
 
     nlohmann::json stats = {{"fps", 59.5}, {"frameMs", 16.8}, {"workMs", 2.5}, {"nodes", 16}};
@@ -77,6 +78,19 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(sent[1].m_header["type"] == "setField");
     CHECK(sent[2].m_header["code"] == 7);
     CHECK(sent[3].m_header["y"] == 20);
+
+    nlohmann::json changes = nlohmann::json::array({{{"id", "wall"}, {"fields", {{"x", 4}}}}});
+    nlohmann::json reportedState;
+    session.m_onState = [&](const nlohmann::json &nodes) { reportedState = nodes; };
+    REQUIRE(game.send({{"type", "state"}, {"nodes", changes}}));
+    pumpAndPoll(session, game, 1);
+    CHECK(reportedState == changes);
+
+    session.setWatch("wall", true);
+    std::vector<Message> watching = pumpAndPoll(session, game, 1);
+    REQUIRE(watching.size() == 1);
+    CHECK(watching[0].m_header["selected"] == "wall");
+    CHECK(watching[0].m_header["all"] == true);
 
     REQUIRE(game.send({{"type", "error"}, {"request", "setField"}, {"message", "The scene has no node \"x\"."}}));
     std::string reported;

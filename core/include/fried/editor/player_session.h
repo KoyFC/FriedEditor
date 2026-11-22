@@ -123,6 +123,8 @@ namespace fried::editor
 
         void load(const nlohmann::json &scene, int viewWidth, int viewHeight);
         void setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value);
+        // Several fields of several nodes at once, as a list of {id, fields}.
+        void setFields(const nlohmann::json &nodes);
 
         // Changes the player's tree in place. The empty parent is the top of the scene, and the index is the place among the new siblings once the node has left its old one.
         void addNode(const std::string &parentId, int index, const nlohmann::json &node);

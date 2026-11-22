@@ -617,6 +617,7 @@ namespace editor_ui
                 editor.gameSession().setShowing(isGameDrawn);
             }
             // The one player draws either the scene or the game's preview, and the scene wins when both are on screen.
+            editor.setSceneWatched(isSceneDrawn);
             editor.setGamePreview(isGameDrawn && !isSceneDrawn && !editor.isPlaying());
             panel("Hierarchy", &isHierarchyShown, [&] { panels.hierarchy(); });
             panel("Inspector", &isInspectorShown, [&] { panels.inspector(); });
