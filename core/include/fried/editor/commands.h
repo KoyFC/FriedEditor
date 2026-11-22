@@ -26,6 +26,22 @@ namespace fried::editor
         std::optional<nlohmann::json> m_before;
     };
 
+    // Takes fields out of a node's data, so the engine's defaults (or the instanced scene's values) apply again, as one step.
+    class ClearNodeFields : public Command
+    {
+    public:
+        ClearNodeFields(std::string id, std::vector<std::string> fields);
+
+        std::string label() const override { return "Revert " + (m_fields.size() == 1 ? m_fields.front() : std::string("fields")); }
+        bool apply(SceneDocument &document) override;
+        void revert(SceneDocument &document) override;
+
+    private:
+        std::string m_id;
+        std::vector<std::string> m_fields;
+        std::vector<std::optional<nlohmann::json>> m_before;
+    };
+
     // Sets several numeric fields at once, so a drag of a node or a handle is one step.
     class SetNodeFields : public Command
     {

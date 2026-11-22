@@ -282,6 +282,8 @@ namespace fried::editor
 
         // The class and the ones it extends, its own name first, which is how a class without a look of its own takes its parent's.
         std::vector<std::string> classChain(const std::string &type) const;
+        // Takes the fields out of the selected node's data, in one step to undo.
+        void revertFields(const std::vector<std::string> &fields);
         void setField(const std::string &field, const std::optional<nlohmann::json> &value);
 
         // The selected Control's anchors and box for the backend to draw, when it is one and the player has shown it.

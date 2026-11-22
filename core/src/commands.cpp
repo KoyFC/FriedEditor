@@ -29,6 +29,33 @@ namespace fried::editor
         return true;
     }
 
+    ClearNodeFields::ClearNodeFields(std::string id, std::vector<std::string> fields)
+        : m_id(std::move(id)), m_fields(std::move(fields))
+    {
+    }
+
+    bool ClearNodeFields::apply(SceneDocument &document)
+    {
+        m_before.clear();
+        for (const std::string &field : m_fields)
+        {
+            m_before.push_back(document.nodeField(m_id, field));
+            if (!document.setNodeField(m_id, field, std::nullopt))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void ClearNodeFields::revert(SceneDocument &document)
+    {
+        for (std::size_t index = 0; index < m_fields.size() && index < m_before.size(); ++index)
+        {
+            document.setNodeField(m_id, m_fields[index], m_before[index]);
+        }
+    }
+
     SetNodeFields::SetNodeFields(std::string id, std::map<std::string, double> fields)
         : m_id(std::move(id)), m_fields(std::move(fields))
     {

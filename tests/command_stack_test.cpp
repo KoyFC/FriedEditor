@@ -169,3 +169,20 @@ TEST_CASE("a hold keeps what was done before out of reach and takes back everyth
     CHECK_FALSE(stack.canRedo());
     CHECK(stack.canUndo());
 }
+
+TEST_CASE("reverting fields takes them out of the node in one step, and undo puts them back")
+{
+    SceneDocument document = sample();
+    CommandStack stack(document);
+    std::string before = document.dump();
+
+    REQUIRE(stack.execute(std::make_unique<ClearNodeFields>("a", std::vector<std::string>{"x", "flip"})));
+    CHECK_FALSE(document.nodeField("a", "x").has_value());
+    CHECK_FALSE(document.nodeField("a", "flip").has_value());
+    CHECK(document.nodeField("a", "name").has_value());
+
+    stack.undo();
+    CHECK(document.dump() == before);
+    stack.redo();
+    CHECK_FALSE(document.nodeField("a", "x").has_value());
+}

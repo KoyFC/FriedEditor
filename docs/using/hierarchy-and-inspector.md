@@ -18,6 +18,8 @@ The layout of the panels is docked and is remembered in `layout.ini` in the edit
 
 In the inspector each class of the selected node has a bar with its icon and name, and the fields under it are a name on the left, written as words (`scaleX` reads Scale X), and an editor on the right. The x and y of a node, and any fields named like `scaleX` and `scaleY` (and z when there is one), are shown as one row of small fields, each with its axis letter in red, green or blue; each axis is still its own field and its own undo step.
 
+A field that the scene sets to something other than its default shows a revert arrow at the end of its name, as in Godot. A click takes the field out of the scene's data so the default applies again (for a node that instances a scene, the value of the instanced scene), as one step to undo; the row of x and y, or of scale, has one arrow for both axes.
+
 A field that holds a file, such as the texture of a sprite or the font of a label, can be filled three ways: by typing the reference (`game/sprite.png`, and `engine/NunitoSans.ttf@16` for a font with its size), by dragging the file from the Assets tab onto it, or with the magnifier button at its end. The button opens a list of the project's files of the kind the field takes, images for a texture and fonts for a font, with a thumbnail for each, a search field and a `None` entry that clears the field. The one in use is marked, and choosing a font keeps its size.
 
 ## Instancing a scene

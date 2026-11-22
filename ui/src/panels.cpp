@@ -245,6 +245,32 @@ namespace
         return std::clamp(ImGui::GetWindowWidth() * 0.38f, editor_ui::scaled(90.0f), editor_ui::scaled(220.0f));
     }
 
+    // A field the file sets to something other than the default has an arrow at the end of its name, which takes it back to the default.
+    bool isRevertable(const fried::editor::FieldView &field)
+    {
+        if (!field.m_isSet)
+        {
+            return false;
+        }
+        return field.m_schema.m_default.is_null() ? !field.m_value.is_null() : field.m_value != field.m_schema.m_default;
+    }
+
+    // Draws the arrow in the row that starts at the position, and says whether it was clicked.
+    bool revertArrow(ImVec2 rowStart)
+    {
+        float side = editor_ui::Icons::size();
+        ImVec2 low(rowStart.x + captionWidth() - side - editor_ui::scaled(11), rowStart.y + (ImGui::GetFrameHeight() - side) / 2);
+        ImVec2 high(low.x + side, low.y + side);
+        bool isHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseHoveringRect(low, high);
+        editor_ui::Icons::draw(ImGui::GetWindowDrawList(), editor_ui::Icon::Reload, low, isHovered ? IM_COL32_WHITE : IM_COL32(255, 255, 255, 120));
+        if (isHovered)
+        {
+            ImGui::SetTooltip("Revert to the default");
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
+        return isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    }
+
     void caption(const std::string &name)
     {
         ImGui::AlignTextToFramePadding();
@@ -1833,7 +1859,12 @@ namespace editor_ui
         }
         else
         {
+            ImVec2 rowStart = ImGui::GetCursorScreenPos();
             caption(name);
+            if (isRevertable(field) && revertArrow(rowStart))
+            {
+                m_editor.revertFields({name});
+            }
         }
 
         if (kind == "int")
@@ -1954,9 +1985,22 @@ namespace editor_ui
         static const ImVec4 s_axisColors[] = {ImVec4(0.89f, 0.35f, 0.35f, 1), ImVec4(0.45f, 0.78f, 0.35f, 1), ImVec4(0.35f, 0.58f, 0.92f, 1)};
         static const char *const s_axisNames[] = {"X", "Y", "Z"};
         ImGui::PushID(label.c_str());
+        ImVec2 rowStart = ImGui::GetCursorScreenPos();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(label.c_str());
         ImGui::SameLine(captionWidth());
+        std::vector<std::string> revertable;
+        for (const FieldView *axis : axes)
+        {
+            if (isRevertable(*axis))
+            {
+                revertable.push_back(axis->m_schema.m_name);
+            }
+        }
+        if (!revertable.empty() && revertArrow(rowStart))
+        {
+            m_editor.revertFields(revertable);
+        }
         float spacing = ImGui::GetStyle().ItemSpacing.x;
         float cell = (ImGui::GetContentRegionAvail().x - spacing * (axes.size() - 1)) / axes.size();
         for (std::size_t index = 0; index < axes.size(); ++index)

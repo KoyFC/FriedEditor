@@ -1900,6 +1900,14 @@ namespace fried::editor
         }
     }
 
+    void Editor::revertFields(const std::vector<std::string> &fields)
+    {
+        if (m_selected && !fields.empty())
+        {
+            m_commands->execute(std::make_unique<ClearNodeFields>(*m_selected, fields));
+        }
+    }
+
     void Editor::setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge)
     {
         m_commands->execute(std::make_unique<SetNodeFields>(id, fields), merge);
