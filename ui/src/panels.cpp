@@ -1273,23 +1273,6 @@ namespace editor_ui
             ImVec2 high = ImGui::GetItemRectMax();
             Icons::draw(ImGui::GetWindowDrawList(), Icon::Search, ImVec2(low.x + scaled(8), (low.y + high.y - Icons::size()) / 2), IM_COL32(255, 255, 255, 150));
         }
-        {
-            // The scene itself heads the tree, as in Unity and Godot.
-            ImVec2 low = ImGui::GetCursorScreenPos();
-            float rowHeight = ImGui::GetFontSize() + scaled(8);
-            ImDrawList *list = ImGui::GetWindowDrawList();
-            float right = ImGui::GetWindowPos().x + ImGui::GetWindowWidth();
-            list->AddRectFilled(ImVec2(ImGui::GetWindowPos().x, low.y), ImVec2(right, low.y + rowHeight), ImGui::GetColorU32(palette::base));
-            Icons::draw(list, Icon::PackedScene, ImVec2(low.x + scaled(2), low.y + (rowHeight - Icons::size()) / 2));
-            std::string title = std::filesystem::path(m_editor.scenePath()).filename().string();
-            if (!m_editor.commands().isClean())
-            {
-                title += " *";
-            }
-            list->AddText(boldFont(), ImGui::GetFontSize(), ImVec2(low.x + Icons::size() + scaled(8), low.y + scaled(4)), ImGui::GetColorU32(ImGuiCol_Text), title.c_str());
-            ImGui::Dummy(ImVec2(0, rowHeight));
-        }
-
         // Which nodes are folded belongs to the scene, and is remembered with the view.
         std::string sceneName = std::filesystem::path(m_editor.scenePath()).filename().string();
         if (sceneName != m_collapsedScene)
@@ -1483,7 +1466,8 @@ namespace editor_ui
                     m_isRenameAsked = true;
                 }
 
-                if (ImGui::BeginDragDropSource())
+                const bool isRoot = row.m_id == m_editor.document().rootId();
+                if (!isRoot && ImGui::BeginDragDropSource())
                 {
                     ImGui::SetDragDropPayload(s_nodePayload, row.m_id.c_str(), row.m_id.size() + 1);
                     ImGui::TextUnformatted(row.m_name.c_str());
@@ -1506,11 +1490,11 @@ namespace editor_ui
                     {
                         std::string dropped((const char *)payload->Data);
                         const fried::editor::SceneDocument &document = m_editor.document();
-                        if (place < 0.25f)
+                        if (!isRoot && place < 0.25f)
                         {
                             m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id));
                         }
-                        else if (place > 0.75f && !(row.m_hasChildren && isOpen))
+                        else if (!isRoot && place > 0.75f && !(row.m_hasChildren && isOpen))
                         {
                             m_editor.reparent(dropped, document.parentOf(row.m_id), document.indexOf(row.m_id) + 1);
                         }
@@ -1524,7 +1508,11 @@ namespace editor_ui
                         // Shows where the drop would go.
                         ImDrawList *list = ImGui::GetWindowDrawList();
                         ImU32 color = IM_COL32(255, 200, 0, 255);
-                        if (place < 0.25f)
+                        if (isRoot)
+                        {
+                            list->AddRect(low, high, color);
+                        }
+                        else if (place < 0.25f)
                         {
                             list->AddLine(ImVec2(low.x, low.y), ImVec2(high.x, low.y), color, 2.0f);
                         }
@@ -1572,16 +1560,16 @@ namespace editor_ui
                     {
                         m_editor.setCameraToSelected();
                     }
-                    if (ImGui::MenuItem("Move Up"))
+                    if (ImGui::MenuItem("Move Up", nullptr, false, !isRoot))
                     {
                         m_editor.moveSelected(-1);
                     }
-                    if (ImGui::MenuItem("Move Down"))
+                    if (ImGui::MenuItem("Move Down", nullptr, false, !isRoot))
                     {
                         m_editor.moveSelected(1);
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Duplicate", "Ctrl+D"))
+                    if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, !isRoot))
                     {
                         m_editor.duplicateSelected();
                     }
@@ -1596,7 +1584,7 @@ namespace editor_ui
                         m_editor.paste(text ? text : "");
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Delete"))
+                    if (ImGui::MenuItem("Delete", nullptr, false, !isRoot))
                     {
                         m_editor.removeSelected();
                     }
@@ -1619,7 +1607,8 @@ namespace editor_ui
             }
             if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_nodePayload))
             {
-                m_editor.reparent(std::string((const char *)payload->Data), "", m_editor.document().childCount(""));
+                std::string top = m_editor.document().rootId();
+                m_editor.reparent(std::string((const char *)payload->Data), top, m_editor.document().childCount(top));
             }
             ImGui::EndDragDropTarget();
         }
@@ -2763,6 +2752,93 @@ namespace editor_ui
         }
         m_pendingScene = path;
         m_isSceneChangeAsked = true;
+    }
+
+    void Panels::newSceneDialog()
+    {
+        if (m_isNewSceneAsked)
+        {
+            m_newSceneName = "NewScene";
+            m_newSceneType = "Node2D";
+            m_newSceneError.clear();
+            ImGui::OpenPopup("New Scene");
+            m_isNewSceneAsked = false;
+        }
+        if (!ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            return;
+        }
+        ImGui::TextDisabled("Root node");
+        const struct
+        {
+            const char *m_label;
+            const char *m_type;
+        } presets[] = {{"2D Scene", "Node2D"}, {"3D Scene", "Node3D"}, {"User Interface", "Control"}};
+        bool isPreset = false;
+        for (const auto &preset : presets)
+        {
+            bool isChosen = m_newSceneType == preset.m_type;
+            isPreset = isPreset || isChosen;
+            if (isChosen)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, palette::accentAt(0.45f));
+            }
+            if (ImGui::Button(preset.m_label))
+            {
+                m_newSceneType = preset.m_type;
+            }
+            if (isChosen)
+            {
+                ImGui::PopStyleColor();
+            }
+            ImGui::SameLine();
+        }
+        if (!isPreset)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, palette::accentAt(0.45f));
+        }
+        if (ImGui::Button(isPreset ? "Other Node..." : (m_newSceneType + "...").c_str()))
+        {
+            ImGui::OpenPopup("new-scene-class");
+        }
+        if (!isPreset)
+        {
+            ImGui::PopStyleColor();
+        }
+        if (ImGui::BeginPopup("new-scene-class"))
+        {
+            classMenu(m_editor.classes(), "", [&](const std::string &type) { m_newSceneType = type; });
+            ImGui::EndPopup();
+        }
+
+        ImGui::Spacing();
+        ImGui::TextDisabled("Name");
+        ImGui::SetNextItemWidth(scaled(320));
+        if (ImGui::IsWindowAppearing())
+        {
+            ImGui::SetKeyboardFocusHere();
+        }
+        bool isEntered = ImGui::InputText("##new-scene-name", &m_newSceneName, ImGuiInputTextFlags_EnterReturnsTrue);
+        if (!m_newSceneError.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.4f, 1.0f));
+            ImGui::TextWrapped("%s", m_newSceneError.c_str());
+            ImGui::PopStyleColor();
+        }
+        ImGui::Spacing();
+        if (ImGui::Button("Create") || isEntered)
+        {
+            if (m_editor.newScene(m_newSceneName, m_newSceneType, &m_newSceneError))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 
     void Panels::sceneChangeDialog()

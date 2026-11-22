@@ -67,6 +67,10 @@ namespace editor_ui
 
         // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets.
         void showQuickOpen() { m_isQuickOpenAsked = true; }
+
+        // Asks for a name and the class of the root node of a new scene. The question is drawn by newSceneDialog.
+        void showNewScene() { m_isNewSceneAsked = true; }
+        void newSceneDialog();
         void quickOpen();
 
         // The window that shows a build going on, or one that has ended, with what it printed.
@@ -158,6 +162,10 @@ namespace editor_ui
         std::string m_consoleKeyText;
         int m_consoleKeyMask = 0;
         bool m_isQuickOpenAsked = false;
+        bool m_isNewSceneAsked = false;
+        std::string m_newSceneName;
+        std::string m_newSceneType = "Node2D";
+        std::string m_newSceneError;
         std::string m_quickText;
         int m_quickIndex = 0;
         std::string m_pickSearch;

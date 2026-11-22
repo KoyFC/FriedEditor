@@ -82,12 +82,12 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.dropAsset("game", "icon.png", view.worldToFrameX(320), view.worldToFrameY(200));
     CHECK(editor.document().nodeField("sprite", "texture") == nlohmann::json({{"root", "game"}, {"path", "icon.png"}}));
     editor.dropAsset("game", "sprite.png", 10, 10);
-    CHECK(editor.hierarchy().size() == 4);
+    CHECK(editor.hierarchy().size() == 5);
     CHECK(editor.selected() == std::optional<std::string>("sprite-2"));
     CHECK(editor.assets().size() > 4);
     editor.commands().undo();
     editor.commands().undo();
-    CHECK(editor.hierarchy().size() == 3);
+    CHECK(editor.hierarchy().size() == 4);
 
     // A row knows its type, and the classes it extends come after its own name.
     auto sprite = std::find_if(editor.hierarchy().begin(), editor.hierarchy().end(), [](const HierarchyRow &row) { return row.m_id == "sprite"; });
@@ -99,7 +99,7 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     CHECK(std::find(chain.begin(), chain.end(), "Node2D") != chain.end());
 
     editor.addNode("Label");
-    CHECK(editor.hierarchy().size() == 4);
+    CHECK(editor.hierarchy().size() == 5);
     CHECK(editor.inspector().size() == 4);
     editor.commands().undo();
 
@@ -746,10 +746,10 @@ TEST_CASE("a scene that instances another shows as one node of the class of the 
     }
     CHECK(isSpeedFound);
 
-    // A scene cannot hold itself, directly or through a scene it instances, and a scene with several top-level nodes cannot be instanced.
+    // A scene cannot hold itself, directly or through a scene it instances, and every scene has one root, so any of them can be instanced.
     CHECK_FALSE(editor.instanceProblem("sandbox").empty());
     CHECK(editor.instanceProblem("sandbox_ui").empty());
-    CHECK_FALSE(editor.instanceProblem("sandbox_3d").empty());
+    CHECK(editor.instanceProblem("sandbox_3d").empty());
     CHECK_FALSE(editor.instanceProblem("nothing-here").empty());
     REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
     CHECK_FALSE(editor.instanceProblem("sandbox").empty());
@@ -761,4 +761,39 @@ TEST_CASE("a scene that instances another shows as one node of the class of the 
     editor.commands().undo();
     CHECK_FALSE(editor.document().contains("player-2"));
     CHECK(editor.sceneIssues().empty());
+}
+
+TEST_CASE("the root node cannot be deleted, duplicated or moved, and what has no parent goes inside it" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+
+    std::string root = editor.document().rootId();
+    REQUIRE_FALSE(root.empty());
+    CHECK(editor.hierarchy().front().m_id == root);
+    CHECK(editor.hierarchy().front().m_depth == 0);
+
+    size_t count = editor.document().nodeCount();
+    editor.select(root);
+    editor.removeSelected();
+    CHECK_FALSE(editor.duplicateSelected());
+    editor.moveSelected(1);
+    editor.reparent(root, "sprite", 0);
+    CHECK(editor.document().nodeCount() == count);
+    CHECK(editor.document().parentOf(root).empty());
+
+    // With the root selected or with nothing selected, a new node, a pasted one and an instance go under the root.
+    editor.addNode("Label");
+    CHECK(editor.document().parentOf(*editor.selected()) == root);
+    editor.select(root);
+    editor.addNode("Sprite", editor.selected());
+    CHECK(editor.document().parentOf(*editor.selected()) == root);
+    editor.copySelected();
+    editor.select(root);
+    REQUIRE(editor.paste(""));
+    CHECK(editor.document().parentOf(*editor.selected()) == root);
 }

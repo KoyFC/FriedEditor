@@ -45,12 +45,52 @@ namespace fried::editor
         }
     }
 
+    namespace
+    {
+        std::string slugOf(const std::string &text)
+        {
+            std::string slug;
+            for (unsigned char c : text)
+            {
+                if (std::isalnum(c))
+                {
+                    slug += (char)std::tolower(c);
+                }
+                else if (!slug.empty() && slug.back() != '-')
+                {
+                    slug += '-';
+                }
+            }
+            while (!slug.empty() && slug.back() == '-')
+            {
+                slug.pop_back();
+            }
+            return slug.empty() ? "root" : slug;
+        }
+    }
+
     SceneDocument SceneDocument::empty(const std::string &name)
     {
         SceneDocument document;
         document.m_data = {{"version", s_version}, {"name", name}, {"nodes", Json::array()}};
         document.m_name = name;
         return document;
+    }
+
+    SceneDocument SceneDocument::withRoot(const std::string &name, const std::string &rootType)
+    {
+        SceneDocument document;
+        Json root = {{"id", slugOf(name)}, {"name", name}, {"type", rootType}};
+        document.m_data = {{"version", s_version}, {"name", name}, {"nodes", Json::array({root})}};
+        document.m_name = name;
+        document.reindex();
+        return document;
+    }
+
+    std::string SceneDocument::rootId() const
+    {
+        const Json &nodes = m_data["nodes"];
+        return nodes.is_array() && !nodes.empty() && nodes[0].is_object() ? nodes[0].value("id", "") : std::string();
     }
 
     // Walks one list of nodes, checking each and recording where it is.
@@ -126,6 +166,28 @@ namespace fried::editor
 
         SceneDocument next;
         next.m_data = std::move(parsed);
+        if (next.m_data["nodes"].size() != 1)
+        {
+            // A scene has exactly one root, so the nodes of an older file go under a plain Node that changes nothing about them.
+            std::vector<std::string> used;
+            for (const Json &node : next.m_data["nodes"])
+            {
+                collectIds(node, &used);
+            }
+            std::string name = next.m_data.value("name", "Scene");
+            std::string id = slugOf(name) + "-root";
+            while (std::find(used.begin(), used.end(), id) != used.end())
+            {
+                id += "-x";
+            }
+            Json root = {{"id", id}, {"name", name}, {"type", "Node"}};
+            if (!next.m_data["nodes"].empty())
+            {
+                root["children"] = next.m_data["nodes"];
+            }
+            next.m_data["nodes"] = Json::array({root});
+            next.m_wasMigrated = true;
+        }
         if (!next.indexList(next.m_data["nodes"], "", 0, error))
         {
             return false;

@@ -436,6 +436,10 @@ namespace editor_ui
                 {
                     panels.showQuickOpen();
                 }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_N, false))
+                {
+                    panels.showNewScene();
+                }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_S, false))
                 {
                     if (io.KeyShift)
@@ -477,6 +481,10 @@ namespace editor_ui
             {
                 if (ImGui::BeginMenu("File"))
                 {
+                    if (ImGui::MenuItem("New Scene...", "Ctrl+N"))
+                    {
+                        panels.showNewScene();
+                    }
                     if (ImGui::MenuItem("Save", "Ctrl+S"))
                     {
                         save(editor);
@@ -737,6 +745,7 @@ namespace editor_ui
             panels.buildWindow();
             panels.quickOpen();
             panels.sceneChangeDialog();
+            panels.newSceneDialog();
 
             if (isCloseAsked)
             {

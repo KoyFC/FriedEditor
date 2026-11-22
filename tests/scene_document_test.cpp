@@ -36,7 +36,9 @@ namespace
 
 TEST_CASE("the file text is stable, so a scene read and written is the same bytes")
 {
-    SceneDocument document = sample();
+    SceneDocument document = SceneDocument::withRoot("Main", "Node2D");
+    REQUIRE(document.insertNode("main", 0, node("a", "A")));
+    REQUIRE(document.insertNode("a", 0, node("a1", "A1")));
     std::string first = document.dump();
 
     SceneDocument again;
@@ -229,4 +231,31 @@ TEST_CASE("a node of a type the player does not know is kept as it is")
     REQUIRE(reloaded.load(path, &error));
     CHECK(reloaded.data()["nodes"][0] == custom);
     std::filesystem::remove(path);
+}
+
+TEST_CASE("a new scene has one root named like it, of the type chosen")
+{
+    SceneDocument document = SceneDocument::withRoot("Level One", "Node3D");
+    CHECK(document.rootId() == "level-one");
+    CHECK(document.typeOf("level-one") == "Node3D");
+    CHECK(document.nodeCount() == 1);
+    CHECK_FALSE(document.wasMigrated());
+}
+
+TEST_CASE("a file with several top-level nodes is read with them under a plain root, and says so")
+{
+    SceneDocument document = sample();
+    SceneDocument read;
+    std::string error;
+    REQUIRE(read.parse(document.dump(), &error));
+    CHECK(read.wasMigrated());
+    CHECK(read.rootId() == "main-root");
+    CHECK(read.typeOf("main-root") == "Node");
+    CHECK(read.childrenOf("main-root") == ids({"a", "b"}));
+    CHECK(read.parentOf("a1") == "a");
+
+    SceneDocument again;
+    REQUIRE(again.parse(read.dump(), &error));
+    CHECK_FALSE(again.wasMigrated());
+    CHECK(again.dump() == read.dump());
 }

@@ -52,7 +52,7 @@ namespace fried::editor
         if (scenes.empty())
         {
             m_scenePath = m_project.scenesDirectory() + "/main.scene.json";
-            m_document = SceneDocument::empty("Main");
+            m_document = SceneDocument::withRoot("Main", "Node2D");
         }
         else
         {
@@ -81,6 +81,10 @@ namespace fried::editor
         }
 
         m_commands = std::make_unique<CommandStack>(m_document);
+        if (m_document.wasMigrated())
+        {
+            m_commands->markUnsaved();
+        }
         m_commands->m_onChange = [this] { changed(); };
         m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
         bind(m_document);
@@ -899,11 +903,44 @@ namespace fried::editor
             }
             bind(opened.m_document);
             opened.m_commands = std::make_unique<CommandStack>(m_document);
+            if (opened.m_document.wasMigrated())
+            {
+                opened.m_commands->markUnsaved();
+            }
             m_parked[path] = std::move(opened);
             m_tabs.push_back(path);
         }
         activateParked(path);
         return true;
+    }
+
+    bool Editor::newScene(const std::string &chosen, const std::string &rootType, std::string *error)
+    {
+        std::size_t first = chosen.find_first_not_of(" \t");
+        std::string name = first == std::string::npos ? std::string() : chosen.substr(first, chosen.find_last_not_of(" \t") - first + 1);
+        if (name.empty() || name.find_first_of("/\\") != std::string::npos || name.front() == '.')
+        {
+            *error = "A scene needs a name that is a file name, with no folders in it.";
+            return false;
+        }
+        std::string path = scenePathOf(name);
+        std::error_code ignored;
+        if (fs::exists(path, ignored))
+        {
+            *error = "The project already has a scene named " + name + ".";
+            return false;
+        }
+        if (m_session.classChain(rootType).empty())
+        {
+            *error = "The player does not know a class named " + rootType + ".";
+            return false;
+        }
+        fs::create_directories(m_project.scenesDirectory(), ignored);
+        if (!SceneDocument::withRoot(name, rootType).save(path, error))
+        {
+            return false;
+        }
+        return openScene(path, error);
     }
 
     // Puts the scene being edited aside, with its changes and its history, and edits the one of the tab.
@@ -1407,7 +1444,7 @@ namespace fried::editor
             node["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
             node["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
         }
-        std::string parent = parentId ? *parentId : "";
+        std::string parent = parentId ? *parentId : m_document.rootId();
         if (m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node)))
         {
             select(id);
@@ -1500,6 +1537,12 @@ namespace fried::editor
         {
             return false;
         }
+        if (*m_selected == m_document.rootId())
+        {
+            m_message = "The root node cannot be duplicated, a scene has only one.";
+            changed();
+            return false;
+        }
         return insertCopy(*m_document.node(*m_selected), m_document.parentOf(*m_selected), m_document.indexOf(*m_selected) + 1, "Duplicate node");
     }
 
@@ -1530,7 +1573,13 @@ namespace fried::editor
             return false;
         }
         std::string parent = m_selected ? m_document.parentOf(*m_selected) : std::string();
-        int index = m_selected ? m_document.indexOf(*m_selected) + 1 : m_document.childCount(parent);
+        int index = m_selected ? m_document.indexOf(*m_selected) + 1 : 0;
+        if (parent.empty())
+        {
+            // Beside the root there is no place, so a copy goes inside it.
+            parent = m_document.rootId();
+            index = m_document.childCount(parent);
+        }
         return insertCopy(source, parent, index, "Paste node");
     }
 
@@ -1678,7 +1727,7 @@ namespace fried::editor
             node["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
             node["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
         }
-        std::string parent = parentId ? *parentId : "";
+        std::string parent = parentId ? *parentId : m_document.rootId();
         if (!m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node, "Instance scene")))
         {
             *error = "The scene could not be added.";
@@ -1710,6 +1759,12 @@ namespace fried::editor
 
     void Editor::removeSelected()
     {
+        if (m_selected && *m_selected == m_document.rootId())
+        {
+            m_message = "The root node cannot be deleted, every scene has one.";
+            changed();
+            return;
+        }
         if (m_selected && m_commands->execute(std::make_unique<RemoveNode>(*m_selected)))
         {
             select(std::nullopt);
@@ -1718,7 +1773,7 @@ namespace fried::editor
 
     void Editor::moveSelected(int delta)
     {
-        if (m_selected)
+        if (m_selected && *m_selected != m_document.rootId())
         {
             int target = m_document.indexOf(*m_selected) + delta;
             std::string parent = m_document.parentOf(*m_selected);
@@ -1731,6 +1786,11 @@ namespace fried::editor
 
     void Editor::reparent(const std::string &id, const std::string &parentId, int index)
     {
+        if (parentId.empty() || id == m_document.rootId())
+        {
+            // The root has no sibling to be placed beside, and nothing but the root is at the top.
+            return;
+        }
         // The place is counted among the siblings as they are now, so a node moved later in its own list leaves a gap behind it.
         if (m_document.parentOf(id) == parentId && m_document.indexOf(id) >= 0 && m_document.indexOf(id) < index)
         {
@@ -1927,7 +1987,8 @@ namespace fried::editor
             node["text"] = "Text";
             node["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
         }
-        if (m_commands->execute(std::make_unique<AddNode>("", m_document.childCount(""), node)))
+        std::string top = m_document.rootId();
+        if (m_commands->execute(std::make_unique<AddNode>(top, m_document.childCount(top), node)))
         {
             select(id);
         }
@@ -1968,7 +2029,8 @@ namespace fried::editor
             node["text"] = "Text";
             node["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
         }
-        if (m_commands->execute(std::make_unique<AddNode>(parentId, m_document.childCount(parentId), node)))
+        std::string parent = parentId.empty() ? m_document.rootId() : parentId;
+        if (m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node)))
         {
             select(id);
         }

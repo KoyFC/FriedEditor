@@ -173,6 +173,9 @@ namespace fried::editor
         // Opens the scene in a tab of its own, or goes to its tab when it is open. The scenes already open keep their changes and their undo history.
         bool openScene(const std::string &path, std::string *error);
 
+        // Writes a new scene file in the project's scenes, with one root node of a class, and opens it. The name is the file's.
+        bool newScene(const std::string &name, const std::string &rootType, std::string *error);
+
         // The scenes open, in the order of their tabs. While the game is on a scene with no tab, none of them is the one shown and activeSceneIndex is -1.
         const std::vector<std::string> &openScenes() const { return m_tabs; }
         int activeSceneIndex() const;

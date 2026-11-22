@@ -48,6 +48,9 @@ namespace fried::editor
 
         // The stack is clean where the document was last saved.
         void markClean();
+
+        // The document differs from its file without a command having made it so, as a scene whose nodes were put under a root when it was read.
+        void markUnsaved() { m_isCleanLost = true; }
         bool isClean() const { return m_position == m_cleanPosition && !m_isCleanLost; }
 
         std::function<void()> m_onChange;

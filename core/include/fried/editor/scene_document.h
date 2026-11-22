@@ -46,6 +46,13 @@ namespace fried::editor
 
         static SceneDocument empty(const std::string &name);
 
+        // A new scene as the editor makes one: its one root node, of the given type, named like the scene.
+        static SceneDocument withRoot(const std::string &name, const std::string &rootType);
+
+        // The id of the scene's only top-level node, which every scene has. A file with none or several is given a Node root holding them when it is read, and says so here.
+        std::string rootId() const;
+        bool wasMigrated() const { return m_wasMigrated; }
+
         bool parse(const std::string &text, std::string *error);
         bool load(const std::string &path, std::string *error);
         bool save(const std::string &path, std::string *error) const;
@@ -125,6 +132,7 @@ namespace fried::editor
 
         nlohmann::json m_data;
         std::string m_name;
+        bool m_wasMigrated = false;
         bool m_isModified = false;
         unsigned long m_version = 0;
         std::unordered_map<std::string, Location> m_index;
