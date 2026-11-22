@@ -21,6 +21,10 @@ namespace fried::editor
         {
             return AssetKind::Scene;
         }
+        if (endsWith(".hx"))
+        {
+            return AssetKind::Script;
+        }
         if (endsWith(".png") || endsWith(".jpg") || endsWith(".jpeg"))
         {
             return AssetKind::Image;
@@ -44,7 +48,7 @@ namespace fried::editor
 
     std::vector<std::string> assetFolders(const std::vector<AssetEntry> &entries)
     {
-        std::set<std::string> folders = {"game", "engine"};
+        std::set<std::string> folders = {"game", "engine", "src"};
         for (const AssetEntry &entry : entries)
         {
             std::string folder = assetFolderOf(entry);

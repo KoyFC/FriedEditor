@@ -308,7 +308,7 @@ namespace fried::editor
         // Moves the pivot, and the offsets with it so that the control stays where it is.
         void setPivot(double x, double y);
 
-        // The files of both asset roots, listed again when asked to or after a couple of seconds, and where one is on disk.
+        // The files of the assets of the game and the engine and the game's source, listed again when asked to or after a couple of seconds, and where one is on disk.
         const std::vector<AssetEntry> &assets() const;
         void refreshAssets() { m_assetsAt = std::chrono::steady_clock::time_point(); }
         std::string assetFile(const std::string &root, const std::string &path) const;
@@ -321,6 +321,9 @@ namespace fried::editor
         bool moveAsset(const std::string &reference, const std::string &folder, const std::string &name, std::string *error);
         bool deleteAsset(const std::string &reference, std::string *error);
         bool duplicateAsset(const std::string &reference, std::string *error);
+
+        // Writes a new script into a folder of the game's source, as "src/nodes/enemies", that extends a class of the engine or of the game. Scripts are found by scenes only under src/nodes. A class is known to the editor once the player is built again.
+        bool createScript(const std::string &folder, const std::string &name, const std::string &baseClass, std::string *error);
 
         // The scene files that name the asset, or a file under it when it is a folder.
         std::vector<std::string> assetUsers(const std::string &reference) const;
@@ -433,7 +436,8 @@ namespace fried::editor
 
         void startPlayer();
         void reloadScenes();
-        bool gameAssetPath(const std::string &reference, std::string *path, std::string *error) const;
+        // The directory a reference to the game's own files is relative to, the assets or the source, and the path in it. The engine's files are read only.
+        bool ownedPath(const std::string &reference, std::string *directory, std::string *path, std::string *error) const;
         void activateParked(const std::string &path);
         void bind(SceneDocument &document);
         std::optional<nlohmann::json> sceneRoot(const std::string &sceneName) const;

@@ -3,6 +3,7 @@
 #include "fried/editor/asset_files.h"
 #include "fried/editor/commands.h"
 #include "fried/editor/editor_state.h"
+#include "fried/editor/script_files.h"
 
 #include "fried/core/engine_location.h"
 #include <fstream>
@@ -1967,6 +1968,10 @@ namespace fried::editor
             m_directoriesCache = listAssetDirectories("game", m_project.assetsDirectory());
             std::vector<std::string> engineFolders = listAssetDirectories("engine", m_enginePath + "/assets");
             m_directoriesCache.insert(m_directoriesCache.end(), engineFolders.begin(), engineFolders.end());
+            std::vector<AssetEntry> sources = listAssets("src", m_project.directory() + "/src");
+            m_assetsCache.insert(m_assetsCache.end(), sources.begin(), sources.end());
+            std::vector<std::string> sourceFolders = listAssetDirectories("src", m_project.directory() + "/src");
+            m_directoriesCache.insert(m_directoriesCache.end(), sourceFolders.begin(), sourceFolders.end());
             m_assetsAt = now;
         }
         return m_assetsCache;
@@ -1978,32 +1983,34 @@ namespace fried::editor
         return m_directoriesCache;
     }
 
-    bool Editor::gameAssetPath(const std::string &reference, std::string *path, std::string *error) const
+    bool Editor::ownedPath(const std::string &reference, std::string *directory, std::string *path, std::string *error) const
     {
-        if (reference == "game")
+        if (reference == "game" || reference == "src")
         {
+            *directory = reference == "game" ? m_project.assetsDirectory() : m_project.directory() + "/src";
             path->clear();
             return true;
         }
         std::string root;
-        if (!parseAssetReference(reference, &root, path) || root != "game")
+        if (!parseAssetReference(reference, &root, path) || (root != "game" && root != "src"))
         {
             *error = "Only the game's own files can be changed, the engine's are read only.";
             return false;
         }
+        *directory = root == "game" ? m_project.assetsDirectory() : m_project.directory() + "/src";
         return true;
     }
 
     std::vector<std::string> Editor::assetUsers(const std::string &reference) const
     {
-        std::string path, ignored;
-        return gameAssetPath(reference, &path, &ignored) && !path.empty() ? scenesUsingAsset(m_project.scenesDirectory(), path) : std::vector<std::string>();
+        std::string directory, path, ignored;
+        return ownedPath(reference, &directory, &path, &ignored) && directory == m_project.assetsDirectory() && !path.empty() ? scenesUsingAsset(m_project.scenesDirectory(), path) : std::vector<std::string>();
     }
 
     bool Editor::createAssetFolder(const std::string &folder, const std::string &name, std::string *error)
     {
-        std::string parent;
-        if (!gameAssetPath(folder, &parent, error))
+        std::string directory, parent;
+        if (!ownedPath(folder, &directory, &parent, error))
         {
             return false;
         }
@@ -2012,7 +2019,7 @@ namespace fried::editor
             *error = "A folder needs a name that is a file name, with no folders in it.";
             return false;
         }
-        if (!fried::editor::createAssetFolder(m_project.assetsDirectory(), parent.empty() ? name : parent + "/" + name, error))
+        if (!fried::editor::createAssetFolder(directory, parent.empty() ? name : parent + "/" + name, error))
         {
             return false;
         }
@@ -2023,11 +2030,17 @@ namespace fried::editor
 
     bool Editor::moveAsset(const std::string &reference, const std::string &folder, const std::string &name, std::string *error)
     {
-        std::string from, destination;
-        if (!gameAssetPath(reference, &from, error) || !gameAssetPath(folder, &destination, error))
+        std::string directory, destinationDirectory, from, destination;
+        if (!ownedPath(reference, &directory, &from, error) || !ownedPath(folder, &destinationDirectory, &destination, error))
         {
             return false;
         }
+        if (directory != destinationDirectory)
+        {
+            *error = "A file stays in the assets or in the source, it cannot go from one to the other.";
+            return false;
+        }
+        const bool isSource = directory != m_project.assetsDirectory();
         std::string newName = name.empty() ? fs::path(from).filename().string() : name;
         if (!isAssetName(newName))
         {
@@ -2039,9 +2052,17 @@ namespace fried::editor
         {
             return true;
         }
-        if (isSceneAssetPath(from) || isSceneAssetPath(to))
+        if (!isSource && (isSceneAssetPath(from) || isSceneAssetPath(to)))
         {
             *error = "Scenes keep their place in the scenes folder, where the game finds them by name.";
+            return false;
+        }
+        const fs::path fromPath(from);
+        const fs::path toPath(to);
+        const bool isScript = isSource && fromPath.extension() == ".hx";
+        if (isScript && (toPath.extension() != ".hx" || !isScriptName(toPath.stem().string())))
+        {
+            *error = "A script is named like a class: it starts with a capital letter, has only letters, digits and underscores, and ends in .hx.";
             return false;
         }
         if (!saveAll(error))
@@ -2049,9 +2070,40 @@ namespace fried::editor
             return false;
         }
         int rewritten = 0;
-        if (!fried::editor::moveAsset(m_project.assetsDirectory(), m_project.scenesDirectory(), from, to, &rewritten, error))
+        if (!fried::editor::moveAsset(directory, m_project.scenesDirectory(), from, to, &rewritten, error))
         {
             return false;
+        }
+        if (isSource)
+        {
+            // Where a script is says its package, and its name says its class, which the scenes use as the type of a node.
+            std::error_code ignored;
+            std::vector<fs::path> moved;
+            if (fs::is_directory(fs::path(directory) / to, ignored))
+            {
+                for (fs::recursive_directory_iterator it(fs::path(directory) / to, ignored), end; it != end; it.increment(ignored))
+                {
+                    if (it->is_regular_file(ignored) && it->path().extension() == ".hx")
+                    {
+                        moved.push_back(it->path());
+                    }
+                }
+            }
+            else if (isScript)
+            {
+                moved.push_back(fs::path(directory) / to);
+            }
+            for (const fs::path &file : moved)
+            {
+                std::string package = packageOfFolder(fs::relative(file.parent_path(), directory, ignored).generic_string());
+                package = package == "." ? std::string() : package;
+                std::string oldName = isScript ? fromPath.stem().string() : file.stem().string();
+                fixScript(file.string(), package, oldName, file.stem().string());
+            }
+            if (isScript && fromPath.stem() != toPath.stem())
+            {
+                rewritten += renameSceneType(m_project.scenesDirectory(), fromPath.stem().string(), toPath.stem().string());
+            }
         }
         m_assetsAt = std::chrono::steady_clock::time_point();
         reloadScenes();
@@ -2063,12 +2115,12 @@ namespace fried::editor
 
     bool Editor::deleteAsset(const std::string &reference, std::string *error)
     {
-        std::string path;
-        if (!gameAssetPath(reference, &path, error))
+        std::string directory, path;
+        if (!ownedPath(reference, &directory, &path, error))
         {
             return false;
         }
-        if (!fried::editor::deleteAsset(m_project.assetsDirectory(), path, error))
+        if (!fried::editor::deleteAsset(directory, path, error))
         {
             return false;
         }
@@ -2080,12 +2132,13 @@ namespace fried::editor
 
     bool Editor::duplicateAsset(const std::string &reference, std::string *error)
     {
-        std::string path;
-        if (!gameAssetPath(reference, &path, error) || path.empty())
+        std::string directory, path;
+        if (!ownedPath(reference, &directory, &path, error) || path.empty())
         {
             return false;
         }
-        if (isSceneAssetPath(path))
+        const bool isSource = directory != m_project.assetsDirectory();
+        if (!isSource && isSceneAssetPath(path))
         {
             *error = "Scenes keep their place in the scenes folder, where the game finds them by name.";
             return false;
@@ -2094,21 +2147,56 @@ namespace fried::editor
         std::string stem = source.stem().string();
         std::string extension = source.extension().string();
         std::string to;
+        const bool isScript = isSource && extension == ".hx";
         for (int number = 1;; ++number)
         {
-            std::string name = stem + " copy" + (number > 1 ? " " + std::to_string(number) : std::string()) + extension;
+            // A copy of a script is a class, so its name has no spaces.
+            std::string name = isScript ? stem + "Copy" + (number > 1 ? std::to_string(number) : std::string()) + extension
+                                        : stem + " copy" + (number > 1 ? " " + std::to_string(number) : std::string()) + extension;
             to = (source.parent_path() / name).generic_string();
             std::error_code ignored;
-            if (!fs::exists(fs::path(m_project.assetsDirectory()) / to, ignored))
+            if (!fs::exists(fs::path(directory) / to, ignored))
             {
                 break;
             }
         }
-        if (!fried::editor::copyAsset(m_project.assetsDirectory(), path, to, error))
+        if (!fried::editor::copyAsset(directory, path, to, error))
+        {
+            return false;
+        }
+        if (isScript)
+        {
+            fixScript((fs::path(directory) / to).string(), packageOfFolder(fs::path(to).parent_path().generic_string()), stem, fs::path(to).stem().string());
+        }
+        m_assetsAt = std::chrono::steady_clock::time_point();
+        changed();
+        return true;
+    }
+
+    bool Editor::createScript(const std::string &folder, const std::string &name, const std::string &baseClass, std::string *error)
+    {
+        std::string directory, path;
+        if (!ownedPath(folder, &directory, &path, error))
+        {
+            return false;
+        }
+        if (directory == m_project.assetsDirectory())
+        {
+            *error = "Scripts go in the game's source, not in its assets.";
+            return false;
+        }
+        std::string base = baseClass == "Node" || baseClass.empty() ? std::string() : findClassModule({directory, m_enginePath + "/src"}, baseClass);
+        if (base.empty() && baseClass != "Node" && !baseClass.empty())
+        {
+            *error = "The file of " + baseClass + " is not in the source of the game or the engine.";
+            return false;
+        }
+        if (!fried::editor::createScript(directory, path, name, base, error))
         {
             return false;
         }
         m_assetsAt = std::chrono::steady_clock::time_point();
+        m_message = "Created " + folder + "/" + name + ".hx. Build the player again for the editor to know the class.";
         changed();
         return true;
     }
@@ -2139,7 +2227,7 @@ namespace fried::editor
 
     std::string Editor::assetFile(const std::string &root, const std::string &path) const
     {
-        return (root == "engine" ? m_enginePath + "/assets/" : m_project.assetsDirectory() + "/") + path;
+        return (root == "engine" ? m_enginePath + "/assets/" : root == "src" ? m_project.directory() + "/src/" : m_project.assetsDirectory() + "/") + path;
     }
 
     void Editor::dropAsset(const std::string &root, const std::string &path, double frameX, double frameY)

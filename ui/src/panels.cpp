@@ -2555,6 +2555,41 @@ namespace editor_ui
             ImGui::EndPopup();
         }
 
+        if (m_isNewScriptAsked)
+        {
+            m_assetQuestionError.clear();
+            ImGui::OpenPopup("asset-new-script");
+            m_isNewScriptAsked = false;
+        }
+        if (ImGui::BeginPopup("asset-new-script"))
+        {
+            ImGui::TextDisabled("New script in %s", m_newScriptFolder.c_str());
+            bool isEntered = text("##asset-script-name", &m_newScriptName);
+            ImGui::TextDisabled("Extends");
+            ImGui::SetNextItemWidth(scaled(260));
+            if (ImGui::BeginCombo("##asset-script-base", m_newScriptBase.c_str()))
+            {
+                for (const fried::editor::ClassSchema &schema : m_editor.classes())
+                {
+                    if (ImGui::Selectable(schema.m_name.c_str(), schema.m_name == m_newScriptBase))
+                    {
+                        m_newScriptBase = schema.m_name;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::Button("Create") || isEntered)
+            {
+                if (m_editor.createScript(m_newScriptFolder, m_newScriptName, m_newScriptBase, &m_assetQuestionError))
+                {
+                    enterAssetFolder(m_newScriptFolder);
+                    m_assetSelected = m_newScriptFolder + "/" + m_newScriptName + ".hx";
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::EndPopup();
+        }
+
         if (m_isNewFolderAsked)
         {
             m_assetQuestionError.clear();
@@ -2892,8 +2927,9 @@ namespace editor_ui
         int columns = std::max(1, (int)(width / (cell + ImGui::GetStyle().ItemSpacing.x)));
         int placed = 0;
         auto isEditableReference = [](const std::string &reference) {
-            return reference.compare(0, 5, "game/") == 0 && reference != "game" && !(reference == "game/scenes" || reference.compare(0, 12, "game/scenes/") == 0);
+            return reference.compare(0, 4, "src/") == 0 || (reference.compare(0, 5, "game/") == 0 && !(reference == "game/scenes" || reference.compare(0, 12, "game/scenes/") == 0));
         };
+        auto isOwnedReference = [](const std::string &reference) { return reference == "game" || reference == "src" || reference.compare(0, 5, "game/") == 0 || reference.compare(0, 4, "src/") == 0; };
 
         for (const Item &item : items)
         {
@@ -3033,11 +3069,12 @@ namespace editor_ui
             }
 
             // A double click does what suits the file: a folder is entered, a scene opens, and an image or a font is added to the scene.
-            bool isUsable = isFolder || isScene || item.m_entry->m_kind == AssetKind::Image || item.m_entry->m_kind == AssetKind::Font;
+            const bool isScript = !isFolder && item.m_entry->m_kind == AssetKind::Script;
+            bool isUsable = isFolder || isScene || isScript || item.m_entry->m_kind == AssetKind::Image || item.m_entry->m_kind == AssetKind::Font;
             bool isActivated = isUsable && isHovered && ImGui::IsMouseDoubleClicked(0);
             if (ImGui::BeginPopupContextItem("asset-menu"))
             {
-                if (isUsable && ImGui::MenuItem(isFolder ? "Open folder" : isScene ? "Open scene" : "Add to scene"))
+                if (isUsable && ImGui::MenuItem(isFolder ? "Open folder" : isScene ? "Open scene" : isScript ? "Open script" : "Add to scene"))
                 {
                     isActivated = true;
                 }
@@ -3070,11 +3107,15 @@ namespace editor_ui
                     m_assetDeleteUsers = m_editor.assetUsers(reference);
                     m_isAssetDeleteAsked = true;
                 }
-                if (ImGui::MenuItem("New Folder...", nullptr, false, reference.compare(0, 5, "game/") == 0 || reference == "game"))
+                if (ImGui::MenuItem("New Folder...", nullptr, false, isOwnedReference(reference)))
                 {
                     m_newFolderParent = isFolder ? reference : reference.substr(0, reference.rfind('/'));
                     m_newFolderText = "New Folder";
                     m_isNewFolderAsked = true;
+                }
+                if (ImGui::MenuItem("New Script..."))
+                {
+                    showNewScript(isFolder ? reference : reference.substr(0, reference.rfind('/')));
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Show in folder"))
@@ -3108,6 +3149,10 @@ namespace editor_ui
                 {
                     openSceneFile(m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path));
                 }
+                else if (isScript)
+                {
+                    SDL_OpenURL(("file://" + m_editor.assetFile(item.m_entry->m_root, item.m_entry->m_path)).c_str());
+                }
                 else
                 {
                     m_editor.dropAsset(item.m_entry->m_root, item.m_entry->m_path, m_editor.viewport().frameWidth() / 2.0, m_editor.viewport().frameHeight() / 2.0);
@@ -3117,11 +3162,16 @@ namespace editor_ui
         }
         if (ImGui::BeginPopupContextWindow("asset-area", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
-            if (ImGui::MenuItem("New Folder...", nullptr, false, m_assetFolder.compare(0, 4, "game") == 0))
+            const bool isOwnedFolder = m_assetFolder.compare(0, 4, "game") == 0 || m_assetFolder.compare(0, 3, "src") == 0;
+            if (ImGui::MenuItem("New Folder...", nullptr, false, isOwnedFolder))
             {
                 m_newFolderParent = m_assetFolder;
                 m_newFolderText = "New Folder";
                 m_isNewFolderAsked = true;
+            }
+            if (ImGui::MenuItem("New Script..."))
+            {
+                showNewScript(m_assetFolder);
             }
             ImGui::EndPopup();
         }
@@ -3134,6 +3184,15 @@ namespace editor_ui
         }
         assetQuestions();
         ImGui::EndChild();
+    }
+
+    void Panels::showNewScript(const std::string &folder)
+    {
+        // Scenes find the nodes that are written under src/nodes, so that is where a script goes.
+        m_newScriptFolder = folder == "src/nodes" || folder.compare(0, 10, "src/nodes/") == 0 ? folder : "src/nodes";
+        m_newScriptName = "NewNode";
+        m_newScriptBase = "Node";
+        m_isNewScriptAsked = true;
     }
 
     void Panels::openSceneFile(const std::string &path)

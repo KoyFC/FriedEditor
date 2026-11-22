@@ -17,6 +17,7 @@ add_executable(core_tests
     player_session_test.cpp
     project_settings_test.cpp
     scene_document_test.cpp
+    script_files_test.cpp
     transport_test.cpp
     viewport_test.cpp
     viewport3d_test.cpp

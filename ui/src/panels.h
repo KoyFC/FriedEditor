@@ -166,10 +166,15 @@ namespace editor_ui
         // Makes the item just drawn take the asset dragged onto it into the folder. True when something was moved.
         bool moveDroppedAsset(const std::string &folder);
         void assetQuestions();
+        void showNewScript(const std::string &folder);
         bool m_isAssetRenameAsked = false;
         std::string m_assetRenameReference;
         std::string m_assetRenameText;
         std::string m_assetSelected;
+        bool m_isNewScriptAsked = false;
+        std::string m_newScriptFolder;
+        std::string m_newScriptName;
+        std::string m_newScriptBase;
         bool m_isNewFolderAsked = false;
         std::string m_newFolderParent;
         std::string m_newFolderText;

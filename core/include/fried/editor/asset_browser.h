@@ -14,13 +14,14 @@ namespace fried::editor
         Font,
         Audio,
         Scene,
+        Script,
         Other
     };
 
-    // A file under one of the two asset roots the engine reads.
+    // A file under one of the roots the editor lists: the game's assets and the engine's, which the engine reads, and the game's source, "src", where its scripts are.
     struct AssetEntry
     {
-        // "game" or "engine", which is how a scene file names the root.
+        // "game", "engine" or "src". A scene file names the first two this way.
         std::string m_root;
 
         // Relative to the root, with forward slashes.
@@ -39,7 +40,7 @@ namespace fried::editor
     // The folder an asset is in, written like a reference without the file: "game/sprites", or the root alone for a file at its top.
     std::string assetFolderOf(const AssetEntry &entry);
 
-    // Every folder that holds an asset and the ones above it, sorted, and the two roots whether or not they hold any, so that they can be entered.
+    // Every folder that holds an asset and the ones above it, sorted, and the roots whether or not they hold any, so that they can be entered.
     std::vector<std::string> assetFolders(const std::vector<AssetEntry> &entries);
 
     // The folders directly inside one, which for the empty folder are the roots.

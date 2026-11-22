@@ -71,10 +71,10 @@ TEST_CASE("assets are grouped in folders that include the ones above them and bo
     CHECK(assetFolderOf(entries[1]) == "game/sprites/enemies");
 
     std::vector<std::string> folders = assetFolders(entries);
-    CHECK(folders == std::vector<std::string>({"engine", "game", "game/sprites", "game/sprites/enemies"}));
-    CHECK(assetFolders({}) == std::vector<std::string>({"engine", "game"}));
+    CHECK(folders == std::vector<std::string>({"engine", "game", "game/sprites", "game/sprites/enemies", "src"}));
+    CHECK(assetFolders({}) == std::vector<std::string>({"engine", "game", "src"}));
 
-    CHECK(childFolders(folders, "") == std::vector<std::string>({"engine", "game"}));
+    CHECK(childFolders(folders, "") == std::vector<std::string>({"engine", "game", "src"}));
     CHECK(childFolders(folders, "game") == std::vector<std::string>({"game/sprites"}));
     CHECK(childFolders(folders, "game/sprites/enemies").empty());
 
