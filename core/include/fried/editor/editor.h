@@ -352,6 +352,10 @@ namespace fried::editor
     private:
         void startPlayer();
         void launchPlay(bool isFromStartScene);
+        // The game moved to another scene: the editor shows that one, as Unity's hierarchy does, until the game comes back to the first or stops.
+        void followGameScene(const std::string &name);
+        void restoreOrigin(bool isHolding);
+        void adoptScene(SceneDocument document, const std::string &path);
         void chooseViewMode();
         void rememberScene();
         void loadLocked();
@@ -395,6 +399,14 @@ namespace fried::editor
         GameSession m_play;
         bool m_isPlaying = false;
         bool m_isSceneWatched = false;
+        // The scene that was open when the game started, kept aside while the game is on another one.
+        struct PlayOrigin
+        {
+            std::string m_path;
+            SceneDocument m_document;
+            std::unique_ptr<CommandStack> m_commands;
+        };
+        std::optional<PlayOrigin> m_origin;
         // The values the running game last reported for each node, over what the file holds. They show in the inspector and in the scene view while it runs.
         std::map<std::string, nlohmann::json> m_liveFields;
         unsigned long long m_liveSerial = 0;

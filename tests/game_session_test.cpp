@@ -86,6 +86,12 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     pumpAndPoll(session, game, 1);
     CHECK(reportedState == changes);
 
+    std::string sceneName;
+    session.m_onSceneChanged = [&](const std::string &name) { sceneName = name; };
+    REQUIRE(game.send({{"type", "sceneChanged"}, {"name", "sandbox_3d"}}));
+    pumpAndPoll(session, game, 1);
+    CHECK(sceneName == "sandbox_3d");
+
     session.setWatch("wall", true);
     std::vector<Message> watching = pumpAndPoll(session, game, 1);
     REQUIRE(watching.size() == 1);

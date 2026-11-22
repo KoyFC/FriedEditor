@@ -375,8 +375,10 @@ namespace fried::editor
             ++m_gameFrameSerial;
             changed();
         };
+        m_origin.reset();
         m_liveFields.clear();
         ++m_liveSerial;
+        m_play.m_onSceneChanged = [this](const std::string &name) { followGameScene(name); };
         m_play.m_onState = [this](const Json &nodes) {
             for (const Json &entry : nodes)
             {
@@ -442,9 +444,92 @@ namespace fried::editor
         m_liveFields.clear();
         ++m_liveSerial;
         m_needsLoad = true;
-        // What was edited while it ran goes with it, and the edit player, which was told of each change, is told of the undoing.
-        m_commands->revertHeld();
+        // What was edited while it ran goes with it, and the edit player, which was told of each change, is told of the undoing. A scene the game moved to is dropped for the one that was open.
+        if (m_origin)
+        {
+            restoreOrigin(false);
+        }
+        else
+        {
+            m_commands->revertHeld();
+        }
         m_message = "Stopped the game";
+        changed();
+    }
+
+    void Editor::followGameScene(const std::string &name)
+    {
+        std::string path = m_project.scenesDirectory() + "/" + name + ".scene.json";
+        if (!m_isPlaying || name.empty() || path == m_scenePath)
+        {
+            return;
+        }
+        if (m_origin && path == m_origin->m_path)
+        {
+            restoreOrigin(true);
+            return;
+        }
+        SceneDocument loaded;
+        std::string error;
+        if (!loaded.load(path, &error))
+        {
+            m_message = "The game is on a scene the editor cannot read: " + error;
+            changed();
+            return;
+        }
+        // What was edited on the scene being left is taken back first, without telling the game, which has already left it.
+        m_isPlaying = false;
+        m_commands->revertHeld();
+        m_isPlaying = true;
+        saveView();
+        if (!m_origin)
+        {
+            m_origin = PlayOrigin{m_scenePath, m_document, std::move(m_commands)};
+        }
+        adoptScene(std::move(loaded), path);
+        m_commands->hold();
+    }
+
+    void Editor::restoreOrigin(bool isHolding)
+    {
+        saveView();
+        PlayOrigin origin = std::move(*m_origin);
+        m_origin.reset();
+        m_document.m_onChange = nullptr;
+        m_document = std::move(origin.m_document);
+        m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
+        m_commands = std::move(origin.m_commands);
+        m_commands->m_onChange = [this] { changed(); };
+        m_scenePath = origin.m_path;
+        loadLocked();
+        m_selected.reset();
+        chooseViewMode();
+        m_liveFields.clear();
+        ++m_liveSerial;
+        m_needsLoad = true;
+        m_needsCamera = true;
+        if (isHolding)
+        {
+            m_commands->hold();
+        }
+        changed();
+    }
+
+    void Editor::adoptScene(SceneDocument document, const std::string &path)
+    {
+        m_document.m_onChange = nullptr;
+        m_document = std::move(document);
+        m_document.m_onChange = [this](const DocumentChange &change) { documentChanged(change); };
+        m_commands = std::make_unique<CommandStack>(m_document);
+        m_commands->m_onChange = [this] { changed(); };
+        m_scenePath = path;
+        loadLocked();
+        m_selected.reset();
+        chooseViewMode();
+        m_liveFields.clear();
+        ++m_liveSerial;
+        m_needsLoad = true;
+        m_needsCamera = true;
         changed();
     }
 

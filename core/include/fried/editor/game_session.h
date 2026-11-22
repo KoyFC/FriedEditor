@@ -81,6 +81,8 @@ namespace fried::editor
         std::function<void(const GameFrame &)> m_onFrame;
         // The fields that changed in the game since it last said, as a list of {id, fields}.
         std::function<void(const nlohmann::json &)> m_onState;
+        // The game is now on another scene, by the name of its file without the extension.
+        std::function<void(const std::string &)> m_onSceneChanged;
         // The game answered a change with an error, or the link broke, in which case the state is Closed.
         std::function<void(const std::string &)> m_onError;
 

@@ -132,6 +132,13 @@ namespace fried::editor
                 m_onFrame(frame);
             }
         }
+        else if (type == "sceneChanged")
+        {
+            if (m_onSceneChanged)
+            {
+                m_onSceneChanged(header.value("name", ""));
+            }
+        }
         else if (type == "state")
         {
             if (m_onState && header.contains("nodes") && header["nodes"].is_array())
