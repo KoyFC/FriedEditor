@@ -669,9 +669,9 @@ namespace editor_ui
         auto &commands = m_editor.commands();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(m_editor.message().c_str());
-        std::string right = (m_issues.empty() ? std::string() : std::to_string(m_issues.size()) + " asset issues   ") + (commands.isClean() ? "Saved" : "Unsaved changes");
+        std::string right = (m_issues.empty() && m_sceneIssues.empty() ? std::string() : std::to_string(m_issues.size() + m_sceneIssues.size()) + " issues   ") + (m_editor.hasModifiedScenes() ? "Unsaved changes" : "Saved");
         ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - scaled(20));
-        ImGui::TextColored(commands.isClean() ? ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled) : palette::warning, "%s", right.c_str());
+        ImGui::TextColored(m_editor.hasModifiedScenes() ? palette::warning : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", right.c_str());
     }
 
     bool Panels::takeValueDrag()
@@ -917,9 +917,66 @@ namespace editor_ui
         draw->PopClipRect();
     }
 
+    // One tab for each scene that is open, as Godot has them. The scene on screen follows the tab that is chosen.
+    void Panels::sceneTabs()
+    {
+        const std::vector<std::string> &scenes = m_editor.openScenes();
+        const bool isLocked = m_editor.isPlaying() || m_editor.isStartingPlay();
+        const std::string active = m_editor.scenePath();
+        const bool isActiveChanged = active != m_lastActiveScene;
+        if (!ImGui::BeginTabBar("##scene-tabs", ImGuiTabBarFlags_FittingPolicyScroll))
+        {
+            return;
+        }
+        std::string toClose;
+        std::string toOpen;
+        for (const std::string &path : scenes)
+        {
+            std::string name = std::filesystem::path(path).filename().string();
+            const std::string suffix = ".scene.json";
+            if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
+            {
+                name.resize(name.size() - suffix.size());
+            }
+            bool isModified = m_editor.isSceneModified(path);
+            std::string label = name + (isModified ? " *" : "") + "###tab-" + path;
+            ImGuiTabItemFlags flags = isModified ? ImGuiTabItemFlags_UnsavedDocument : 0;
+            if (isActiveChanged && path == active)
+            {
+                flags |= ImGuiTabItemFlags_SetSelected;
+            }
+            bool isOpen = true;
+            bool isSelected = ImGui::BeginTabItem(label.c_str(), isLocked || scenes.size() == 1 ? nullptr : &isOpen, flags);
+            if (isSelected)
+            {
+                // The tab the user chose is the one that shows, which is not the editor's yet.
+                if (path != active && !isActiveChanged && !isLocked)
+                {
+                    toOpen = path;
+                }
+                ImGui::EndTabItem();
+            }
+            if (!isOpen)
+            {
+                toClose = path;
+            }
+        }
+        ImGui::EndTabBar();
+        m_lastActiveScene = active;
+        if (!toOpen.empty())
+        {
+            openSceneFile(toOpen);
+        }
+        if (!toClose.empty())
+        {
+            closeSceneTab(toClose);
+        }
+    }
+
     void Panels::viewport()
     {
         m_isSceneDrawn = true;
+        sceneTabs();
         const fried::editor::Frame &frame = m_editor.frame();
         if (m_uploadedSerial != m_editor.frameSerial() && frame.m_rgba.size() == (size_t)frame.m_width * frame.m_height * 4)
         {
@@ -1163,6 +1220,29 @@ namespace editor_ui
         return icon;
     }
 
+    // The scenes of the project that can be instanced where the scene is being edited, the others shown dimmed with why.
+    void Panels::instanceMenu(const std::optional<std::string> &parent)
+    {
+        for (const std::string &path : m_editor.scenePaths())
+        {
+            std::string name = std::filesystem::path(path).filename().string();
+            name.resize(name.size() - std::string(".scene.json").size());
+            std::string problem = m_editor.instanceProblem(name);
+            if (ImGui::MenuItem(name.c_str(), nullptr, false, problem.empty()))
+            {
+                std::string error;
+                if (!m_editor.addInstance(path, parent, &error))
+                {
+                    m_editor.setMessage(error);
+                }
+            }
+            if (!problem.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            {
+                ImGui::SetTooltip("%s", problem.c_str());
+            }
+        }
+    }
+
     void Panels::hierarchy()
     {
         if (Icons::button("add", Icon::Add, "Add a node"))
@@ -1173,6 +1253,12 @@ namespace editor_ui
         {
             ImGui::TextDisabled(m_editor.selected() ? "Add under the selected node" : "Add to the scene");
             classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, m_editor.selected()); });
+            ImGui::Separator();
+            if (ImGui::BeginMenu("Instance Scene"))
+            {
+                instanceMenu(m_editor.selected());
+                ImGui::EndMenu();
+            }
             ImGui::EndPopup();
         }
         ImGui::SameLine();
@@ -1342,7 +1428,7 @@ namespace editor_ui
                 {
                     list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowPosition.x + scaled(2), top + rowHeight), ImGui::GetColorU32(palette::accentHot));
                 }
-                Icons::draw(list, iconOf(row.m_type), ImVec2(contentX, top + (rowHeight - iconSize) / 2));
+                Icons::draw(list, row.m_instance.empty() ? iconOf(row.m_type) : Icon::PackedScene, ImVec2(contentX, top + (rowHeight - iconSize) / 2));
                 list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::accentText : ImGui::GetStyleColorVec4(ImGuiCol_Text)), row.m_name.c_str());
                 if (isLocked)
                 {
@@ -1355,6 +1441,20 @@ namespace editor_ui
                 if (isLockHovered)
                 {
                     ImGui::SetTooltip("%s", isLocked ? "Unlock: the node can be picked and moved in the view again" : "Lock: the node cannot be picked or moved in the view");
+                }
+                if (!row.m_instance.empty())
+                {
+                    ImVec2 openLow(lockLow.x - iconSize - scaled(6), lockLow.y);
+                    bool isOpenHovered = isRowHovered && ImGui::IsMouseHoveringRect(openLow, ImVec2(openLow.x + iconSize, openLow.y + iconSize));
+                    Icons::draw(list, Icon::PackedScene, openLow, IM_COL32(255, 255, 255, isOpenHovered ? 230 : 90));
+                    if (isOpenHovered)
+                    {
+                        ImGui::SetTooltip("Open %s in its own tab", row.m_instance.c_str());
+                        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        {
+                            openSceneFile(m_editor.scenePathOf(row.m_instance));
+                        }
+                    }
                 }
                 if (row.m_isCamera)
                 {
@@ -1391,6 +1491,19 @@ namespace editor_ui
                 }
                 if (ImGui::BeginDragDropTarget())
                 {
+                    if (const ImGuiPayload *asset = ImGui::AcceptDragDropPayload(s_assetPayload))
+                    {
+                        std::string root, path;
+                        if (fried::editor::parseAssetReference(std::string((const char *)asset->Data, asset->DataSize - 1), &root, &path) && path.size() > 11
+                            && path.compare(path.size() - 11, 11, ".scene.json") == 0)
+                        {
+                            std::string error;
+                            if (!m_editor.addInstance(m_editor.assetFile(root, path), row.m_id, &error))
+                            {
+                                m_editor.setMessage(error);
+                            }
+                        }
+                    }
                     ImVec2 low = ImGui::GetItemRectMin();
                     ImVec2 high = ImGui::GetItemRectMax();
                     float place = (ImGui::GetMousePos().y - low.y) / std::max(1.0f, high.y - low.y);
@@ -1440,7 +1553,16 @@ namespace editor_ui
                         classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.addNode(type, row.m_id); });
                         ImGui::EndMenu();
                     }
-                    if (ImGui::BeginMenu("Change Type"))
+                    if (ImGui::BeginMenu("Instance Child Scene"))
+                    {
+                        instanceMenu(row.m_id);
+                        ImGui::EndMenu();
+                    }
+                    if (!row.m_instance.empty() && ImGui::MenuItem("Open Scene"))
+                    {
+                        openSceneFile(m_editor.scenePathOf(row.m_instance));
+                    }
+                    if (row.m_instance.empty() && ImGui::BeginMenu("Change Type"))
                     {
                         classMenu(m_editor.classes(), "", [&](const std::string &type) { m_editor.changeType(row.m_id, type); });
                         ImGui::EndMenu();
@@ -2089,6 +2211,22 @@ namespace editor_ui
             return;
         }
 
+        std::string instance = m_editor.instanceOf(*m_editor.selected());
+        if (!instance.empty())
+        {
+            Icons::draw(ImGui::GetWindowDrawList(), Icon::PackedScene, ImGui::GetCursorScreenPos());
+            ImGui::Dummy(ImVec2(Icons::size(), Icons::size()));
+            ImGui::SameLine();
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text("Instance of %s", instance.c_str());
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Open"))
+            {
+                openSceneFile(m_editor.scenePathOf(instance));
+            }
+            ImGui::Separator();
+        }
+
         for (const auto &view : m_editor.inspector())
         {
             ImGui::PushID(view.m_class.c_str());
@@ -2538,6 +2676,10 @@ namespace editor_ui
                 {
                     isActivated = true;
                 }
+                if (isScene && ImGui::MenuItem("Instance in scene"))
+                {
+                    m_editor.dropAsset(item.m_entry->m_root, item.m_entry->m_path, 0, 0);
+                }
                 if (ImGui::MenuItem("Copy reference"))
                 {
                     ImGui::SetClipboardText(reference.c_str());
@@ -2582,14 +2724,19 @@ namespace editor_ui
 
     void Panels::openSceneFile(const std::string &path)
     {
-        if (isOpenScene(path, m_editor.scenePath()))
+        std::string error;
+        if (!m_editor.openScene(path, &error))
         {
-            return;
+            m_editor.setMessage(error);
         }
-        if (m_editor.commands().isClean())
+    }
+
+    void Panels::closeSceneTab(const std::string &path)
+    {
+        std::string error;
+        if (!m_editor.isSceneModified(path))
         {
-            std::string error;
-            if (!m_editor.openScene(path, &error))
+            if (!m_editor.closeScene(path, &error))
             {
                 m_editor.setMessage(error);
             }
@@ -2610,14 +2757,14 @@ namespace editor_ui
         {
             return;
         }
-        ImGui::TextUnformatted("Save the scene before leaving it?");
+        ImGui::Text("Save %s before closing it?", std::filesystem::path(m_pendingScene).filename().string().c_str());
         ImGui::Spacing();
-        bool isLeaving = false;
+        bool isClosing = false;
         std::string error;
         if (ImGui::Button("Save"))
         {
-            isLeaving = m_editor.save(&error);
-            if (!isLeaving)
+            isClosing = m_editor.saveScene(m_pendingScene, &error);
+            if (!isClosing)
             {
                 m_editor.setMessage(error);
             }
@@ -2626,7 +2773,7 @@ namespace editor_ui
         ImGui::SameLine();
         if (ImGui::Button("Discard"))
         {
-            isLeaving = true;
+            isClosing = true;
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -2635,7 +2782,7 @@ namespace editor_ui
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
-        if (isLeaving && !m_editor.openScene(m_pendingScene, &error))
+        if (isClosing && !m_editor.closeScene(m_pendingScene, &error))
         {
             m_editor.setMessage(error);
         }
@@ -2652,6 +2799,7 @@ namespace editor_ui
         if (isForced || isStale)
         {
             m_issues = m_editor.issues();
+            m_sceneIssues = m_editor.sceneIssues();
             m_issuesCheckedAt = now;
             m_issuesPlatform = m_editor.platform();
         }
@@ -2686,9 +2834,48 @@ namespace editor_ui
         }
         ImGui::Separator();
 
-        if (m_issues.empty())
+        if (m_issues.empty() && m_sceneIssues.empty())
         {
             ImGui::TextDisabled("The assets suit this platform.");
+        }
+        for (std::size_t position = 0; position < m_sceneIssues.size(); ++position)
+        {
+            const fried::editor::SceneIssue issue = m_sceneIssues[position];
+            ImGui::PushID((int)position + 100000);
+            ImGui::TextColored(palette::tomato, "Error");
+            ImGui::SameLine();
+            ImGui::TextUnformatted(issue.m_node.c_str());
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", issue.m_message.c_str());
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Remove instance"))
+            {
+                m_editor.select(issue.m_node);
+                m_editor.removeSelected();
+                m_issuesCheckedAt = -100;
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Choose another scene..."))
+            {
+                m_issueNode = issue.m_node;
+                ImGui::OpenPopup("choose-instance");
+            }
+            ImGui::PopID();
+        }
+        if (ImGui::BeginPopup("choose-instance"))
+        {
+            for (const std::string &path : m_editor.scenePaths())
+            {
+                std::string name = std::filesystem::path(path).filename().string();
+                name.resize(name.size() - std::string(".scene.json").size());
+                bool isUsable = m_editor.instanceProblem(name).empty();
+                if (ImGui::MenuItem(name.c_str(), nullptr, false, isUsable))
+                {
+                    m_editor.chooseInstanceScene(m_issueNode, name);
+                    m_issuesCheckedAt = -100;
+                }
+            }
+            ImGui::EndPopup();
         }
         int index = 0;
         for (const auto &issue : m_issues)

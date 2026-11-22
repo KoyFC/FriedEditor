@@ -102,6 +102,15 @@ namespace editor_ui
             }
         }
 
+        void saveAll(Editor &editor)
+        {
+            std::string error;
+            if (!editor.saveAll(&error))
+            {
+                SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Save", error.c_str(), nullptr);
+            }
+        }
+
         void copyNode(Editor &editor)
         {
             std::string text = editor.copySelected();
@@ -300,7 +309,7 @@ namespace editor_ui
                 }
                 if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && isMainWindow && event.window.event == SDL_WINDOWEVENT_CLOSE))
                 {
-                    if (editor.commands().isClean())
+                    if (!editor.hasModifiedScenes())
                     {
                         isRunning = false;
                     }
@@ -418,7 +427,14 @@ namespace editor_ui
                 }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_S, false))
                 {
-                    save(editor);
+                    if (io.KeyShift)
+                    {
+                        saveAll(editor);
+                    }
+                    else
+                    {
+                        save(editor);
+                    }
                 }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_B, false))
                 {
@@ -453,6 +469,10 @@ namespace editor_ui
                     if (ImGui::MenuItem("Save", "Ctrl+S"))
                     {
                         save(editor);
+                    }
+                    if (ImGui::MenuItem("Save All", "Ctrl+Shift+S", false, editor.hasModifiedScenes()))
+                    {
+                        saveAll(editor);
                     }
                     if (ImGui::MenuItem("Quick open...", "Ctrl+P"))
                     {
@@ -517,8 +537,8 @@ namespace editor_ui
                     ImGui::Separator();
                     if (ImGui::MenuItem("Quit"))
                     {
-                        isCloseAsked = !editor.commands().isClean();
-                        isRunning = !editor.commands().isClean();
+                        isCloseAsked = editor.hasModifiedScenes();
+                        isRunning = editor.hasModifiedScenes();
                     }
                     ImGui::EndMenu();
                 }
@@ -599,7 +619,7 @@ namespace editor_ui
                     ImGui::EndMenu();
                 }
                 ImGui::SameLine(ImGui::GetWindowWidth() - scaled(260));
-                ImGui::TextDisabled("%s%s", editor.project().name().c_str(), editor.commands().isClean() ? "" : "  *");
+                ImGui::TextDisabled("%s%s", editor.project().name().c_str(), editor.hasModifiedScenes() ? "  *" : "");
                 ImGui::EndMainMenuBar();
             }
 
@@ -705,12 +725,12 @@ namespace editor_ui
             }
             if (ImGui::BeginPopupModal("Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
             {
-                ImGui::TextUnformatted("Save the scene before closing?");
+                ImGui::TextUnformatted("Save the scenes that have changes before closing?");
                 ImGui::Spacing();
                 if (ImGui::Button("Save"))
                 {
-                    save(editor);
-                    isRunning = !editor.commands().isClean();
+                    saveAll(editor);
+                    isRunning = !editor.hasModifiedScenes();
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::SameLine();

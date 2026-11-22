@@ -47,7 +47,12 @@ namespace fried::editor
         {
             // The scene that was open last time, when it is still there.
             std::string chosen = scenes.front();
+            // Without a scene remembered, the project's own first scene is the one it starts with.
             std::string remembered = EditorState::lastScene(m_project.directory());
+            if (remembered.empty() && !m_project.startScene().empty())
+            {
+                remembered = m_project.startScene() + ".scene.json";
+            }
             for (const std::string &path : scenes)
             {
                 if (!remembered.empty() && fs::path(path).filename() == remembered)
@@ -861,8 +866,9 @@ namespace fried::editor
         return paths;
     }
 
-    bool Editor::openScene(const std::string &path, std::string *error)
+    bool Editor::openScene(const std::string &chosen, std::string *error)
     {
+        std::string path = fs::path(chosen).lexically_normal().string();
         if (m_isPlaying)
         {
             *error = "Stop the game to open another scene.";
@@ -1845,6 +1851,16 @@ namespace fried::editor
 
     void Editor::dropAsset(const std::string &root, const std::string &path, double frameX, double frameY)
     {
+        if (path.size() > 11 && path.compare(path.size() - 11, 11, ".scene.json") == 0)
+        {
+            std::string error;
+            if (!addInstance(assetFile(root, path), std::nullopt, &error))
+            {
+                m_message = error;
+                changed();
+            }
+            return;
+        }
         AssetKind kind = assetKindOf(path);
         if (kind != AssetKind::Image && kind != AssetKind::Font)
         {

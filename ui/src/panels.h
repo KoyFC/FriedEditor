@@ -55,11 +55,14 @@ namespace editor_ui
         // How many problems the assets have for the platform being previewed, for the tab and the status bar.
         // Looks for the problems now if the list is old, whether or not the tab that shows them is the one open.
         void refreshIssues(bool isForced = false);
-        int issueCount() const { return (int)m_issues.size(); }
+        int issueCount() const { return (int)(m_issues.size() + m_sceneIssues.size()); }
         void statusBar();
 
-        // Opens a scene, asking first about the changes of the one that is open. The question is drawn by sceneChangeDialog, wherever the panels are.
+        // Opens a scene in a tab, or goes to its tab.
         void openSceneFile(const std::string &path);
+
+        // Closes the scene's tab, asking first about its changes. The question is drawn by sceneChangeDialog, wherever the panels are.
+        void closeSceneTab(const std::string &path);
         void sceneChangeDialog();
 
         // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets.
@@ -132,6 +135,11 @@ namespace editor_ui
         std::string m_assetSearch;
         std::string m_pendingScene;
         bool m_isSceneChangeAsked = false;
+        std::string m_lastActiveScene;
+        std::vector<fried::editor::SceneIssue> m_sceneIssues;
+        std::string m_issueNode;
+        void sceneTabs();
+        void instanceMenu(const std::optional<std::string> &parent);
         std::vector<fried::editor::AssetIssue> m_issues;
         double m_issuesCheckedAt = -100;
         fried::editor::Platform m_issuesPlatform = fried::editor::Platform::Pc;
