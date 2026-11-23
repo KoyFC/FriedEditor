@@ -848,7 +848,7 @@ namespace editor_ui
         }
         if (ImGui::IsItemHovered())
         {
-            ImGui::SetTooltip("How many frames a second the game runs at. The project's rate is its own default frame rate, or this screen's refresh rate when the project waits for vsync.");
+            ImGui::SetTooltip("How many frames a second the game runs at. The project's rate is its own default frame rate, or this screen's refresh rate when the project waits for vsync or has none. Unlimited shares the graphics card with the editor, which can then draw less smoothly.");
         }
         ImGui::SameLine();
         ImGui::Checkbox("Stats", &m_isStatsShown);
