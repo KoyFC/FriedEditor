@@ -1,6 +1,6 @@
 # Project and player settings
 
-The settings and the build output open as windows of their own, which can be moved outside the editor, onto another monitor, and closed with their own close button. On Linux the editor asks SDL for X11 so this works under Wayland too (through XWayland); set `SDL_VIDEODRIVER` to choose another driver, in which case the windows stay inside the editor if that driver cannot make windows of its own.
+The settings and the build output open as windows of their own, which can be moved outside the editor, onto another monitor, and closed with their own close button. In a Linux Wayland session the editor runs on Wayland, where no program may place its own windows, so these windows and the panels dragged out stay inside the editor. Start it with `SDL_VIDEODRIVER=x11` to have them as windows of their own through XWayland, which can draw the running game less smoothly.
 
 As in Unity, the settings are in two windows. Edit, Project Settings holds what the game is: the start scene, the autoloads, the display, vsync, the frame rate the game starts at and the physics rate. File, Player Settings holds what the builds are made of: the name, organization, version and window title, the platforms it builds for, and a page for each platform. The Project Manager edits the same file. Each change is written to `project.fried` as it is made, and the viewport's frame follows the display at once.
 

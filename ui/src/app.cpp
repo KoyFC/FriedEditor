@@ -180,10 +180,10 @@ namespace editor_ui
     {
         bool isVideoReady = false;
 #ifdef __linux__
-        // Panels dragged out of the editor become windows of their own, which SDL only does on X11. A Wayland session runs it through XWayland, unless the user chose a driver.
-        if (std::getenv("SDL_VIDEODRIVER") == nullptr)
+        // A Wayland session runs the editor on Wayland, as XWayland cannot keep it at the screen's rate while the game's frames change every frame. Panels then stay inside the editor, since Wayland lets no program place its own windows; SDL_VIDEODRIVER=x11 brings back the windows of their own.
+        if (std::getenv("SDL_VIDEODRIVER") == nullptr && std::getenv("WAYLAND_DISPLAY") != nullptr)
         {
-            SDL_SetHint(SDL_HINT_VIDEODRIVER, "x11");
+            SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland");
             isVideoReady = SDL_Init(SDL_INIT_VIDEO) == 0;
             if (!isVideoReady)
             {
