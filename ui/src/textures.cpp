@@ -18,6 +18,14 @@ namespace editor_ui
 
     void Texture::upload(const unsigned char *rgba, int width, int height)
     {
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        // A game sends a frame of the same size every time, so its texture keeps its storage and only the pixels are replaced.
+        if (m_texture && width == m_width && height == m_height)
+        {
+            glBindTexture(GL_TEXTURE_2D, m_texture);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+            return;
+        }
         if (!m_texture)
         {
             glGenTextures(1, &m_texture);
@@ -27,7 +35,6 @@ namespace editor_ui
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         m_width = width;
         m_height = height;
