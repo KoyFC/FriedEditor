@@ -65,24 +65,8 @@ namespace fried::editor
         }
         if (m_channel)
         {
-            std::vector<Message> messages = m_channel->poll();
-            // Only the newest frame is shown, so the ones it replaces in the same read are answered and dropped.
-            std::size_t newestFrame = messages.size();
-            for (std::size_t index = 0; index < messages.size(); ++index)
+            for (Message &message : m_channel->poll())
             {
-                if (messages[index].m_header.value("type", "") == "gameFrame")
-                {
-                    newestFrame = index;
-                }
-            }
-            for (std::size_t index = 0; index < messages.size(); ++index)
-            {
-                Message &message = messages[index];
-                if (index < newestFrame && message.m_header.value("type", "") == "gameFrame")
-                {
-                    send({{"type", "frameShown"}});
-                    continue;
-                }
                 handle(message);
                 if (m_state == State::Closed)
                 {
@@ -93,6 +77,7 @@ namespace fried::editor
             {
                 m_state = State::Closed;
             }
+            showFrame();
         }
         if (m_process && !m_process->isRunning() && m_state != State::Closed)
         {
@@ -152,10 +137,7 @@ namespace fried::editor
                 frame.m_stats.m_workMs = stats.value("workMs", 0.0);
                 frame.m_stats.m_nodes = stats.value("nodes", 0);
             }
-            if (m_onFrame)
-            {
-                m_onFrame(std::move(frame));
-            }
+            m_arrivedFrames.push_back(std::move(frame));
         }
         else if (type == "sceneChanged")
         {
@@ -177,6 +159,31 @@ namespace fried::editor
             {
                 m_onError(header.value("message", "The game reported an error."));
             }
+        }
+    }
+
+    // A game drawing as fast as the editor seldom lands one frame in every editor frame: it is two in one and none in the next. The oldest is shown at once and the newest is kept for an editor frame that gets none, so every editor frame has a new one. Older frames that both replace are dropped.
+    void GameSession::showFrame()
+    {
+        std::optional<GameFrame> shown;
+        if (!m_arrivedFrames.empty())
+        {
+            shown = std::move(m_arrivedFrames.front());
+            m_keptFrame.reset();
+            if (m_arrivedFrames.size() > 1)
+            {
+                m_keptFrame = std::move(m_arrivedFrames.back());
+            }
+            m_arrivedFrames.clear();
+        }
+        else if (m_keptFrame)
+        {
+            shown = std::move(m_keptFrame);
+            m_keptFrame.reset();
+        }
+        if (shown && m_onFrame)
+        {
+            m_onFrame(std::move(*shown));
         }
     }
 

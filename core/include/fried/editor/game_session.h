@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -98,11 +99,14 @@ namespace fried::editor
 
     private:
         void handle(Message &message);
+        void showFrame();
         void send(const nlohmann::json &message);
 
         std::unique_ptr<Listener> m_listener;
         std::unique_ptr<Subprocess> m_process;
         std::unique_ptr<MessageChannel> m_channel;
+        std::vector<GameFrame> m_arrivedFrames;
+        std::optional<GameFrame> m_keptFrame;
         State m_state = State::Waiting;
         std::string m_sceneName;
         nlohmann::json m_scene;
