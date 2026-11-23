@@ -30,7 +30,10 @@ namespace fried::editor
 
     private:
         std::unique_ptr<Transport> m_transport;
-        std::vector<unsigned char> m_received;
+        // Bytes read but not yet made into messages. Frames are megabytes, so they are read straight into it, and it keeps its size between reads rather than being cleared to zeros.
+        std::unique_ptr<unsigned char[]> m_received;
+        std::size_t m_receivedSize = 0;
+        std::size_t m_receivedCapacity = 0;
         bool m_isOpen;
     };
 }

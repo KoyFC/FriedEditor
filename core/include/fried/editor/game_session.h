@@ -88,7 +88,7 @@ namespace fried::editor
         void mouseButton(int button, int x, int y, bool isDown);
         void mouseWheel(double x, double y);
 
-        std::function<void(const GameFrame &)> m_onFrame;
+        std::function<void(GameFrame &&)> m_onFrame;
         // The fields that changed in the game since it last said, as a list of {id, fields}.
         std::function<void(const nlohmann::json &)> m_onState;
         // The game is now on another scene, by the name of its file without the extension.
@@ -97,7 +97,7 @@ namespace fried::editor
         std::function<void(const std::string &)> m_onError;
 
     private:
-        void handle(const Message &message);
+        void handle(Message &message);
         void send(const nlohmann::json &message);
 
         std::unique_ptr<Listener> m_listener;

@@ -433,8 +433,8 @@ namespace fried::editor
         m_gameLog.clear();
 
         m_play = GameSession();
-        m_play.m_onFrame = [this](const GameFrame &frame) {
-            m_gameFrame = frame;
+        m_play.m_onFrame = [this](GameFrame &&frame) {
+            m_gameFrame = std::move(frame);
             ++m_gameFrameSerial;
             changed();
         };

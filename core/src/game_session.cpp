@@ -65,8 +65,24 @@ namespace fried::editor
         }
         if (m_channel)
         {
-            for (const Message &message : m_channel->poll())
+            std::vector<Message> messages = m_channel->poll();
+            // Only the newest frame is shown, so the ones it replaces in the same read are answered and dropped.
+            std::size_t newestFrame = messages.size();
+            for (std::size_t index = 0; index < messages.size(); ++index)
             {
+                if (messages[index].m_header.value("type", "") == "gameFrame")
+                {
+                    newestFrame = index;
+                }
+            }
+            for (std::size_t index = 0; index < messages.size(); ++index)
+            {
+                Message &message = messages[index];
+                if (index < newestFrame && message.m_header.value("type", "") == "gameFrame")
+                {
+                    send({{"type", "frameShown"}});
+                    continue;
+                }
                 handle(message);
                 if (m_state == State::Closed)
                 {
@@ -88,7 +104,7 @@ namespace fried::editor
         }
     }
 
-    void GameSession::handle(const Message &message)
+    void GameSession::handle(Message &message)
     {
         const nlohmann::json &header = message.m_header;
         std::string type = header.value("type", "");
@@ -127,7 +143,7 @@ namespace fried::editor
             GameFrame frame;
             frame.m_width = header.value("width", 0);
             frame.m_height = header.value("height", 0);
-            frame.m_rgba = message.m_pixels;
+            frame.m_rgba = std::move(message.m_pixels);
             if (header.contains("stats") && header["stats"].is_object())
             {
                 const auto &stats = header["stats"];
@@ -138,7 +154,7 @@ namespace fried::editor
             }
             if (m_onFrame)
             {
-                m_onFrame(frame);
+                m_onFrame(std::move(frame));
             }
         }
         else if (type == "sceneChanged")
