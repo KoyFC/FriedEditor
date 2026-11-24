@@ -16,6 +16,7 @@ namespace fried::editor
     using fried::core::platformLabel;
     using fried::core::Project;
     using fried::core::s_platforms;
+    using fried::core::Precision;
     using fried::core::validateAssets;
     using fried::core::startSubprocess;
     using fried::core::Subprocess;

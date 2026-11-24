@@ -494,7 +494,51 @@ namespace editor_ui
     {
         iconSection(platform);
         packagingSection(platform);
+        precisionSection(platform);
         buildSection(platform);
+    }
+
+    void Panels::precisionSection(Platform platform)
+    {
+        if (!fried::core::offersPrecision(platform))
+        {
+            return;
+        }
+
+        const fried::editor::Project &project = m_editor.project();
+        fried::editor::Precision current = project.precision(platform);
+        ImGui::SeparatorText("Precision");
+        row("Float");
+        std::string shown = current == fried::editor::Precision::Single ? "Single (32-bit)" : "Double (64-bit)";
+        if (fried::core::defaultPrecision(platform) == current)
+        {
+            shown += " (default)";
+        }
+        if (ImGui::BeginCombo("##precision", shown.c_str()))
+        {
+            for (fried::editor::Precision choice : {fried::editor::Precision::Single, fried::editor::Precision::Double})
+            {
+                std::string label = choice == fried::editor::Precision::Single ? "Single (32-bit)" : "Double (64-bit)";
+                if (choice == fried::core::defaultPrecision(platform))
+                {
+                    label += " (default)";
+                }
+                if (ImGui::Selectable(label.c_str(), choice == current) && choice != current)
+                {
+                    m_settingErrors["Precision"] = m_editor.projectSettings().setPrecision(platform, choice);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SetCursorPosX(scaled(s_labelBase));
+        ImGui::TextDisabled("The width of Haxe's Float in this platform's build. Single is faster where there is no floating point unit, as on the DS, but holds whole numbers exactly only up to 16,777,216 and must not be used for the clock. Takes effect at the next build.");
+        const std::string &problem = m_settingErrors["Precision"];
+        if (!problem.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+            ImGui::TextWrapped("%s", problem.c_str());
+            ImGui::PopStyleColor();
+        }
     }
 
     void Panels::applyIcon(Platform platform, const std::string &file, bool isForEveryPlatform)

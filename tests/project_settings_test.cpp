@@ -110,6 +110,29 @@ TEST_CASE("a setting that fails its check leaves the project and its file as the
     CHECK(settings.setPackagingText("nds", "subtitle2", accented).empty());
 }
 
+TEST_CASE("the precision of a platform is saved, and only a value other than its default is written")
+{
+    TemporaryProject project("precision");
+    ProjectSettings settings(project.m_project);
+    CHECK(project.m_project.precision(Platform::NintendoDs) == Precision::Single);
+
+    CHECK(settings.setPrecision(Platform::NintendoDs, Precision::Double).empty());
+    CHECK(project.m_project.precision(Platform::NintendoDs) == Precision::Double);
+    CHECK(project.read("project.fried").find("\"precision\": \"double\"") != std::string::npos);
+
+    CHECK(settings.setPrecision(Platform::NintendoDs, Precision::Single).empty());
+    CHECK(project.read("project.fried").find("precision") == std::string::npos);
+
+    CHECK(settings.setPrecision(Platform::Pc, Precision::Single).empty());
+    CHECK(project.m_project.precision(Platform::Pc) == Precision::Single);
+    CHECK(project.m_project.precision(Platform::Vita) == Precision::Double);
+
+    std::string before = project.read("project.fried");
+    CHECK_FALSE(settings.setPrecision(Platform::Cg50, Precision::Single).empty());
+    CHECK(project.m_project.precision(Platform::Cg50) == Precision::Double);
+    CHECK(project.read("project.fried") == before);
+}
+
 TEST_CASE("the display is saved and changes the size the game draws in on a platform")
 {
     TemporaryProject project("display");

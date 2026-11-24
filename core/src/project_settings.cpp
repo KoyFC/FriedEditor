@@ -180,6 +180,16 @@ namespace fried::editor
                      [&](Project &project) { project.setPhysicsRate(value); });
     }
 
+    std::string ProjectSettings::setPrecision(Platform platform, Precision value)
+    {
+        std::string problem;
+        if (!fried::core::offersPrecision(platform) && value != Precision::Double)
+        {
+            problem = "This platform builds only with double precision.";
+        }
+        return apply(problem, [&](Project &project) { project.setPrecision(platform, value); });
+    }
+
     std::string ProjectSettings::setDisplay(const DisplaySettings &value)
     {
         std::string problem;

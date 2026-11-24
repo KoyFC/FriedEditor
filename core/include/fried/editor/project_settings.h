@@ -33,6 +33,9 @@ namespace fried::editor
         std::string setDefaultTargetFramerate(int value);
         std::string setPhysicsRate(int value);
 
+        // The width of Haxe's Float in the build for a platform. The calculator takes only double, which is refused for single, and the default is written as no key at all.
+        std::string setPrecision(Platform platform, Precision value);
+
         // Adds the platform to the ones the project declares, or takes it out. A project that declares none builds for every platform, so taking one out first declares all the others. The last one cannot be taken out, since the engine refuses a project that builds for nothing.
         std::string setPlatformDeclared(Platform platform, bool isDeclared);
 

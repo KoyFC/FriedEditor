@@ -119,6 +119,7 @@ namespace editor_ui
         void playerPage();
         void platformPage(fried::editor::Platform platform);
         void iconSection(fried::editor::Platform platform);
+        void precisionSection(fried::editor::Platform platform);
         void packagingSection(fried::editor::Platform platform);
         void buildSection(fried::editor::Platform platform);
         void buildSettingsStrip(fried::editor::Platform platform);
