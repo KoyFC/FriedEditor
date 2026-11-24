@@ -123,3 +123,41 @@ TEST_CASE("a PNG and a WAV report what their headers say")
     CHECK(sound.m_bits == 16);
     CHECK(sound.m_seconds == doctest::Approx(1.0).epsilon(0.01));
 }
+
+TEST_CASE("a font reports what is left of it where the whole file is read into RAM")
+{
+    fs::path directory = assets();
+    // A sfnt header with two tables, a 6 byte head and a 100 byte gvar, then their bytes.
+    std::vector<unsigned char> font = {0, 1, 0, 0, 0, 2, 0, 32, 0, 1, 0, 0};
+    auto entry = [&](const char *tag, unsigned offset, unsigned length) {
+        for (int index = 0; index < 4; ++index)
+        {
+            font.push_back((unsigned char)tag[index]);
+        }
+        for (int index = 0; index < 4; ++index)
+        {
+            font.push_back(0);
+        }
+        for (unsigned value : {offset, length})
+        {
+            font.push_back((unsigned char)(value >> 24));
+            font.push_back((unsigned char)(value >> 16));
+            font.push_back((unsigned char)(value >> 8));
+            font.push_back((unsigned char)value);
+        }
+    };
+    entry("head", 44, 8);
+    entry("gvar", 52, 100);
+    font.resize(152, 7);
+    std::ofstream((directory / "a.ttf"), std::ios::binary).write((const char *)font.data(), (std::streamsize)font.size());
+
+    FontInfo info = readFontInfo((directory / "a.ttf").string());
+    CHECK(info.m_isValid);
+    CHECK(info.m_bytes == 152);
+    CHECK(info.m_bytesOnSoftwareText == 152 - (100 + 16));
+
+    std::ofstream((directory / "b.ttf"), std::ios::binary) << "not a font at all";
+    FontInfo broken = readFontInfo((directory / "b.ttf").string());
+    CHECK_FALSE(broken.m_isValid);
+    CHECK(broken.m_bytesOnSoftwareText == broken.m_bytes);
+}

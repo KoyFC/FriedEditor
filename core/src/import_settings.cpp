@@ -265,6 +265,54 @@ namespace fried::editor
         return info;
     }
 
+    FontInfo readFontInfo(const std::string &path)
+    {
+        FontInfo info;
+        std::error_code failure;
+        info.m_bytes = fs::file_size(path, failure);
+        info.m_bytesOnSoftwareText = info.m_bytes;
+        std::vector<unsigned char> head;
+        if (failure || !readBytes(path, &head, 12) || head.size() < 12)
+        {
+            return info;
+        }
+        bool isTrueType = head[0] == 0 && head[1] == 1 && head[2] == 0 && head[3] == 0;
+        bool isOpenType = std::memcmp(head.data(), "OTTO", 4) == 0 || std::memcmp(head.data(), "ttcf", 4) == 0;
+        if (!isTrueType && !isOpenType)
+        {
+            return info;
+        }
+        info.m_isValid = true;
+        if (!isTrueType)
+        {
+            return info;
+        }
+
+        std::size_t count = ((std::size_t)head[4] << 8) | head[5];
+        std::vector<unsigned char> directory;
+        if (!readBytes(path, &directory, 12 + 16 * count) || directory.size() < 12 + 16 * count)
+        {
+            return info;
+        }
+        static const char *const dropped[] = {"gvar", "HVAR", "MVAR", "STAT", "fvar", "avar", "GSUB", "GDEF"};
+        std::uint64_t left = 0;
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            const unsigned char *entry = &directory[12 + 16 * index];
+            for (const char *name : dropped)
+            {
+                if (std::memcmp(entry, name, 4) == 0)
+                {
+                    std::uint64_t length = ((std::uint64_t)entry[12] << 24) | ((std::uint64_t)entry[13] << 16) | ((std::uint64_t)entry[14] << 8) | entry[15];
+                    // A dropped table also takes its directory entry and its padding with it.
+                    left += ((length + 3) & ~(std::uint64_t)3) + 16;
+                }
+            }
+        }
+        info.m_bytesOnSoftwareText = left < info.m_bytes ? info.m_bytes - left : info.m_bytes;
+        return info;
+    }
+
     SoundInfo readSoundInfo(const std::string &path)
     {
         SoundInfo info;

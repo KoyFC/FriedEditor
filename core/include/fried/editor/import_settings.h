@@ -59,4 +59,13 @@ namespace fried::editor
         std::uint64_t m_bytes = 0;
     };
     SoundInfo readSoundInfo(const std::string &path);
+
+    struct FontInfo
+    {
+        bool m_isValid = false;
+        std::uint64_t m_bytes = 0;
+        // What the file comes to on the platforms that read a whole font into RAM, once the build has left out the variation and substitution tables the engine never reads. The same as m_bytes for a font with none, or that is not a single TrueType font.
+        std::uint64_t m_bytesOnSoftwareText = 0;
+    };
+    FontInfo readFontInfo(const std::string &path);
 }

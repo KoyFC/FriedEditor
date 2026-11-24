@@ -2470,6 +2470,37 @@ namespace editor_ui
         ImGui::TextUnformatted(name.c_str());
         ImGui::Separator();
 
+        if (kind == AssetKind::Font)
+        {
+            const std::string fontFile = m_editor.assetFile(root, path);
+            fried::editor::FontInfo info = fried::editor::readFontInfo(fontFile);
+            if (!std::filesystem::exists(fontFile))
+            {
+                ImGui::TextDisabled("The file is not there any more.");
+                return;
+            }
+            ImGui::TextDisabled("%llu bytes", (unsigned long long)info.m_bytes);
+            ImGui::Spacing();
+            ImGui::TextWrapped("The DS and the calculator read the whole font file into memory, so building for them leaves out the tables the engine never reads (variation and glyph substitution), and every glyph draws the same.");
+            if (info.m_isValid && info.m_bytesOnSoftwareText < info.m_bytes)
+            {
+                ImGui::Spacing();
+                ImGui::Text("On those platforms: %llu bytes, %llu less.", (unsigned long long)info.m_bytesOnSoftwareText, (unsigned long long)(info.m_bytes - info.m_bytesOnSoftwareText));
+            }
+            else if (info.m_isValid)
+            {
+                ImGui::Spacing();
+                ImGui::TextDisabled("There is nothing to leave out of this one.");
+            }
+            else
+            {
+                ImGui::Spacing();
+                ImGui::TextDisabled("This is not a single TrueType font, so it is copied as it is.");
+            }
+            ImGui::Spacing();
+            ImGui::TextDisabled("There is nothing to set: it is done on every build.");
+            return;
+        }
         if (kind != AssetKind::Image && kind != AssetKind::Audio)
         {
             ImGui::TextDisabled("This kind of file has no import settings.");
