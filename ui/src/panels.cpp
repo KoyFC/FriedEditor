@@ -2,6 +2,7 @@
 
 #include "fried/editor/script_files.h"
 
+#include "shortcuts.h"
 #include "style.h"
 
 #include "fried/editor/display_name.h"
@@ -358,12 +359,13 @@ namespace editor_ui
         {
             const char *m_id;
             Icon m_icon;
-            const char *m_tooltip;
+            const char *m_name;
+            Shortcut m_shortcut;
             GizmoMode m_mode;
         };
         bool isFirst = true;
-        for (const Mode &mode : {Mode{"move", Icon::ToolMove, "Move (W)", GizmoMode::Move}, Mode{"rotate", Icon::ToolRotate, "Rotate (E)", GizmoMode::Rotate},
-                                 Mode{"scale", Icon::ToolScale, "Scale (T)", GizmoMode::Scale}})
+        for (const Mode &mode : {Mode{"move", Icon::ToolMove, "Move", Shortcut::MoveTool, GizmoMode::Move}, Mode{"rotate", Icon::ToolRotate, "Rotate", Shortcut::RotateTool, GizmoMode::Rotate},
+                                 Mode{"scale", Icon::ToolScale, "Scale", Shortcut::ScaleTool, GizmoMode::Scale}})
         {
             bool isDisabled = !is2D && mode.m_mode != GizmoMode::Move;
             if (isDisabled)
@@ -375,7 +377,7 @@ namespace editor_ui
                 ImGui::SameLine();
             }
             isFirst = false;
-            if (Icons::button(mode.m_id, mode.m_icon, mode.m_tooltip, m_editor.gizmoMode() == mode.m_mode))
+            if (Icons::button(mode.m_id, mode.m_icon, withShortcut(mode.m_name, mode.m_shortcut).c_str(), m_editor.gizmoMode() == mode.m_mode))
             {
                 m_editor.setGizmoMode(mode.m_mode);
             }
@@ -456,27 +458,27 @@ namespace editor_ui
         float middle = (ImGui::GetWindowWidth() - playWidth) / 2;
         ImGui::SameLine();
         ImGui::SetCursorPosX(std::max(middle, leftEnd + gap));
-        if (Icons::button("play", isPlaying ? Icon::Stop : Icon::Play, isPlaying ? "Stop the game (F8)" : "Play the open scene (F6)", isPlaying))
+        if (Icons::button("play", isPlaying ? Icon::Stop : Icon::Play, isPlaying ? withShortcut("Stop the game", Shortcut::Stop).c_str() : withShortcut("Play the open scene", Shortcut::PlayScene).c_str(), isPlaying))
         {
             isPlaying ? m_editor.stopPlay() : m_editor.startPlay(false);
         }
         ImGui::SameLine();
         ImGui::BeginDisabled(isPlaying);
-        if (Icons::button("play-start", Icon::PlayStart, "Play the project from its start scene (F5)"))
+        if (Icons::button("play-start", Icon::PlayStart, withShortcut("Play the project from its start scene", Shortcut::PlayProject).c_str()))
         {
             m_editor.startPlay(true);
         }
         ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::BeginDisabled(!m_editor.isPlaying());
-        if (Icons::button("pause", Icon::Pause, m_editor.isPaused() ? "Resume the game (F7)" : "Pause the game (F7)", m_editor.isPaused()))
+        if (Icons::button("pause", Icon::Pause, withShortcut(m_editor.isPaused() ? "Resume the game" : "Pause the game", Shortcut::Pause).c_str(), m_editor.isPaused()))
         {
             m_editor.setPaused(!m_editor.isPaused());
         }
         ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::BeginDisabled(!m_editor.isPaused());
-        if (Icons::button("next-frame", Icon::NextFrame, "Run one frame of the paused game (F10)"))
+        if (Icons::button("next-frame", Icon::NextFrame, withShortcut("Run one frame of the paused game", Shortcut::NextFrame).c_str()))
         {
             m_editor.stepFrame();
         }
@@ -877,7 +879,7 @@ namespace editor_ui
         if (m_gameFrame.isEmpty())
         {
             m_frameTimes.clear();
-            std::string message = m_editor.isStartingPlay() ? "Starting the game..." : "Press Play (F6) to run the game here";
+            std::string message = m_editor.isStartingPlay() ? "Starting the game..." : std::string("Press ") + shortcutText(Shortcut::PlayScene) + " to run the game here";
             ImVec2 size = ImGui::CalcTextSize(message.c_str());
             draw->AddText(ImVec2(origin.x + (region.x - size.x) / 2, origin.y + (region.y - size.y) / 2), IM_COL32(150, 150, 160, 255), message.c_str());
             return;
@@ -894,9 +896,9 @@ namespace editor_ui
         {
             if (!isPlaying)
             {
-                const char *hint = "Press Play (F6) to run the game";
-                ImVec2 extent = ImGui::CalcTextSize(hint);
-                draw->AddText(ImVec2(origin.x + (region.x - extent.x) / 2, origin.y + region.y - extent.y - scaled(10)), IM_COL32(150, 150, 160, 255), hint);
+                std::string hint = std::string("Press ") + shortcutText(Shortcut::PlayScene) + " to run the game";
+                ImVec2 extent = ImGui::CalcTextSize(hint.c_str());
+                draw->AddText(ImVec2(origin.x + (region.x - extent.x) / 2, origin.y + region.y - extent.y - scaled(10)), IM_COL32(150, 150, 160, 255), hint.c_str());
             }
             draw->PopClipRect();
             return;
@@ -1259,7 +1261,7 @@ namespace editor_ui
         ImGui::SetCursorScreenPos(barLow);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0.45f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.27f, 0.85f));
-        if (Icons::button("frame", Icon::CenterView, "Bring the selected node to the middle (F)"))
+        if (Icons::button("frame", Icon::CenterView, withShortcut("Bring the selected node to the middle", Shortcut::FrameSelected).c_str()))
         {
             m_editor.focusSelected();
         }
@@ -1762,7 +1764,7 @@ namespace editor_ui
                     {
                         showChangeType(row.m_id);
                     }
-                    if (ImGui::MenuItem("Rename...", "F2"))
+                    if (ImGui::MenuItem("Rename...", shortcutText(Shortcut::Rename)))
                     {
                         m_renameId = row.m_id;
                         m_renameText = row.m_name;
@@ -1781,22 +1783,22 @@ namespace editor_ui
                         m_editor.moveSelected(1);
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, !isRoot))
+                    if (ImGui::MenuItem("Duplicate", shortcutText(Shortcut::Duplicate), false, !isRoot))
                     {
                         m_editor.duplicateSelected();
                     }
-                    if (ImGui::MenuItem("Copy", "Ctrl+C"))
+                    if (ImGui::MenuItem("Copy", shortcutText(Shortcut::Copy)))
                     {
                         std::string text = m_editor.copySelected();
                         ImGui::SetClipboardText(text.c_str());
                     }
-                    if (ImGui::MenuItem("Paste", "Ctrl+V"))
+                    if (ImGui::MenuItem("Paste", shortcutText(Shortcut::Paste)))
                     {
                         const char *text = ImGui::GetClipboardText();
                         m_editor.paste(text ? text : "");
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Delete", "Del", false, !isRoot))
+                    if (ImGui::MenuItem("Delete", shortcutText(Shortcut::Delete), false, !isRoot))
                     {
                         m_editor.removeSelected();
                     }
@@ -1836,7 +1838,7 @@ namespace editor_ui
             fried::editor::EditorState::setProjectValue(m_editor.project().directory(), "collapsed", remembered);
         }
 
-        if (m_editor.selected() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F2, false))
+        if (m_editor.selected() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput && isShortcutPressed(Shortcut::Rename))
         {
             for (const fried::editor::HierarchyRow &row : rows)
             {
@@ -3468,13 +3470,13 @@ namespace editor_ui
                     ImGui::SetClipboardText(reference.c_str());
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem("Rename...", "F2", false, isEditable))
+                if (ImGui::MenuItem("Rename...", shortcutText(Shortcut::Rename), false, isEditable))
                 {
                     m_assetRenameReference = reference;
                     m_assetRenameText = name;
                     m_isAssetRenameAsked = true;
                 }
-                if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, isEditable))
+                if (ImGui::MenuItem("Duplicate", shortcutText(Shortcut::Duplicate), false, isEditable))
                 {
                     std::string error;
                     if (!m_editor.duplicateAsset(reference, &error))
@@ -3482,7 +3484,7 @@ namespace editor_ui
                         m_editor.setMessage(error);
                     }
                 }
-                if (ImGui::MenuItem("Delete", "Del", false, isEditable))
+                if (ImGui::MenuItem("Delete", shortcutText(Shortcut::Delete), false, isEditable))
                 {
                     m_assetDeleteReference = reference;
                     m_assetDeleteUsers = m_editor.assetUsers(reference);
@@ -3563,19 +3565,19 @@ namespace editor_ui
         }
         // F2, Delete and Ctrl+D act on the chosen file while the panel has the keyboard and no text is being typed, as they do on nodes in the hierarchy.
         const bool hasAssetKeys = !m_assetSelected.empty() && isEditableReference(m_assetSelected) && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput;
-        if (hasAssetKeys && ImGui::IsKeyPressed(ImGuiKey_F2, false))
+        if (hasAssetKeys && isShortcutPressed(Shortcut::Rename))
         {
             m_assetRenameReference = m_assetSelected;
             m_assetRenameText = m_assetSelected.substr(m_assetSelected.rfind('/') + 1);
             m_isAssetRenameAsked = true;
         }
-        else if (hasAssetKeys && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+        else if (hasAssetKeys && isShortcutPressed(Shortcut::Delete))
         {
             m_assetDeleteReference = m_assetSelected;
             m_assetDeleteUsers = m_editor.assetUsers(m_assetSelected);
             m_isAssetDeleteAsked = true;
         }
-        else if (hasAssetKeys && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+        else if (hasAssetKeys && isShortcutPressed(Shortcut::Duplicate))
         {
             std::string error;
             if (!m_editor.duplicateAsset(m_assetSelected, &error))

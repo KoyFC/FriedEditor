@@ -54,6 +54,8 @@ add_library(fried_editor_ui STATIC
     src/project_settings_window.cpp
     src/input_map_page.cpp
     src/pointer.h
+    src/shortcuts.cpp
+    src/shortcuts.h
     src/dialog_window.cpp
     src/style.cpp
     src/style.h

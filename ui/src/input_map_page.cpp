@@ -2,6 +2,7 @@
 
 #include "fried/editor/editor.h"
 #include "fried/editor/input_map.h"
+#include "shortcuts.h"
 #include "style.h"
 #include <cmath>
 
@@ -151,8 +152,8 @@ namespace editor_ui
         };
         // F2 renames what is chosen and Delete removes it, while the window has the keyboard and no text is being typed.
         const bool hasKeys = (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)) && !ImGui::GetIO().WantTextInput;
-        const bool isRenameAsked = hasKeys && ImGui::IsKeyPressed(ImGuiKey_F2, false);
-        if (hasKeys && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+        const bool isRenameAsked = hasKeys && isShortcutPressed(Shortcut::Rename);
+        if (hasKeys && isShortcutPressed(Shortcut::Delete))
         {
             if (m_inputColumn == 0 && map)
             {

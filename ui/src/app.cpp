@@ -4,6 +4,7 @@
 #include "opengl.h"
 #include "panels.h"
 #include "pointer.h"
+#include "shortcuts.h"
 #include "style.h"
 
 #include "fried/editor/editor_state.h"
@@ -445,23 +446,23 @@ namespace editor_ui
             if (!io.WantTextInput && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
             {
                 bool isGameRunning = editor.isPlaying() || editor.isStartingPlay();
-                if (!isGameRunning && ImGui::IsKeyPressed(ImGuiKey_F5, false))
+                if (!isGameRunning && isShortcutPressed(Shortcut::PlayProject))
                 {
                     editor.startPlay(true);
                 }
-                else if (!isGameRunning && ImGui::IsKeyPressed(ImGuiKey_F6, false))
+                else if (!isGameRunning && isShortcutPressed(Shortcut::PlayScene))
                 {
                     editor.startPlay(false);
                 }
-                else if (isGameRunning && ImGui::IsKeyPressed(ImGuiKey_F8, false))
+                else if (isGameRunning && isShortcutPressed(Shortcut::Stop))
                 {
                     editor.stopPlay();
                 }
-                else if (editor.isPlaying() && ImGui::IsKeyPressed(ImGuiKey_F7, false))
+                else if (editor.isPlaying() && isShortcutPressed(Shortcut::Pause))
                 {
                     editor.setPaused(!editor.isPaused());
                 }
-                else if (ImGui::IsKeyPressed(ImGuiKey_F10, false))
+                else if (isShortcutPressed(Shortcut::NextFrame))
                 {
                     editor.stepFrame();
                 }
@@ -469,84 +470,81 @@ namespace editor_ui
             // The keys are the game's while it has the focus.
             if (!io.WantTextInput && !editor.isModal() && !(editor.isPlaying() && panels.isGameFocused()))
             {
-                bool isControl = io.KeyCtrl;
                 // Delete, Duplicate, Copy and Paste act on nodes only from the panels that show them, as in Godot and Unity; the Assets panel has its own.
                 std::string focus = focusedPanel();
                 bool isNodeFocus = focus == "Hierarchy" || focus == "Viewport";
-                if (isControl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+                // The tools and Frame give way to the free camera, which W, A, S, D, E and Q fly while the right button is held.
+                bool isFlying = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+                if (isShortcutPressed(Shortcut::Undo))
                 {
-                    io.KeyShift ? editor.commands().redo() : editor.commands().undo();
+                    editor.commands().undo();
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_Y, false))
+                else if (isShortcutPressed(Shortcut::Redo) || isShortcutPressed(Shortcut::RedoAlternate))
                 {
                     editor.commands().redo();
                 }
-                else if (isControl && isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_D, false))
+                else if (isNodeFocus && isShortcutPressed(Shortcut::Duplicate))
                 {
                     editor.duplicateSelected();
                 }
-                else if (isControl && isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_C, false))
+                else if (isNodeFocus && isShortcutPressed(Shortcut::Copy))
                 {
                     copyNode(editor);
                 }
-                else if (isControl && isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_V, false))
+                else if (isNodeFocus && isShortcutPressed(Shortcut::Paste))
                 {
                     pasteNode(editor);
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_P, false))
+                else if (isShortcutPressed(Shortcut::QuickOpen))
                 {
                     panels.showQuickOpen();
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_A, false))
+                else if (isShortcutPressed(Shortcut::CreateNode))
                 {
                     panels.showCreateNode(editor.selected());
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_N, false))
+                else if (isShortcutPressed(Shortcut::NewScene))
                 {
                     panels.showNewScene();
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_S, false))
+                else if (isShortcutPressed(Shortcut::Save))
                 {
-                    // Alt first, so that Godot's Ctrl+Shift+Alt+S also saves all.
-                    if (io.KeyAlt)
-                    {
-                        saveAll(editor);
-                    }
-                    else if (io.KeyShift)
-                    {
-                        panels.showSaveSceneAs();
-                    }
-                    else
-                    {
-                        save(editor);
-                    }
+                    save(editor);
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_Q, false))
+                else if (isShortcutPressed(Shortcut::SaveSceneAs))
+                {
+                    panels.showSaveSceneAs();
+                }
+                else if (isShortcutPressed(Shortcut::SaveAll))
+                {
+                    saveAll(editor);
+                }
+                else if (isShortcutPressed(Shortcut::Quit))
                 {
                     isCloseAsked = editor.hasModifiedScenes();
                     isRunning = editor.hasModifiedScenes();
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_B, false))
+                else if (isShortcutPressed(Shortcut::BuildAndRun))
                 {
                     editor.buildAndRun();
                 }
-                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_W, false))
+                else if (!isFlying && isShortcutPressed(Shortcut::MoveTool))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Move);
                 }
-                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_E, false))
+                else if (!isFlying && isShortcutPressed(Shortcut::RotateTool))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Rotate);
                 }
-                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_T, false))
+                else if (!isFlying && isShortcutPressed(Shortcut::ScaleTool))
                 {
                     editor.setGizmoMode(fried::editor::GizmoMode::Scale);
                 }
-                else if (!isControl && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::IsKeyPressed(ImGuiKey_F, false))
+                else if (!isFlying && isShortcutPressed(Shortcut::FrameSelected))
                 {
                     editor.focusSelected();
                 }
-                else if (isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+                else if (isNodeFocus && isShortcutPressed(Shortcut::Delete))
                 {
                     editor.removeSelected();
                 }
@@ -556,23 +554,23 @@ namespace editor_ui
             {
                 if (ImGui::BeginMenu("File"))
                 {
-                    if (ImGui::MenuItem("New Scene...", "Ctrl+N"))
+                    if (ImGui::MenuItem("New Scene...", shortcutText(Shortcut::NewScene)))
                     {
                         panels.showNewScene();
                     }
-                    if (ImGui::MenuItem("Save", "Ctrl+S"))
+                    if (ImGui::MenuItem("Save", shortcutText(Shortcut::Save)))
                     {
                         save(editor);
                     }
-                    if (ImGui::MenuItem("Save Scene As...", "Ctrl+Shift+S", false, !editor.isPlaying()))
+                    if (ImGui::MenuItem("Save Scene As...", shortcutText(Shortcut::SaveSceneAs), false, !editor.isPlaying()))
                     {
                         panels.showSaveSceneAs();
                     }
-                    if (ImGui::MenuItem("Save All", "Ctrl+Alt+S", false, editor.hasModifiedScenes()))
+                    if (ImGui::MenuItem("Save All", shortcutText(Shortcut::SaveAll), false, editor.hasModifiedScenes()))
                     {
                         saveAll(editor);
                     }
-                    if (ImGui::MenuItem("Quick Open...", "Ctrl+P"))
+                    if (ImGui::MenuItem("Quick Open...", shortcutText(Shortcut::QuickOpen)))
                     {
                         panels.showQuickOpen();
                     }
@@ -601,28 +599,28 @@ namespace editor_ui
                         ImGui::EndMenu();
                     }
                     bool isPlaying = editor.isPlaying() || editor.isStartingPlay();
-                    if (ImGui::MenuItem("Play Project", "F5", false, !isPlaying))
+                    if (ImGui::MenuItem("Play Project", shortcutText(Shortcut::PlayProject), false, !isPlaying))
                     {
                         editor.startPlay(true);
                     }
-                    if (ImGui::MenuItem("Play Current Scene", "F6", false, !isPlaying))
+                    if (ImGui::MenuItem("Play Current Scene", shortcutText(Shortcut::PlayScene), false, !isPlaying))
                     {
                         editor.startPlay(false);
                     }
-                    if (ImGui::MenuItem("Pause", "F7", editor.isPaused(), editor.isPlaying()))
+                    if (ImGui::MenuItem("Pause", shortcutText(Shortcut::Pause), editor.isPaused(), editor.isPlaying()))
                     {
                         editor.setPaused(!editor.isPaused());
                     }
-                    if (ImGui::MenuItem("Next Frame", "F10", false, editor.isPaused()))
+                    if (ImGui::MenuItem("Next Frame", shortcutText(Shortcut::NextFrame), false, editor.isPaused()))
                     {
                         editor.stepFrame();
                     }
-                    if (ImGui::MenuItem("Stop", "F8", false, isPlaying))
+                    if (ImGui::MenuItem("Stop", shortcutText(Shortcut::Stop), false, isPlaying))
                     {
                         editor.stopPlay();
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Build and Run", "Ctrl+B", false, !isPlaying && editor.gameState() == fried::editor::GameRunner::State::Idle))
+                    if (ImGui::MenuItem("Build and Run", shortcutText(Shortcut::BuildAndRun), false, !isPlaying && editor.gameState() == fried::editor::GameRunner::State::Idle))
                     {
                         editor.buildAndRun();
                     }
@@ -641,7 +639,7 @@ namespace editor_ui
                         isPlayerSettingsOpen = !isPlayerSettingsOpen;
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Quit", "Ctrl+Q"))
+                    if (ImGui::MenuItem("Quit", shortcutText(Shortcut::Quit)))
                     {
                         isCloseAsked = editor.hasModifiedScenes();
                         isRunning = editor.hasModifiedScenes();
@@ -653,24 +651,24 @@ namespace editor_ui
                     auto &commands = editor.commands();
                     std::string undo = "Undo " + commands.undoLabel();
                     std::string redo = "Redo " + commands.redoLabel();
-                    if (ImGui::MenuItem(undo.c_str(), "Ctrl+Z", false, commands.canUndo()))
+                    if (ImGui::MenuItem(undo.c_str(), shortcutText(Shortcut::Undo), false, commands.canUndo()))
                     {
                         commands.undo();
                     }
-                    if (ImGui::MenuItem(redo.c_str(), "Ctrl+Shift+Z", false, commands.canRedo()))
+                    if (ImGui::MenuItem(redo.c_str(), shortcutText(Shortcut::Redo), false, commands.canRedo()))
                     {
                         commands.redo();
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, editor.selected().has_value()))
+                    if (ImGui::MenuItem("Duplicate", shortcutText(Shortcut::Duplicate), false, editor.selected().has_value()))
                     {
                         editor.duplicateSelected();
                     }
-                    if (ImGui::MenuItem("Copy", "Ctrl+C", false, editor.selected().has_value()))
+                    if (ImGui::MenuItem("Copy", shortcutText(Shortcut::Copy), false, editor.selected().has_value()))
                     {
                         copyNode(editor);
                     }
-                    if (ImGui::MenuItem("Paste", "Ctrl+V"))
+                    if (ImGui::MenuItem("Paste", shortcutText(Shortcut::Paste)))
                     {
                         pasteNode(editor);
                     }
