@@ -758,7 +758,7 @@ namespace editor_ui
             }
 
             // A panel is drawn while its window is open, which its tab's close button and the Window menu change.
-            auto panel = [](const char *title, bool *isShown, const std::function<void()> &draw) {
+            auto panel = [](const char *title, bool *isShown, const std::function<void()> &draw, ImGuiWindowFlags flags = 0) {
                 if (!*isShown)
                 {
                     return;
@@ -770,7 +770,7 @@ namespace editor_ui
                     return windowClass;
                 }();
                 ImGui::SetNextWindowClass(&s_panelClass);
-                if (ImGui::Begin(title, isShown))
+                if (ImGui::Begin(title, isShown, flags))
                 {
                     draw();
                 }
@@ -793,7 +793,8 @@ namespace editor_ui
             // The one player draws either the scene or the game's preview, and the scene wins when both are on screen.
             editor.setSceneWatched(isSceneDrawn);
             editor.setGamePreview(isGameDrawn && !isSceneDrawn && !editor.isPlaying());
-            panel("Hierarchy", &isHierarchyShown, [&] { panels.hierarchy(); });
+            // The hierarchy moves its own selection with the arrows, so the interface's navigation must not move a frame of its own, which drifts from the selection and ends up in the search field.
+            panel("Hierarchy", &isHierarchyShown, [&] { panels.hierarchy(); }, ImGuiWindowFlags_NoNavInputs);
             panel("Inspector", &isInspectorShown, [&] { panels.inspector(); });
             panel("Assets", &isAssetsShown, [&] { panels.assets(); });
             // A layout saved before the console existed has no place for it, so it joins the assets.
