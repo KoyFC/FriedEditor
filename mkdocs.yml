@@ -40,8 +40,10 @@ nav:
       - using/assets-and-issues.md
       - using/play.md
       - using/project-settings.md
+      - using/shortcuts.md
   - architecture/index.md
   - Development:
       - development/index.md
+      - development/ui-conventions.md
       - development/roadmap.md
   - License: https://github.com/KoyFC/FriedEditor/blob/main/LICENSE
