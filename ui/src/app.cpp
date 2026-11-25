@@ -134,6 +134,19 @@ namespace editor_ui
             }
         }
 
+        // The panel that has the keyboard, by the id after "###" or by its whole name, so that a panel's keys act on what that panel shows.
+        std::string focusedPanel()
+        {
+            ImGuiWindow *focused = ImGui::GetCurrentContext()->NavWindow;
+            if (focused == nullptr)
+            {
+                return std::string();
+            }
+            std::string name = focused->RootWindow->Name;
+            std::size_t hashes = name.find("###");
+            return hashes == std::string::npos ? name : name.substr(hashes + 3);
+        }
+
         void copyNode(Editor &editor)
         {
             std::string text = editor.copySelected();
@@ -437,6 +450,9 @@ namespace editor_ui
             if (!io.WantTextInput && !editor.isModal() && !(editor.isPlaying() && panels.isGameFocused()))
             {
                 bool isControl = io.KeyCtrl;
+                // Delete, Duplicate, Copy and Paste act on nodes only from the panels that show them, as in Godot and Unity; the Assets panel has its own.
+                std::string focus = focusedPanel();
+                bool isNodeFocus = focus == "Hierarchy" || focus == "Viewport";
                 if (isControl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
                 {
                     io.KeyShift ? editor.commands().redo() : editor.commands().undo();
@@ -445,15 +461,15 @@ namespace editor_ui
                 {
                     editor.commands().redo();
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+                else if (isControl && isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_D, false))
                 {
                     editor.duplicateSelected();
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_C, false))
+                else if (isControl && isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_C, false))
                 {
                     copyNode(editor);
                 }
-                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_V, false))
+                else if (isControl && isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_V, false))
                 {
                     pasteNode(editor);
                 }
@@ -508,7 +524,7 @@ namespace editor_ui
                 {
                     editor.focusSelected();
                 }
-                else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+                else if (isNodeFocus && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
                 {
                     editor.removeSelected();
                 }

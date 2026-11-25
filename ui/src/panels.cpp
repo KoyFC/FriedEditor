@@ -1761,7 +1761,7 @@ namespace editor_ui
                     {
                         showChangeType(row.m_id);
                     }
-                    if (ImGui::MenuItem("Rename"))
+                    if (ImGui::MenuItem("Rename...", "F2"))
                     {
                         m_renameId = row.m_id;
                         m_renameText = row.m_name;
@@ -1795,7 +1795,7 @@ namespace editor_ui
                         m_editor.paste(text ? text : "");
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Delete", nullptr, false, !isRoot))
+                    if (ImGui::MenuItem("Delete", "Del", false, !isRoot))
                     {
                         m_editor.removeSelected();
                     }
@@ -3466,13 +3466,13 @@ namespace editor_ui
                     ImGui::SetClipboardText(reference.c_str());
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem("Rename...", nullptr, false, isEditable))
+                if (ImGui::MenuItem("Rename...", "F2", false, isEditable))
                 {
                     m_assetRenameReference = reference;
                     m_assetRenameText = name;
                     m_isAssetRenameAsked = true;
                 }
-                if (ImGui::MenuItem("Duplicate", nullptr, false, isEditable))
+                if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, isEditable))
                 {
                     std::string error;
                     if (!m_editor.duplicateAsset(reference, &error))
@@ -3480,7 +3480,7 @@ namespace editor_ui
                         m_editor.setMessage(error);
                     }
                 }
-                if (ImGui::MenuItem("Delete", nullptr, false, isEditable))
+                if (ImGui::MenuItem("Delete", "Del", false, isEditable))
                 {
                     m_assetDeleteReference = reference;
                     m_assetDeleteUsers = m_editor.assetUsers(reference);
@@ -3559,12 +3559,27 @@ namespace editor_ui
             }
             ImGui::EndPopup();
         }
-        // F2 renames what is chosen, while the panel has the keyboard and no text is being typed.
-        if (!m_assetSelected.empty() && isEditableReference(m_assetSelected) && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F2, false))
+        // F2, Delete and Ctrl+D act on the chosen file while the panel has the keyboard and no text is being typed, as they do on nodes in the hierarchy.
+        const bool hasAssetKeys = !m_assetSelected.empty() && isEditableReference(m_assetSelected) && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::GetIO().WantTextInput;
+        if (hasAssetKeys && ImGui::IsKeyPressed(ImGuiKey_F2, false))
         {
             m_assetRenameReference = m_assetSelected;
             m_assetRenameText = m_assetSelected.substr(m_assetSelected.rfind('/') + 1);
             m_isAssetRenameAsked = true;
+        }
+        else if (hasAssetKeys && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+        {
+            m_assetDeleteReference = m_assetSelected;
+            m_assetDeleteUsers = m_editor.assetUsers(m_assetSelected);
+            m_isAssetDeleteAsked = true;
+        }
+        else if (hasAssetKeys && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+        {
+            std::string error;
+            if (!m_editor.duplicateAsset(m_assetSelected, &error))
+            {
+                m_editor.setMessage(error);
+            }
         }
         assetQuestions();
         ImGui::EndChild();
