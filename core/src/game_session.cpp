@@ -13,7 +13,7 @@ namespace fried::editor
         return m_listener != nullptr;
     }
 
-    bool GameSession::launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, const std::string &logFile, std::string *error)
+    bool GameSession::launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, int width, int height, const std::string &logFile, std::string *error)
     {
         if (!m_listener)
         {
@@ -21,13 +21,12 @@ namespace fried::editor
             return false;
         }
 
-        // The size is the display's own, which the game reads from project.fried, so it is only there to satisfy the player's arguments.
         SubprocessOptions options;
         options.m_arguments = {executable,
                                "--mode", "play",
                                "--editor-port", std::to_string(m_listener->port()),
-                               "--width", "640",
-                               "--height", "480",
+                               "--width", std::to_string(width),
+                               "--height", std::to_string(height),
                                "--engine-assets", enginePath + "/assets",
                                "--game-assets", gamePath + "/assets"};
 

@@ -525,6 +525,8 @@ namespace editor_ui
         ImGui::SameLine();
         ImGui::SetCursorPosX(ImGui::GetWindowWidth() - platformWidth - ImGui::GetStyle().WindowPadding.x);
         ImGui::SetNextItemWidth(platformWidth);
+        // The game draws at the screen size of the platform it was started with, so the platform is chosen before it runs.
+        ImGui::BeginDisabled(m_editor.isPlaying());
         if (ImGui::BeginCombo("##platform", fried::editor::platformLabel(m_editor.platform()).c_str()))
         {
             for (fried::editor::Platform platform : fried::editor::s_platforms)
@@ -536,9 +538,11 @@ namespace editor_ui
             }
             ImGui::EndCombo();
         }
-        if (ImGui::IsItemHovered())
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("The platform whose screen and limits the editor previews. Play always runs on this PC.");
+            ImGui::SetTooltip("%s", m_editor.isPlaying() ? "Stop the game to change the platform."
+                                                         : "The platform whose screen and limits the editor previews. The game draws at its screen size but still runs on this PC.");
         }
     }
 

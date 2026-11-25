@@ -480,8 +480,10 @@ namespace fried::editor
             name.resize(name.size() - suffix.size());
         }
         std::string error;
+        // The game draws at what the previewed platform's screen shows, as the scene view's frame and the Game tab's preview do.
+        std::pair<int, int> display = m_project.logicalSize(m_platform);
         if (!m_play.listen(name, m_document.data(), isFromStartScene, &error)
-            || !m_play.launch(playerExecutablePath(m_enginePath, m_project.directory(), m_toolchains), m_enginePath, m_project.directory(), log, &error))
+            || !m_play.launch(playerExecutablePath(m_enginePath, m_project.directory(), m_toolchains), m_enginePath, m_project.directory(), display.first, display.second, log, &error))
         {
             m_message = error;
             showFailure("The game cannot start", error, nullptr);
