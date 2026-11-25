@@ -48,8 +48,8 @@ namespace fried::editor
         bool listen(const std::string &sceneName, const nlohmann::json &scene, bool isFromStartScene, std::string *error);
         int port() const { return m_listener ? m_listener->port() : 0; }
 
-        // Runs the player in play mode, which connects back, drawing at the given size, the area its cameras show. What the game prints goes to the log file.
-        bool launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, int width, int height, const std::string &logFile, std::string *error);
+        // Runs the player in play mode, which connects back, drawing at the given size, the area its cameras show, and treating the platform key as the one it runs on for what a platform decides, such as which on-screen controls show. What the game prints goes to the log file.
+        bool launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, int width, int height, const std::string &platform, const std::string &logFile, std::string *error);
 
         // Accepts the player and delivers what it has sent to the callbacks. Called often, from the editor's own thread.
         void pump();

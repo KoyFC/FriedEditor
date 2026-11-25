@@ -13,7 +13,7 @@ namespace fried::editor
         return m_listener != nullptr;
     }
 
-    bool GameSession::launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, int width, int height, const std::string &logFile, std::string *error)
+    bool GameSession::launch(const std::string &executable, const std::string &enginePath, const std::string &gamePath, int width, int height, const std::string &platform, const std::string &logFile, std::string *error)
     {
         if (!m_listener)
         {
@@ -27,6 +27,7 @@ namespace fried::editor
                                "--editor-port", std::to_string(m_listener->port()),
                                "--width", std::to_string(width),
                                "--height", std::to_string(height),
+                               "--platform", platform,
                                "--engine-assets", enginePath + "/assets",
                                "--game-assets", gamePath + "/assets"};
 
