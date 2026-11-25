@@ -134,6 +134,12 @@ namespace editor_ui
             }
         }
 
+        // The keys that play, pause, step and stop, which are the editor's even while the game has the keyboard, as Godot's are.
+        bool isPlayKey(int code)
+        {
+            return code == SDL_SCANCODE_F5 || code == SDL_SCANCODE_F6 || code == SDL_SCANCODE_F7 || code == SDL_SCANCODE_F8 || code == SDL_SCANCODE_F10;
+        }
+
         // The panel that has the keyboard, by the id after "###" or by its whole name, so that a panel's keys act on what that panel shows.
         std::string focusedPanel()
         {
@@ -305,7 +311,7 @@ namespace editor_ui
                 }
                 if (editor.isPlaying() && panels.isGameFocused() && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
                 {
-                    // The game has the keyboard while its window has the focus. Escape takes it back, and Shift+Escape is the game's own Escape. F5 stops the game.
+                    // The game has the keyboard while its window has the focus. Escape takes it back, and Shift+Escape is the game's own Escape. The play keys (F5 to F8 and F10) stay the editor's.
                     int code = event.key.keysym.scancode;
                     bool isDown = event.type == SDL_KEYDOWN;
                     if (code == SDL_SCANCODE_ESCAPE && !(event.key.keysym.mod & KMOD_SHIFT))
@@ -315,7 +321,7 @@ namespace editor_ui
                             panels.releaseGame();
                         }
                     }
-                    else if (code != SDL_SCANCODE_F5 && !event.key.repeat)
+                    else if (!isPlayKey(code) && !event.key.repeat)
                     {
                         editor.gameSession().key(code, isDown);
                         if (isDown)
@@ -435,15 +441,29 @@ namespace editor_ui
             panels.setHeldMotion(pointer.takeHeldMotion());
 
             editor.setSnapHeld(io.KeyCtrl);
-            if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F5, false))
+            // F5 plays the project from its start scene, F6 the open scene, F7 pauses, F8 stops and F10 lets one paused frame through, as in Godot. Not while a dialog or a menu is open.
+            if (!io.WantTextInput && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
             {
-                if (editor.isPlaying() || editor.isStartingPlay())
+                bool isGameRunning = editor.isPlaying() || editor.isStartingPlay();
+                if (!isGameRunning && ImGui::IsKeyPressed(ImGuiKey_F5, false))
+                {
+                    editor.startPlay(true);
+                }
+                else if (!isGameRunning && ImGui::IsKeyPressed(ImGuiKey_F6, false))
+                {
+                    editor.startPlay(false);
+                }
+                else if (isGameRunning && ImGui::IsKeyPressed(ImGuiKey_F8, false))
                 {
                     editor.stopPlay();
                 }
-                else
+                else if (editor.isPlaying() && ImGui::IsKeyPressed(ImGuiKey_F7, false))
                 {
-                    editor.startPlay(io.KeyShift);
+                    editor.setPaused(!editor.isPaused());
+                }
+                else if (ImGui::IsKeyPressed(ImGuiKey_F10, false))
+                {
+                    editor.stepFrame();
                 }
             }
             // The keys are the game's while it has the focus.
@@ -476,14 +496,6 @@ namespace editor_ui
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_P, false))
                 {
                     panels.showQuickOpen();
-                }
-                else if (ImGui::IsKeyPressed(ImGuiKey_F7, false) && editor.isPlaying())
-                {
-                    editor.setPaused(!editor.isPaused());
-                }
-                else if (ImGui::IsKeyPressed(ImGuiKey_F10, false))
-                {
-                    editor.stepFrame();
                 }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_A, false))
                 {
@@ -575,15 +587,23 @@ namespace editor_ui
                         ImGui::EndMenu();
                     }
                     bool isPlaying = editor.isPlaying() || editor.isStartingPlay();
-                    if (ImGui::MenuItem("Play", "F5", false, !isPlaying))
-                    {
-                        editor.startPlay(false);
-                    }
-                    if (ImGui::MenuItem("Play from start scene", "Shift+F5", false, !isPlaying))
+                    if (ImGui::MenuItem("Play Project", "F5", false, !isPlaying))
                     {
                         editor.startPlay(true);
                     }
-                    if (ImGui::MenuItem("Stop", "F5", false, isPlaying))
+                    if (ImGui::MenuItem("Play Current Scene", "F6", false, !isPlaying))
+                    {
+                        editor.startPlay(false);
+                    }
+                    if (ImGui::MenuItem("Pause", "F7", editor.isPaused(), editor.isPlaying()))
+                    {
+                        editor.setPaused(!editor.isPaused());
+                    }
+                    if (ImGui::MenuItem("Next Frame", "F10", false, editor.isPaused()))
+                    {
+                        editor.stepFrame();
+                    }
+                    if (ImGui::MenuItem("Stop", "F8", false, isPlaying))
                     {
                         editor.stopPlay();
                     }

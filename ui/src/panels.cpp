@@ -456,13 +456,13 @@ namespace editor_ui
         float middle = (ImGui::GetWindowWidth() - playWidth) / 2;
         ImGui::SameLine();
         ImGui::SetCursorPosX(std::max(middle, leftEnd + gap));
-        if (Icons::button("play", isPlaying ? Icon::Stop : Icon::Play, isPlaying ? "Stop the game (F5)" : "Play the open scene (F5)", isPlaying))
+        if (Icons::button("play", isPlaying ? Icon::Stop : Icon::Play, isPlaying ? "Stop the game (F8)" : "Play the open scene (F6)", isPlaying))
         {
             isPlaying ? m_editor.stopPlay() : m_editor.startPlay(false);
         }
         ImGui::SameLine();
         ImGui::BeginDisabled(isPlaying);
-        if (Icons::button("play-start", Icon::PlayStart, "Play from the project's start scene (Shift+F5)"))
+        if (Icons::button("play-start", Icon::PlayStart, "Play the project from its start scene (F5)"))
         {
             m_editor.startPlay(true);
         }
