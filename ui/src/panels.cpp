@@ -1352,6 +1352,8 @@ namespace editor_ui
             {"Label", Icon::Label},
             {"Button", Icon::Button},
             {"TextureRect", Icon::TextureRect},
+            {"TouchButton", Icon::TouchButton},
+            {"VirtualJoystick", Icon::VirtualJoystick},
         };
         Icon icon = Icon::Node;
         for (const std::string &name : m_editor.classChain(type))
@@ -2569,7 +2571,7 @@ namespace editor_ui
         }
         for (fried::core::Platform platform : declared)
         {
-            const char *label = platform == fried::core::Platform::Pc ? "PC" : platform == fried::core::Platform::Vita ? "Vita" : platform == fried::core::Platform::Switch ? "Switch" : platform == fried::core::Platform::Nintendo3ds ? "3DS" : platform == fried::core::Platform::NintendoDs ? "DS" : platform == fried::core::Platform::Cg50 ? "CG50" : "Web";
+            const char *label = platform == fried::core::Platform::Pc ? "PC" : platform == fried::core::Platform::Vita ? "Vita" : platform == fried::core::Platform::Switch ? "Switch" : platform == fried::core::Platform::Nintendo3ds ? "3DS" : platform == fried::core::Platform::NintendoDs ? "DS" : platform == fried::core::Platform::Cg50 ? "CG50" : platform == fried::core::Platform::Android ? "Android" : "Web";
             tabs.push_back({fried::core::platformKey(platform), label});
         }
 

@@ -3,6 +3,7 @@
 #include "fried/editor/editor_state.h"
 #include "fried/editor/player_builder.h"
 
+#include "fried/core/android.h"
 #include "fried/core/icon.h"
 
 #include <algorithm>
@@ -210,14 +211,16 @@ namespace fried::editor
 
     int ProjectSettings::packagingTextLimit(const std::string &section)
     {
-        return section == "3ds" ? Project::s_3dsDescriptionLimit : Project::s_ndsSubtitleLimit;
+        return section == "3ds" ? Project::s_3dsDescriptionLimit : section == "android" ? 255 : Project::s_ndsSubtitleLimit;
     }
 
     std::string ProjectSettings::setPackagingText(const std::string &section, const std::string &key, const std::string &value)
     {
+        // A package Android would refuse is repaired rather than refused, and the field shows what was saved.
+        std::string saved = section == "android" && key == "package" ? fried::core::android::sanitizedPackage(value) : value;
         int limit = packagingTextLimit(section);
-        std::string problem = lengthOf(value) > limit ? "This line holds " + std::to_string(limit) + " characters at most." : std::string();
-        return apply(problem, [&](Project &project) { project.setPackagingText(section, key, value); });
+        std::string problem = lengthOf(saved) > limit ? "This line holds " + std::to_string(limit) + " characters at most." : std::string();
+        return apply(problem, [&](Project &project) { project.setPackagingText(section, key, saved); });
     }
 
     std::vector<std::string> ProjectSettings::startSceneChoices() const

@@ -378,3 +378,15 @@ TEST_CASE("the autoloads are saved in order and only name scenes of the project"
     CHECK(settings.setAutoloads({}).empty());
     CHECK(project.read("project.fried").find("\"autoload\"") == std::string::npos);
 }
+
+TEST_CASE("an Android package Android would refuse is repaired and saved as repaired")
+{
+    TemporaryProject project("package");
+    ProjectSettings settings(project.m_project);
+
+    CHECK(settings.setPackagingText("android", "package", "com.example.my game!").empty());
+    CHECK(project.m_project.packagingText("android", "package") == "com.example.mygame");
+
+    CHECK(settings.setPackagingText("android", "package", "mygame").empty());
+    CHECK(project.m_project.packagingText("android", "package") == "mygame.game");
+}

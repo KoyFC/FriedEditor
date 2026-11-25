@@ -1,3 +1,4 @@
+#include "fried/core/android.h"
 #include "panels.h"
 
 #include "style.h"
@@ -687,6 +688,21 @@ namespace editor_ui
             settingText("Third line", project.packagingText("nds", "subtitle2"), limit,
                         [&](const std::string &value) { return settings.setPackagingText("nds", "subtitle2", value); });
             ImGui::TextDisabled("The banner's first line is the name. Left empty, these are the organization and the version.");
+        }
+        else if (platform == Platform::Android)
+        {
+            ImGui::SeparatorText("Package");
+            settingText("Package", project.packagingText("android", "package"), fried::editor::ProjectSettings::packagingTextLimit("android"),
+                        [&](const std::string &value) { return settings.setPackagingText("android", "package", value); });
+            ImGui::TextDisabled("%s", ("How Android tells this game from another. Left empty, it is " +
+                                       fried::core::android::defaultPackage(project.organization(), project.name()) + ".")
+                                          .c_str());
+            const char *orientations[] = {"landscape", "portrait"};
+            int orientation = project.packagingText("android", "orientation") == "portrait" ? 1 : 0;
+            if (ImGui::Combo("Orientation", &orientation, orientations, 2))
+            {
+                settings.setPackagingText("android", "orientation", orientation == 1 ? "portrait" : "");
+            }
         }
     }
 
