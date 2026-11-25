@@ -9,6 +9,8 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <thread>
 
 using namespace fried::editor;
@@ -857,4 +859,32 @@ TEST_CASE("G, R and S change the selected node with the pointer or a typed numbe
     CHECK(editor.document().nodeField("sprite", "rotation") == nlohmann::json(90.0));
     editor.cancelModal();
     CHECK(editor.commands().canRedo() == false);
+}
+
+TEST_CASE("save scene as writes a new file, edits it and leaves the old one as it was saved" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
+{
+    std::string engine = std::getenv("FRIED_ENGINE");
+    Editor editor;
+    std::string error;
+    REQUIRE(editor.open(engine + "/sandbox", engine, &error));
+    pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready; });
+    REQUIRE(editor.openScene(FRIED_EDITOR_TEST_DATA "/sample.scene.json", &error));
+    auto contents = [](const std::string &path) {
+        std::ifstream in(path);
+        return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    };
+    const std::string original = contents(FRIED_EDITOR_TEST_DATA "/sample.scene.json");
+    const std::string target = engine + "/sandbox/assets/scenes/SaveAsTest.scene.json";
+    std::filesystem::remove(target);
+
+    editor.addNode("Label");
+    REQUIRE(editor.saveSceneAs(" SaveAsTest ", &error));
+    CHECK(std::filesystem::path(editor.scenePath()).filename().string() == "SaveAsTest.scene.json");
+    CHECK(std::filesystem::exists(target));
+    CHECK(editor.commands().isClean());
+    CHECK(contents(FRIED_EDITOR_TEST_DATA "/sample.scene.json") == original);
+    // A name another scene has, and a name with a folder in it, are refused.
+    CHECK_FALSE(editor.saveSceneAs("sandbox", &error));
+    CHECK_FALSE(editor.saveSceneAs("a/b", &error));
+    std::filesystem::remove(target);
 }

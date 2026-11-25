@@ -507,14 +507,24 @@ namespace editor_ui
                 }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_S, false))
                 {
-                    if (io.KeyShift)
+                    // Alt first, so that Godot's Ctrl+Shift+Alt+S also saves all.
+                    if (io.KeyAlt)
                     {
                         saveAll(editor);
+                    }
+                    else if (io.KeyShift)
+                    {
+                        panels.showSaveSceneAs();
                     }
                     else
                     {
                         save(editor);
                     }
+                }
+                else if (isControl && ImGui::IsKeyPressed(ImGuiKey_Q, false))
+                {
+                    isCloseAsked = editor.hasModifiedScenes();
+                    isRunning = editor.hasModifiedScenes();
                 }
                 else if (isControl && ImGui::IsKeyPressed(ImGuiKey_B, false))
                 {
@@ -554,7 +564,11 @@ namespace editor_ui
                     {
                         save(editor);
                     }
-                    if (ImGui::MenuItem("Save All", "Ctrl+Shift+S", false, editor.hasModifiedScenes()))
+                    if (ImGui::MenuItem("Save Scene As...", "Ctrl+Shift+S", false, !editor.isPlaying()))
+                    {
+                        panels.showSaveSceneAs();
+                    }
+                    if (ImGui::MenuItem("Save All", "Ctrl+Alt+S", false, editor.hasModifiedScenes()))
                     {
                         saveAll(editor);
                     }
@@ -627,7 +641,7 @@ namespace editor_ui
                         isPlayerSettingsOpen = !isPlayerSettingsOpen;
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Quit"))
+                    if (ImGui::MenuItem("Quit", "Ctrl+Q"))
                     {
                         isCloseAsked = editor.hasModifiedScenes();
                         isRunning = editor.hasModifiedScenes();
@@ -824,6 +838,7 @@ namespace editor_ui
             panels.quickOpen();
             panels.sceneChangeDialog();
             panels.newSceneDialog();
+            panels.saveSceneAsDialog();
             panels.createNodeDialog();
 
             if (isCloseAsked)

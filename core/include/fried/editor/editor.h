@@ -188,6 +188,8 @@ namespace fried::editor
         bool save(std::string *error);
         bool saveScene(const std::string &path, std::string *error);
         bool saveAll(std::string *error);
+        // Saves the scene being edited under a new name in the project's scenes and edits that file from then on, as Godot's Save Scene As does. The old file stays as it was last saved. False with the reason in error when the name is not a file name or is taken.
+        bool saveSceneAs(const std::string &name, std::string *error);
         std::vector<std::string> scenePaths() const;
 
         // The scenes opened last, the latest first, that are still in the project.

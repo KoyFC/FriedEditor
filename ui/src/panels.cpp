@@ -3875,6 +3875,54 @@ namespace editor_ui
         ImGui::EndPopup();
     }
 
+    void Panels::saveSceneAsDialog()
+    {
+        if (m_isSaveAsAsked)
+        {
+            std::string name = std::filesystem::path(m_editor.scenePath()).filename().string();
+            const std::string suffix = ".scene.json";
+            if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
+            {
+                name.resize(name.size() - suffix.size());
+            }
+            m_saveAsName = name;
+            m_saveAsError.clear();
+            ImGui::OpenPopup("Save Scene As");
+            m_isSaveAsAsked = false;
+        }
+        if (!ImGui::BeginPopupModal("Save Scene As", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            return;
+        }
+        ImGui::TextDisabled("Name");
+        ImGui::SetNextItemWidth(scaled(320));
+        if (ImGui::IsWindowAppearing())
+        {
+            ImGui::SetKeyboardFocusHere();
+        }
+        bool isEntered = ImGui::InputText("##save-as-name", &m_saveAsName, ImGuiInputTextFlags_EnterReturnsTrue);
+        if (!m_saveAsError.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.4f, 1.0f));
+            ImGui::TextWrapped("%s", m_saveAsError.c_str());
+            ImGui::PopStyleColor();
+        }
+        ImGui::Spacing();
+        if (ImGui::Button("Save") || isEntered)
+        {
+            if (m_editor.saveSceneAs(m_saveAsName, &m_saveAsError))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
     void Panels::sceneChangeDialog()
     {
         if (m_isSceneChangeAsked)

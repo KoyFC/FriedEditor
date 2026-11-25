@@ -91,6 +91,9 @@ namespace editor_ui
         // Asks for a name and the class of the root node of a new scene. The question is drawn by newSceneDialog.
         void showNewScene() { m_isNewSceneAsked = true; }
         void newSceneDialog();
+        // Asks for the name the open scene is saved under. The question is drawn by saveSceneAsDialog.
+        void showSaveSceneAs() { m_isSaveAsAsked = true; }
+        void saveSceneAsDialog();
         void quickOpen();
 
         // The window that shows a build going on, or one that has ended, with what it printed.
@@ -224,6 +227,9 @@ namespace editor_ui
         bool m_isCreateScrollAsked = false;
         bool m_isNewSceneAsked = false;
         std::string m_newSceneName;
+        bool m_isSaveAsAsked = false;
+        std::string m_saveAsName;
+        std::string m_saveAsError;
         std::string m_newSceneType = "Node2D";
         std::string m_newSceneError;
         std::string m_quickText;

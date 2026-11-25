@@ -951,13 +951,24 @@ namespace fried::editor
         return true;
     }
 
-    bool Editor::newScene(const std::string &chosen, const std::string &rootType, std::string *error)
+    // A scene's name with the spaces around it trimmed, or false with the reason when it is not a file name.
+    static bool cleanSceneName(const std::string &chosen, std::string *name, std::string *error)
     {
         std::size_t first = chosen.find_first_not_of(" \t");
-        std::string name = first == std::string::npos ? std::string() : chosen.substr(first, chosen.find_last_not_of(" \t") - first + 1);
-        if (name.empty() || name.find_first_of("/\\") != std::string::npos || name.front() == '.')
+        *name = first == std::string::npos ? std::string() : chosen.substr(first, chosen.find_last_not_of(" \t") - first + 1);
+        if (name->empty() || name->find_first_of("/\\") != std::string::npos || name->front() == '.')
         {
             *error = "A scene needs a name that is a file name, with no folders in it.";
+            return false;
+        }
+        return true;
+    }
+
+    bool Editor::newScene(const std::string &chosen, const std::string &rootType, std::string *error)
+    {
+        std::string name;
+        if (!cleanSceneName(chosen, &name, error))
+        {
             return false;
         }
         std::string path = scenePathOf(name);
@@ -1343,6 +1354,43 @@ namespace fried::editor
         m_needsLoad = true;
         changed();
         return true;
+    }
+
+    bool Editor::saveSceneAs(const std::string &chosen, std::string *error)
+    {
+        if (m_isPlaying)
+        {
+            *error = "Stop the game to save the scene.";
+            return false;
+        }
+        std::string name;
+        if (!cleanSceneName(chosen, &name, error))
+        {
+            return false;
+        }
+        std::string path = fs::path(scenePathOf(name)).lexically_normal().string();
+        if (path == m_scenePath)
+        {
+            return save(error);
+        }
+        std::error_code ignored;
+        if (fs::exists(path, ignored))
+        {
+            *error = "The project already has a scene named " + name + ".";
+            return false;
+        }
+        fs::create_directories(m_project.scenesDirectory(), ignored);
+        if (!m_document.save(path, error))
+        {
+            return false;
+        }
+        // The new file opens in a tab of its own and the old one closes; what was unsaved in it is now in the new file.
+        std::string previous = m_scenePath;
+        if (!openScene(path, error))
+        {
+            return false;
+        }
+        return closeScene(previous, error);
     }
 
     bool Editor::saveAll(std::string *error)
