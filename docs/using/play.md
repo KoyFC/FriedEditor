@@ -14,7 +14,7 @@ The scene can be edited while the game runs. A change in the inspector or the hi
 
 The play keys work even while the game has the keyboard. Pause (F7, next to the play buttons) freezes the game: its scenes stop updating, the physics stops and the music is silenced, while the Game tab goes on drawing and the editor goes on working with it, so a node can be picked and its values read as they were when the game stopped. Next Frame (F10, enabled while paused) lets one frame through, in which the game's time moves by one physics step. The speed menu that shows while the game runs (1/16x to 16x) sets how fast the game's time goes, on top of the game's own `Time.timeScale`, and is remembered from one run to the next. The game's real time keeps going while it is paused, which is what `Time.unscaledDeltaSeconds` reads.
 
-Stop (the same button, or F8) ends the game. File > Build and run (Ctrl+B) is the other way to play: it saves the scene, builds the project's game for the PC in its `build/` folder, which needs the same tools as the Project Manager's build, and runs it in a window of its own, to try what is shipped. Its log is `fried-editor-game.log` in the temporary directory.
+Stop (the same button, or F8) ends the game. File > Build and Run (Ctrl+B) is the other way to play: it saves the scene, builds the project's game for the PC in its `build/` folder, which needs the same tools as the Project Manager's build, and runs it in a window of its own, to try what is shipped. Its log is `fried-editor-game.log` in the temporary directory.
 
 A build, of the player or of the game, opens a window with its step, a bar and the end of its log, and a failed one stays open with the error until it is closed. Ctrl+S saves the scene to `assets/scenes/` in the project.
 

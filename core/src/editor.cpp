@@ -295,7 +295,7 @@ namespace fried::editor
         m_session = PlayerSession();
         m_session.m_onReady = [this] {
             m_status = Status::Ready;
-            m_message = "Playing on " + platformLabel(m_platform);
+            m_message = "Previewing " + platformLabel(m_platform);
             chooseViewMode();
             m_needsLoad = true;
             m_needsCamera = true;
@@ -1416,7 +1416,7 @@ namespace fried::editor
         }
         if (m_status == Status::Ready)
         {
-            m_message = "Playing on " + platformLabel(m_platform);
+            m_message = "Previewing " + platformLabel(m_platform);
         }
         changed();
     }

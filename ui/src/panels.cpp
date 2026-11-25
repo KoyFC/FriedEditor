@@ -516,7 +516,7 @@ namespace editor_ui
         {
             ImGui::SameLine();
             ImGui::AlignTextToFramePadding();
-            ImGui::TextDisabled("building...");
+            ImGui::TextDisabled("Building...");
         }
 
         float platformWidth = scaled(150);
@@ -536,7 +536,7 @@ namespace editor_ui
         }
         if (ImGui::IsItemHovered())
         {
-            ImGui::SetTooltip("The platform the game is built for when it is played");
+            ImGui::SetTooltip("The platform whose screen and limits the editor previews. Play always runs on this PC.");
         }
     }
 
@@ -614,7 +614,7 @@ namespace editor_ui
             if (!progress.m_builtFile.empty())
             {
                 ImGui::SameLine();
-                if (ImGui::Button("Show in folder"))
+                if (ImGui::Button("Show in Folder"))
                 {
                     revealFile(progress.m_builtFile);
                 }
@@ -622,7 +622,7 @@ namespace editor_ui
             if (progress.m_lines != nullptr && !progress.m_lines->empty())
             {
                 ImGui::SameLine();
-                if (ImGui::Button("Copy output"))
+                if (ImGui::Button("Copy Output"))
                 {
                     std::string text;
                     for (const fried::core::OutputLine &line : *progress.m_lines)
@@ -743,7 +743,8 @@ namespace editor_ui
         auto &commands = m_editor.commands();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(m_editor.message().c_str());
-        std::string right = (m_issues.empty() && m_sceneIssues.empty() && m_inputIssues.empty() ? std::string() : std::to_string(m_issues.size() + m_sceneIssues.size() + m_inputIssues.size()) + " issues   ") + (m_editor.hasModifiedScenes() ? "Unsaved changes" : "Saved");
+        std::size_t issues = m_issues.size() + m_sceneIssues.size() + m_inputIssues.size();
+        std::string right = (issues == 0 ? std::string() : std::to_string(issues) + (issues == 1 ? " issue   " : " issues   ")) + (m_editor.hasModifiedScenes() ? "Unsaved changes" : "Saved");
         ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(right.c_str()).x - scaled(20));
         ImGui::TextColored(m_editor.hasModifiedScenes() ? palette::warning : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", right.c_str());
     }
@@ -1014,7 +1015,7 @@ namespace editor_ui
             }
             bool isModified = m_editor.isSceneModified(path);
             std::string label = name + (isModified ? " *" : "") + "###tab-" + path;
-            ImGuiTabItemFlags flags = isModified ? ImGuiTabItemFlags_UnsavedDocument : 0;
+            ImGuiTabItemFlags flags = isModified ? ImGuiTabItemFlags_NoAssumedClosure : 0;
             if (isActiveChanged && path == active)
             {
                 flags |= ImGuiTabItemFlags_SetSelected;
@@ -1767,7 +1768,7 @@ namespace editor_ui
                         m_renameText = row.m_name;
                         m_isRenameAsked = true;
                     }
-                    if (ImGui::MenuItem("Use as the Camera"))
+                    if (ImGui::MenuItem("Use as Camera"))
                     {
                         m_editor.setCameraToSelected();
                     }
@@ -2990,10 +2991,10 @@ namespace editor_ui
 
         if (m_isAssetDeleteAsked)
         {
-            ImGui::OpenPopup("Delete asset##confirm");
+            ImGui::OpenPopup("Delete Asset##confirm");
             m_isAssetDeleteAsked = false;
         }
-        if (ImGui::BeginPopupModal("Delete asset##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        if (ImGui::BeginPopupModal("Delete Asset##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
             ImGui::Text("Delete %s?", m_assetDeleteReference.c_str());
             ImGui::TextDisabled("It goes to the system's trash, where it can be restored from.");
@@ -3027,7 +3028,7 @@ namespace editor_ui
 
     void Panels::assets()
     {
-        static const char *filters[] = {"All types", "Images", "Fonts", "Audio", "Scenes"};
+        static const char *filters[] = {"All Types", "Images", "Fonts", "Audio", "Scenes"};
         static const AssetKind kinds[] = {AssetKind::Other, AssetKind::Image, AssetKind::Font, AssetKind::Audio, AssetKind::Scene};
         const std::vector<fried::editor::AssetEntry> &entries = m_editor.assets();
 
@@ -3454,15 +3455,15 @@ namespace editor_ui
             bool isActivated = isUsable && isHovered && ImGui::IsMouseDoubleClicked(0);
             if (ImGui::BeginPopupContextItem("asset-menu"))
             {
-                if (isUsable && ImGui::MenuItem(isFolder ? "Open folder" : isScene ? "Open scene" : isScript ? "Open script" : "Add to scene"))
+                if (isUsable && ImGui::MenuItem(isFolder ? "Open Folder" : isScene ? "Open Scene" : isScript ? "Open Script" : "Add to Scene"))
                 {
                     isActivated = true;
                 }
-                if (isScene && ImGui::MenuItem("Instance in scene"))
+                if (isScene && ImGui::MenuItem("Instance in Scene"))
                 {
                     m_editor.dropAsset(item.m_entry->m_root, item.m_entry->m_path, 0, 0);
                 }
-                if (ImGui::MenuItem("Copy reference"))
+                if (ImGui::MenuItem("Copy Reference"))
                 {
                     ImGui::SetClipboardText(reference.c_str());
                 }
@@ -3498,7 +3499,7 @@ namespace editor_ui
                     showNewScript(isFolder ? reference : reference.substr(0, reference.rfind('/')));
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem("Show in folder"))
+                if (ImGui::MenuItem("Show in Folder"))
                 {
                     std::string file;
                     if (isFolder)
@@ -3928,10 +3929,10 @@ namespace editor_ui
     {
         if (m_isSceneChangeAsked)
         {
-            ImGui::OpenPopup("Unsaved changes##scene");
+            ImGui::OpenPopup("Unsaved Changes##scene");
             m_isSceneChangeAsked = false;
         }
-        if (!ImGui::BeginPopupModal("Unsaved changes##scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        if (!ImGui::BeginPopupModal("Unsaved Changes##scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
             return;
         }
@@ -3955,7 +3956,7 @@ namespace editor_ui
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
         {
             ImGui::CloseCurrentPopup();
         }
@@ -3986,7 +3987,7 @@ namespace editor_ui
 
     void Panels::issues()
     {
-        refreshIssues(ImGui::Button("Check again"));
+        refreshIssues(ImGui::Button("Check Again"));
         ImGui::SameLine();
         ImGui::TextDisabled("for %s", fried::editor::platformLabel(m_editor.platform()).c_str());
 
@@ -3998,7 +3999,7 @@ namespace editor_ui
         if (hasFixes)
         {
             ImGui::SameLine();
-            if (ImGui::Button("Fix all"))
+            if (ImGui::Button("Fix All"))
             {
                 for (const auto &issue : m_issues)
                 {
@@ -4042,14 +4043,14 @@ namespace editor_ui
             ImGui::SameLine();
             ImGui::TextDisabled("%s", issue.m_message.c_str());
             ImGui::SameLine();
-            if (ImGui::SmallButton("Remove instance"))
+            if (ImGui::SmallButton("Remove Instance"))
             {
                 m_editor.select(issue.m_node);
                 m_editor.removeSelected();
                 m_issuesCheckedAt = -100;
             }
             ImGui::SameLine();
-            if (ImGui::SmallButton("Choose another scene..."))
+            if (ImGui::SmallButton("Choose Another Scene..."))
             {
                 m_issueNode = issue.m_node;
                 ImGui::OpenPopup("choose-instance");

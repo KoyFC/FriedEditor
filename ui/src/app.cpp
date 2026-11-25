@@ -572,11 +572,11 @@ namespace editor_ui
                     {
                         saveAll(editor);
                     }
-                    if (ImGui::MenuItem("Quick open...", "Ctrl+P"))
+                    if (ImGui::MenuItem("Quick Open...", "Ctrl+P"))
                     {
                         panels.showQuickOpen();
                     }
-                    if (ImGui::BeginMenu("Open scene"))
+                    if (ImGui::BeginMenu("Open Scene"))
                     {
                         for (const std::string &path : editor.scenePaths())
                         {
@@ -588,7 +588,7 @@ namespace editor_ui
                         }
                         ImGui::EndMenu();
                     }
-                    if (ImGui::BeginMenu("Open recent", !editor.recentScenes().empty()))
+                    if (ImGui::BeginMenu("Open Recent", !editor.recentScenes().empty()))
                     {
                         for (const std::string &path : editor.recentScenes())
                         {
@@ -622,16 +622,16 @@ namespace editor_ui
                         editor.stopPlay();
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Build and run", "Ctrl+B", false, !isPlaying && editor.gameState() == fried::editor::GameRunner::State::Idle))
+                    if (ImGui::MenuItem("Build and Run", "Ctrl+B", false, !isPlaying && editor.gameState() == fried::editor::GameRunner::State::Idle))
                     {
                         editor.buildAndRun();
                     }
-                    if (ImGui::MenuItem("Stop built game", nullptr, false, editor.gameState() != fried::editor::GameRunner::State::Idle))
+                    if (ImGui::MenuItem("Stop Built Game", nullptr, false, editor.gameState() != fried::editor::GameRunner::State::Idle))
                     {
                         editor.stopGame();
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Rebuild player"))
+                    if (ImGui::MenuItem("Rebuild Player"))
                     {
                         editor.rebuildPlayer();
                     }
@@ -703,10 +703,10 @@ namespace editor_ui
                         };
                         choose("Godot Default", "godot");
                         choose("Unity Default", "unity");
-                        choose("2 by 3", "2x3");
+                        choose("Unity 2 by 3", "2x3");
                         ImGui::EndMenu();
                     }
-                    if (ImGui::MenuItem("Reset layout"))
+                    if (ImGui::MenuItem("Reset Layout"))
                     {
                         isLayoutResetAsked = true;
                     }
@@ -714,7 +714,7 @@ namespace editor_ui
                 }
                 if (ImGui::BeginMenu("View"))
                 {
-                    if (ImGui::BeginMenu("Interface scale"))
+                    if (ImGui::BeginMenu("Interface Scale"))
                     {
                         for (int percent : s_scalePercents)
                         {
@@ -843,10 +843,10 @@ namespace editor_ui
 
             if (isCloseAsked)
             {
-                ImGui::OpenPopup("Unsaved changes");
+                ImGui::OpenPopup("Unsaved Changes");
                 isCloseAsked = false;
             }
-            if (ImGui::BeginPopupModal("Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            if (ImGui::BeginPopupModal("Unsaved Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
             {
                 ImGui::TextUnformatted("Save the scenes that have changes before closing?");
                 ImGui::Spacing();
@@ -863,7 +863,7 @@ namespace editor_ui
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("Cancel"))
+                if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
                 {
                     ImGui::CloseCurrentPopup();
                 }

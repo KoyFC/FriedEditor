@@ -235,13 +235,13 @@ namespace editor_ui
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("%zu  %s", position + 1, listed[position].c_str());
                 ImGui::SameLine(scaled(s_labelBase) + scaled(120));
-                if (ImGui::SmallButton("Up") && position > 0)
+                if (ImGui::SmallButton("Move Up") && position > 0)
                 {
                     std::swap(next[position], next[position - 1]);
                     isChanged = true;
                 }
                 ImGui::SameLine();
-                if (ImGui::SmallButton("Down") && position + 1 < next.size())
+                if (ImGui::SmallButton("Move Down") && position + 1 < next.size())
                 {
                     std::swap(next[position], next[position + 1]);
                     isChanged = true;
@@ -267,7 +267,7 @@ namespace editor_ui
                     candidates.push_back(name);
                 }
             }
-            if (ImGui::Button("Add a node class or a scene...", ImVec2(scaled(260), 0)))
+            if (ImGui::Button("Add Autoload...", ImVec2(scaled(260), 0)))
             {
                 m_autoloadFilter.clear();
                 ImGui::OpenPopup("add-autoload");
@@ -637,12 +637,12 @@ namespace editor_ui
         ImGui::SetNextItemWidth(-FLT_MIN);
         ImGui::InputText("##iconSource", &m_iconSource);
         ImGui::BeginDisabled(m_iconSource.empty());
-        if (ImGui::Button("Set this platform's icon"))
+        if (ImGui::Button("Set This Platform's Icon"))
         {
             applyIcon(platform, m_iconSource, false);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Set every platform's icon"))
+        if (ImGui::Button("Set Every Platform's Icon"))
         {
             applyIcon(platform, m_iconSource, true);
         }
@@ -787,7 +787,7 @@ namespace editor_ui
         ImGui::TextWrapped("%s", status.c_str());
         ImGui::PopStyleColor();
         ImGui::SetCursorPosX(scaled(s_labelBase));
-        if (ImGui::SmallButton("Look again"))
+        if (ImGui::SmallButton("Check Again"))
         {
             build.refreshToolchains();
         }
