@@ -877,7 +877,7 @@ namespace editor_ui
         if (m_gameFrame.isEmpty())
         {
             m_frameTimes.clear();
-            std::string message = m_editor.isStartingPlay() ? "Starting the game..." : "Press Play (F5) to run the game here";
+            std::string message = m_editor.isStartingPlay() ? "Starting the game..." : "Press Play (F6) to run the game here";
             ImVec2 size = ImGui::CalcTextSize(message.c_str());
             draw->AddText(ImVec2(origin.x + (region.x - size.x) / 2, origin.y + (region.y - size.y) / 2), IM_COL32(150, 150, 160, 255), message.c_str());
             return;
@@ -894,7 +894,7 @@ namespace editor_ui
         {
             if (!isPlaying)
             {
-                const char *hint = "Press Play (F5) to run the game";
+                const char *hint = "Press Play (F6) to run the game";
                 ImVec2 extent = ImGui::CalcTextSize(hint);
                 draw->AddText(ImVec2(origin.x + (region.x - extent.x) / 2, origin.y + region.y - extent.y - scaled(10)), IM_COL32(150, 150, 160, 255), hint);
             }
