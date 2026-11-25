@@ -103,8 +103,16 @@ TEST_CASE("a file is copied and deleted, and the scenes are not deleted from her
     std::string error;
     CHECK(copyAsset(assets, "icon.png", "icon copy.png", &error));
     CHECK_FALSE(copyAsset(assets, "icon.png", "icon copy.png", &error));
+#ifndef _WIN32
+    fs::path trash = std::getenv("FRIED_EDITOR_TRASH");
+    fs::remove_all(trash);
+#endif
     CHECK(deleteAsset(assets, "icon copy.png", &error));
     CHECK_FALSE(fs::exists(directory / "assets" / "icon copy.png"));
+#ifndef _WIN32
+    CHECK(fs::exists(trash / "files" / "icon copy.png"));
+    CHECK(fs::exists(trash / "info" / "icon copy.png.trashinfo"));
+#endif
     CHECK_FALSE(deleteAsset(assets, "scenes/main.scene.json", &error));
     fs::remove_all(directory);
 }

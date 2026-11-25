@@ -2996,6 +2996,7 @@ namespace editor_ui
         if (ImGui::BeginPopupModal("Delete asset##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
             ImGui::Text("Delete %s?", m_assetDeleteReference.c_str());
+            ImGui::TextDisabled("It goes to the system's trash, where it can be restored from.");
             if (!m_assetDeleteUsers.empty())
             {
                 ImGui::Spacing();

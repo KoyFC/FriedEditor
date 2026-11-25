@@ -1,6 +1,7 @@
 #include "fried/editor/asset_files.h"
 
 #include "fried/editor/import_settings.h"
+#include "fried/editor/trash.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -182,13 +183,18 @@ namespace fried::editor
             *error = "The scenes are not deleted from here.";
             return false;
         }
-        std::error_code failure;
-        fs::remove(importSidecarPath((fs::path(assetsDirectory) / path).string()), failure);
-        fs::remove_all(fs::path(assetsDirectory) / path, failure);
-        if (failure)
+        fs::path target = fs::path(assetsDirectory) / path;
+        std::string sidecar = importSidecarPath(target.string());
+        if (!moveToTrash(target.string(), error))
         {
-            *error = "The delete failed: " + failure.message();
             return false;
+        }
+        // The import settings go with their file, and are only removed when the trash refuses them.
+        std::error_code failure;
+        std::string ignored;
+        if (fs::exists(sidecar, failure) && !moveToTrash(sidecar, &ignored))
+        {
+            fs::remove(sidecar, failure);
         }
         return true;
     }
