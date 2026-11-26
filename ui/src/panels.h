@@ -74,7 +74,16 @@ namespace editor_ui
         // The steps of the open scene's undo stack, as a list that goes to any of them when it is clicked.
         void undoHistory();
 
-        // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets.
+        // A command that Ctrl+P runs when the text starts with `>`: the menus' own actions, which the app supplies so that the palette does only what the menu does.
+        struct PaletteCommand
+        {
+            std::string m_label;
+            std::function<bool()> m_isEnabled;
+            std::function<void()> m_run;
+        };
+        void setPaletteCommands(std::vector<PaletteCommand> commands) { m_paletteCommands = std::move(commands); }
+
+        // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets. Text that starts with `>` finds a command instead, and text that starts with `@` finds a node of the open scene and selects it.
         void showQuickOpen() { m_isQuickOpenAsked = true; }
 
         // Godot's Create New Node window: a search and the tree of the node classes, for a node under a parent, or for a node that changes class. It is drawn by createNodeDialog.
@@ -102,6 +111,7 @@ namespace editor_ui
         void showSaveSceneAs() { m_isSaveAsAsked = true; }
         void saveSceneAsDialog();
         void quickOpen();
+        void quickOpenList(bool isCommands);
 
         // The window that shows a build going on, or one that has ended, with what it printed.
         void buildWindow();
@@ -242,6 +252,7 @@ namespace editor_ui
         std::string m_newSceneType = "Node2D";
         std::string m_newSceneError;
         std::string m_quickText;
+        std::vector<PaletteCommand> m_paletteCommands;
         int m_quickIndex = 0;
         std::string m_pickSearch;
         std::string m_hierarchyFilter;

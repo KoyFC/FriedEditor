@@ -2748,6 +2748,87 @@ namespace editor_ui
         }
     }
 
+    // The rows of Ctrl+P's `>` and `@` forms: a label each, ranked by what follows the first character, and run by Enter or a click.
+    void Panels::quickOpenList(bool isCommands)
+    {
+        std::vector<std::string> names;
+        std::vector<std::function<void()>> actions;
+        if (isCommands)
+        {
+            for (const PaletteCommand &command : m_paletteCommands)
+            {
+                if (!command.m_isEnabled || command.m_isEnabled())
+                {
+                    names.push_back(command.m_label);
+                    actions.push_back(command.m_run);
+                }
+            }
+        }
+        else
+        {
+            std::vector<std::pair<const Json *, std::string>> pending;
+            const Json &roots = m_editor.document().data()["nodes"];
+            for (const Json &root : roots)
+            {
+                pending.push_back({&root, ""});
+            }
+            while (!pending.empty())
+            {
+                auto [node, path] = pending.back();
+                pending.pop_back();
+                std::string name = node->value("name", node->value("id", std::string()));
+                std::string id = node->value("id", std::string());
+                names.push_back(path.empty() ? name : name + "  " + path);
+                actions.push_back([this, id] { m_editor.select(id); });
+                if (node->contains("children") && (*node)["children"].is_array())
+                {
+                    for (const Json &child : (*node)["children"])
+                    {
+                        pending.push_back({&child, path.empty() ? name : path + "/" + name});
+                    }
+                }
+            }
+        }
+        std::vector<std::size_t> found = fried::editor::fuzzyRank(m_quickText.substr(1), names);
+        int shown = (int)std::min<std::size_t>(found.size(), 12);
+        if (shown > 0)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+            {
+                m_quickIndex = (m_quickIndex + 1) % shown;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+            {
+                m_quickIndex = (m_quickIndex + shown - 1) % shown;
+            }
+        }
+        m_quickIndex = std::min(m_quickIndex, std::max(shown - 1, 0));
+        ImGui::Separator();
+        int chosen = -1;
+        for (int row = 0; row < shown; ++row)
+        {
+            ImGui::PushID(row);
+            if (ImGui::Selectable(names[found[row]].c_str(), row == m_quickIndex))
+            {
+                chosen = row;
+            }
+            ImGui::PopID();
+        }
+        if (shown == 0)
+        {
+            ImGui::TextDisabled("Nothing matches");
+        }
+        if (shown > 0 && ImGui::IsKeyPressed(ImGuiKey_Enter))
+        {
+            chosen = m_quickIndex;
+        }
+        if (chosen >= 0)
+        {
+            ImGui::CloseCurrentPopup();
+            actions[found[chosen]]();
+        }
+    }
+
     void Panels::quickOpen()
     {
         if (m_isQuickOpenAsked)
@@ -2802,9 +2883,15 @@ namespace editor_ui
             ImGui::SetKeyboardFocusHere();
         }
         ImGui::SetNextItemWidth(-FLT_MIN);
-        if (ImGui::InputTextWithHint("##quick", "Open a scene or find an asset", &m_quickText))
+        if (ImGui::InputTextWithHint("##quick", "Open a scene or find an asset, > for a command, @ for a node", &m_quickText))
         {
             m_quickIndex = 0;
+        }
+        if (!m_quickText.empty() && (m_quickText[0] == '>' || m_quickText[0] == '@'))
+        {
+            quickOpenList(m_quickText[0] == '>');
+            ImGui::EndPopup();
+            return;
         }
         std::vector<std::size_t> found = fried::editor::fuzzyRank(m_quickText, names);
         int shown = (int)std::min<std::size_t>(found.size(), 12);

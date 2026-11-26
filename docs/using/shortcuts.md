@@ -8,7 +8,7 @@ A shortcut with a panel under Where works only while that panel has the keyboard
 | Ctrl+S | Save | |
 | Ctrl+Shift+S | Save Scene As | |
 | Ctrl+Alt+S | Save All | |
-| Ctrl+P | Quick Open | |
+| Ctrl+P | Quick Open (`>` runs a command, `@` selects a node) | |
 | Ctrl+Q | Quit | |
 | Ctrl+B | Build and Run | |
 | Ctrl+Z | Undo | |

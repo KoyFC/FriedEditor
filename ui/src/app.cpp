@@ -259,6 +259,21 @@ namespace editor_ui
         ImGui_ImplOpenGL3_Init("#version 330");
 
         Panels panels(editor);
+        // Ctrl+P's `>` form runs these; each is what the menu item of the same name does.
+        panels.setPaletteCommands({
+            {"Save", nullptr, [&] { save(editor); }},
+            {"Save All", [&] { return editor.hasModifiedScenes(); }, [&] { saveAll(editor); }},
+            {"Play Project", [&] { return !editor.isPlaying() && !editor.isStartingPlay(); }, [&] { editor.startPlay(true); }},
+            {"Play Current Scene", [&] { return !editor.isPlaying() && !editor.isStartingPlay(); }, [&] { editor.startPlay(false); }},
+            {"Pause", [&] { return editor.isPlaying() && !editor.isPaused(); }, [&] { editor.setPaused(true); }},
+            {"Resume", [&] { return editor.isPaused(); }, [&] { editor.setPaused(false); }},
+            {"Next Frame", [&] { return editor.isPaused(); }, [&] { editor.stepFrame(); }},
+            {"Stop", [&] { return editor.isPlaying() || editor.isStartingPlay(); }, [&] { editor.stopPlay(); }},
+            {"Build and Run", [&] { return !editor.isPlaying() && editor.gameState() == fried::editor::GameRunner::State::Idle; }, [&] { editor.buildAndRun(); }},
+            {"Rebuild Player", nullptr, [&] { editor.rebuildPlayer(); }},
+            {"Undo", [&] { return editor.commands().canUndo(); }, [&] { editor.commands().undo(); }},
+            {"Redo", [&] { return editor.commands().canRedo(); }, [&] { editor.commands().redo(); }},
+        });
         Pointer pointer(window);
         bool isRunning = true;
         bool isCloseAsked = false;
