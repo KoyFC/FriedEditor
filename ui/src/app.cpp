@@ -203,12 +203,13 @@ namespace editor_ui
         // A Wayland session runs the editor on Wayland, as XWayland cannot keep it at the screen's rate while the game's frames change every frame. Panels then stay inside the editor, since Wayland lets no program place its own windows; SDL_VIDEODRIVER=x11 brings back the windows of their own.
         if (std::getenv("SDL_VIDEODRIVER") == nullptr && std::getenv("WAYLAND_DISPLAY") != nullptr)
         {
-            SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland");
+            // The hint is named by its string, as the SDL of an older distribution has no constant for it.
+            SDL_SetHint("SDL_VIDEODRIVER", "wayland");
             isVideoReady = SDL_Init(SDL_INIT_VIDEO) == 0;
             if (!isVideoReady)
             {
                 SDL_ClearError();
-                SDL_ResetHint(SDL_HINT_VIDEODRIVER);
+                SDL_SetHint("SDL_VIDEODRIVER", nullptr);
             }
         }
 #endif

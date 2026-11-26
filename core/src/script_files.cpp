@@ -170,10 +170,11 @@ namespace fried::editor
         std::string text = readFile(file);
         std::string fixed = text;
         std::string line = package.empty() ? std::string() : "package " + package + ";";
-        std::regex packageLine("^[ \\t]*package[ \\t]*[A-Za-z0-9_.]*[ \\t]*;", std::regex::multiline);
+        // ^ only matches at the start of the text, so a line start is the start or a newline.
+        std::regex packageLine("(^|\\n)[ \\t]*package[ \\t]*[A-Za-z0-9_.]*[ \\t]*;");
         if (std::regex_search(fixed, packageLine))
         {
-            fixed = std::regex_replace(fixed, packageLine, line, std::regex_constants::format_first_only);
+            fixed = std::regex_replace(fixed, packageLine, "$1" + line, std::regex_constants::format_first_only);
         }
         else if (!line.empty())
         {
