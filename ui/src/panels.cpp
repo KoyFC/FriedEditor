@@ -3940,6 +3940,92 @@ namespace editor_ui
         ImGui::EndPopup();
     }
 
+    void Panels::askPlayChanges()
+    {
+        if (m_editor.hasPlayChanges())
+        {
+            m_playChangeKeep.assign(m_editor.playChangeLabels().size(), true);
+            m_isPlayChangesAsked = true;
+        }
+    }
+
+    void Panels::playChangesDialog()
+    {
+        if (m_isPlayChangesAsked)
+        {
+            ImGui::OpenPopup("Play Mode Changes##play");
+            m_isPlayChangesAsked = false;
+        }
+        if (!ImGui::BeginPopupModal("Play Mode Changes##play", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            return;
+        }
+        ImGui::TextDisabled("The scene went back to what it was. Keep these edits made while the game ran?");
+        ImGui::Spacing();
+        std::vector<std::string> labels = m_editor.playChangeLabels();
+        m_playChangeKeep.resize(labels.size(), true);
+        for (std::size_t step = 0; step < labels.size(); ++step)
+        {
+            bool isKept = m_playChangeKeep[step];
+            ImGui::PushID((int)step);
+            if (ImGui::Checkbox(labels[step].c_str(), &isKept))
+            {
+                m_playChangeKeep[step] = isKept;
+            }
+            ImGui::PopID();
+        }
+        ImGui::Spacing();
+        if (ImGui::Button("Keep Selected"))
+        {
+            int failed = m_editor.keepPlayChanges(m_playChangeKeep);
+            if (failed > 0)
+            {
+                m_editor.setMessage(std::to_string(failed) + (failed == 1 ? " edit" : " edits") + " could not be made again");
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Discard All") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            m_editor.discardPlayChanges();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    void Panels::undoHistory()
+    {
+        fried::editor::CommandStack &stack = m_editor.commands();
+        if (stack.stepCount() == stack.firstStep())
+        {
+            ImGui::TextDisabled("Nothing has been edited.");
+            return;
+        }
+        // The state the scene was opened in, then every step, the one done last marked. A click goes to that state, undoing or redoing what is between.
+        if (ImGui::Selectable("Original", stack.position() == stack.firstStep()))
+        {
+            stack.jumpTo(stack.firstStep());
+        }
+        for (std::size_t step = stack.firstStep(); step < stack.stepCount(); ++step)
+        {
+            ImGui::PushID((int)step);
+            bool isDone = step < stack.position();
+            if (!isDone)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            }
+            if (ImGui::Selectable(stack.stepLabel(step).c_str(), step + 1 == stack.position()))
+            {
+                stack.jumpTo(step + 1);
+            }
+            if (!isDone)
+            {
+                ImGui::PopStyleColor();
+            }
+            ImGui::PopID();
+        }
+    }
+
     void Panels::sceneChangeDialog()
     {
         if (m_isSceneChangeAsked)

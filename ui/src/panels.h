@@ -67,6 +67,13 @@ namespace editor_ui
         void closeSceneTab(const std::string &path);
         void sceneChangeDialog();
 
+        // After the game stops, asks which of the edits made while it ran to make again on the scene. The question is drawn by playChangesDialog.
+        void askPlayChanges();
+        void playChangesDialog();
+
+        // The steps of the open scene's undo stack, as a list that goes to any of them when it is clicked.
+        void undoHistory();
+
         // Ctrl+P: a field that finds a scene or an asset by a part of its name, and opens it or shows it in the assets.
         void showQuickOpen() { m_isQuickOpenAsked = true; }
 
@@ -198,6 +205,8 @@ namespace editor_ui
         std::string m_autoloadFilter;
         std::string m_pendingScene;
         bool m_isSceneChangeAsked = false;
+        bool m_isPlayChangesAsked = false;
+        std::vector<bool> m_playChangeKeep;
         std::string m_lastActiveScene;
         std::vector<fried::editor::SceneIssue> m_sceneIssues;
         std::string m_issueNode;

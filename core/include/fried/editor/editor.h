@@ -224,6 +224,13 @@ namespace fried::editor
         void stopPlay();
         bool isPlaying() const { return m_isPlaying; }
 
+        // What was edited while the game ran is taken back when it stops, and kept here until the user chooses which of it to make again. They are the steps of the scene that was open when it stopped, and are dropped when the game is played again.
+        bool hasPlayChanges() const { return !m_playChanges.empty() && m_playChangesPath == m_scenePath; }
+        std::vector<std::string> playChangeLabels() const;
+        // Makes the steps marked true edits of the scene again, oldest first, and forgets all of them. Returns how many could not be applied, as an edit that depended on one left out.
+        int keepPlayChanges(const std::vector<bool> &keep);
+        void discardPlayChanges() { m_playChanges.clear(); }
+
         // While the game runs: pausing it, letting one frame through while it is paused, and how fast its time goes compared to real time, which the editor remembers from one run to the next.
         bool isPaused() const { return m_isPlaying && m_play.isPaused(); }
         void setPaused(bool isPaused);
@@ -528,6 +535,8 @@ namespace fried::editor
             std::unique_ptr<CommandStack> m_commands;
         };
         std::optional<PlayOrigin> m_origin;
+        std::vector<std::unique_ptr<Command>> m_playChanges;
+        std::string m_playChangesPath;
         std::vector<std::string> m_tabs;
         mutable std::map<std::string, std::pair<std::filesystem::file_time_type, nlohmann::json>> m_sceneFiles;
         std::map<std::string, OpenScene> m_parked;

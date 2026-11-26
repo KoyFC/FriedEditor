@@ -274,6 +274,7 @@ namespace editor_ui
         bool isAssetsShown = true;
         bool isConsoleShown = true;
         bool isIssuesShown = true;
+        bool isUndoHistoryShown = false;
         int startupFrame = 0;
         fried::editor::GameRunner::State previousGameState = editor.gameState();
         bool wasPlaying = false;
@@ -411,6 +412,7 @@ namespace editor_ui
                     ImGui::SetWindowFocus(tabBeforePlay.c_str());
                 }
                 tabBeforePlay.clear();
+                panels.askPlayChanges();
             }
             if (!editor.isPlaying() || !panels.isGameFocused())
             {
@@ -689,6 +691,7 @@ namespace editor_ui
                     ImGui::MenuItem("Assets", nullptr, &isAssetsShown);
                     ImGui::MenuItem("Console", nullptr, &isConsoleShown);
                     ImGui::MenuItem("Issues", nullptr, &isIssuesShown);
+                    ImGui::MenuItem("Undo History", nullptr, &isUndoHistoryShown);
                     ImGui::Separator();
                     if (ImGui::BeginMenu("Layout"))
                     {
@@ -807,6 +810,7 @@ namespace editor_ui
             panel(consoleTitle.c_str(), &isConsoleShown, [&] { panels.console(); });
             std::string issuesTitle = panels.issueCount() > 0 ? "Issues (" + std::to_string(panels.issueCount()) + ")###Issues" : "Issues###Issues";
             panel(issuesTitle.c_str(), &isIssuesShown, [&] { panels.issues(); });
+            panel("Undo History", &isUndoHistoryShown, [&] { panels.undoHistory(); });
 
             // The editor opens on the assets, unless the project has problems on the platform being previewed, which are what to see first.
             if (startupFrame < 3)
@@ -837,6 +841,7 @@ namespace editor_ui
             panels.buildWindow();
             panels.quickOpen();
             panels.sceneChangeDialog();
+            panels.playChangesDialog();
             panels.newSceneDialog();
             panels.saveSceneAsDialog();
             panels.createNodeDialog();

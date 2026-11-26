@@ -428,6 +428,7 @@ namespace fried::editor
 
     void Editor::launchPlay(bool isFromStartScene)
     {
+        m_playChanges.clear();
         std::string log = (fs::temp_directory_path() / "fried-editor-game.log").string();
         m_gameLog.follow(log);
         m_gameLog.clear();
@@ -546,10 +547,35 @@ namespace fried::editor
         }
         else
         {
-            m_commands->revertHeld();
+            m_playChanges = m_commands->takeHeld();
+            m_playChangesPath = m_scenePath;
         }
         m_message = "Stopped the game";
         changed();
+    }
+
+    std::vector<std::string> Editor::playChangeLabels() const
+    {
+        std::vector<std::string> labels;
+        for (const auto &command : m_playChanges)
+        {
+            labels.push_back(command->label());
+        }
+        return labels;
+    }
+
+    int Editor::keepPlayChanges(const std::vector<bool> &keep)
+    {
+        int failed = 0;
+        for (std::size_t step = 0; step < m_playChanges.size(); ++step)
+        {
+            if (step < keep.size() && keep[step] && !m_commands->execute(std::move(m_playChanges[step])))
+            {
+                ++failed;
+            }
+        }
+        m_playChanges.clear();
+        return failed;
     }
 
     void Editor::followGameScene(const std::string &name)

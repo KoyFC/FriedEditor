@@ -41,6 +41,15 @@ namespace fried::editor
         void undo();
         void redo();
 
+        // The steps that can be undone or redone, from the oldest: a held stack lists only what was done since it was held.
+        std::size_t firstStep() const { return m_floor; }
+        std::size_t stepCount() const { return m_commands.size(); }
+        // How many steps are done: the ones before this position are applied, the ones from it on can be redone.
+        std::size_t position() const { return m_position; }
+        std::string stepLabel(std::size_t step) const { return m_commands[step]->label(); }
+        // Undoes or redoes steps until exactly `position` of them are done, as far as the stack allows.
+        void jumpTo(std::size_t position);
+
         // Takes back the last command and drops it, so it cannot be redone either.
         void undoAndForget();
 
@@ -48,6 +57,8 @@ namespace fried::editor
         void hold();
         bool isHeld() const { return m_isHeld; }
         void revertHeld();
+        // The same, but the commands are handed back, oldest first, to be applied again. Commands that had been undone are dropped.
+        std::vector<std::unique_ptr<Command>> takeHeld();
 
         // The stack is clean where the document was last saved.
         void markClean();
