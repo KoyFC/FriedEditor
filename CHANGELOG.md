@@ -7,7 +7,7 @@ All notable changes to Fried Editor are written here, newest version first.
 - Each section uses `Added`, `Changed`, `Fixed` and `Removed`, and leaves out the ones it has no entries for.
 - The Release workflow copies a version's section into its GitHub release, see [Releasing](https://koyfc.github.io/FriedEditor/development/#releasing).
 
-## vX.Y.Z
+## v0.3.0 - 2026-11-26
 
 ### Added
 - Play the game inside the editor from a Game tab: play, pause, step a frame, change the speed, frame limit, running values shown in the scene view and inspector, and a console tab with the game's log.
