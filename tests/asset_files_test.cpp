@@ -79,10 +79,14 @@ TEST_CASE("moving a file moves it on disk and in the scenes that name it, and a 
     CHECK(fs::exists(directory / "assets" / "hero.png"));
     CHECK_FALSE(fs::exists(directory / "assets" / "sprites" / "hero.png"));
 
-    std::ifstream file(directory / "assets" / "scenes" / "main.scene.json");
-    std::stringstream text;
-    text << file.rdbuf();
-    Json scene = Json::parse(text.str());
+    // Closed before the folder is removed, which Windows will not do under an open file.
+    Json scene;
+    {
+        std::ifstream file(directory / "assets" / "scenes" / "main.scene.json");
+        std::stringstream text;
+        text << file.rdbuf();
+        scene = Json::parse(text.str());
+    }
     CHECK(scene["nodes"][0]["texture"]["path"] == "hero.png");
     CHECK(scene["nodes"][0]["children"][0]["texture"]["path"] == "sprites/hero.png");
 

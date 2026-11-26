@@ -17,7 +17,8 @@ TEST_CASE("a log is read as it grows, by whole lines, and starts over when it is
     tail.follow(file.string());
     CHECK(!tail.poll());
 
-    std::ofstream(file) << "one\r\nsrc/Main.hx:3: characters 1-2 : error: bad\nhalf";
+    // Binary, so Windows does not turn each newline into a carriage return and a newline of its own.
+    std::ofstream(file, std::ios::binary) << "one\r\nsrc/Main.hx:3: characters 1-2 : error: bad\nhalf";
     CHECK(tail.poll());
     REQUIRE(tail.lines().size() == 2);
     CHECK(tail.lines()[0].m_text == "one");
@@ -26,7 +27,7 @@ TEST_CASE("a log is read as it grows, by whole lines, and starts over when it is
     CHECK(!tail.poll());
 
     // The rest of a line that was half written completes it.
-    std::ofstream(file, std::ios::app) << " done\nwarning: careful\n";
+    std::ofstream(file, std::ios::app | std::ios::binary) << " done\nwarning: careful\n";
     unsigned long revision = tail.revision();
     CHECK(tail.poll());
     CHECK(tail.revision() != revision);
