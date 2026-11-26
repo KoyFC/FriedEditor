@@ -7,6 +7,14 @@ All notable changes to Fried Editor are written here, newest version first.
 - Each section uses `Added`, `Changed`, `Fixed` and `Removed`, and leaves out the ones it has no entries for.
 - The Release workflow copies a version's section into its GitHub release, see [Releasing](https://koyfc.github.io/FriedEditor/development/#releasing).
 
+## vX.Y.Z
+
+### Added
+- Play Mode Changes: when the game stops, the edits made while it ran are listed and the ones ticked are made again on the scene.
+- Window > Undo History, a list of the scene's undo steps that goes to any of them.
+- Quick Open finds commands with `>` and nodes of the scene with `@`.
+- The cells of a tilemap are edited as a text area, and the Game stats show the time of each section of the frame when the project's player is built with `-D fried_profile`.
+
 ## v0.3.0 - 2026-11-26
 
 ### Added
