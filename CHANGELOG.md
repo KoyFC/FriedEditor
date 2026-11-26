@@ -5,7 +5,7 @@ All notable changes to Fried Editor are written here, newest version first.
 - Changes go under the topmost `## vX.Y.Z` heading while they are in development. That heading is the version in progress and has no date.
 - When a version is published, replace `vX.Y.Z` with its number and add the date (`## v0.3.0 - 2026-12-01`), and start a new `## vX.Y.Z` section above it.
 - Each section uses `Added`, `Changed`, `Fixed` and `Removed`, and leaves out the ones it has no entries for.
-- To get the notes of a release for GitHub: `awk '/^## v0.3.0/{f=1;next} /^## /{f=0} f' CHANGELOG.md`, then `gh release create v0.3.0 --notes-file -`.
+- The Release workflow copies a version's section into its GitHub release, see [Releasing](https://koyfc.github.io/FriedEditor/development/#releasing).
 
 ## vX.Y.Z
 
