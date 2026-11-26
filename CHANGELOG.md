@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to Fried Editor are written here, newest version first.
+
+- Changes go under the topmost `## vX.Y.Z` heading while they are in development. That heading is the version in progress and has no date.
+- When a version is published, replace `vX.Y.Z` with its number and add the date (`## v0.3.0 - 2026-12-01`), and start a new `## vX.Y.Z` section above it.
+- Each section uses `Added`, `Changed`, `Fixed` and `Removed`, and leaves out the ones it has no entries for.
+- To get the notes of a release for GitHub: `awk '/^## v0.3.0/{f=1;next} /^## /{f=0} f' CHANGELOG.md`, then `gh release create v0.3.0 --notes-file -`.
+
+## vX.Y.Z
+
+### Added
+- Play the game inside the editor from a Game tab: play, pause, step a frame, change the speed, frame limit, running values shown in the scene view and inspector, and a console tab with the game's log.
+- Android and the touch controls, and playing the game at the screen size and as the platform being previewed.
+- Several scenes open at once as tabs, scene instances, and a layout choice in the Window menu (Unity default, Godot default).
+- Hierarchy: icons, alternating rows, filtering by name or type, duplicate, copy and paste, dropping images, fonts and scenes on it.
+- Assets dock: browse by folder, rename, move, duplicate, delete (to the system trash) and make folders, list scripts and create them from a template, open them in VS Code, drag from the grid.
+- Import settings of images and sounds in the inspector, kept in sidecar files; what a font comes to on the DS.
+- Project Settings: platforms, autoload scenes, input actions (validated in Issues), float precision per platform.
+- 2D grid with snapping, locking nodes, Blender style G, R and S transforms, quick open and recent scenes.
+- Revert arrow beside fields that differ from their default, Ctrl+Shift+S, Godot's keys for play, pause and stop.
+- Run on Wayland in a Wayland session.
+
+### Changed
+- The Qt backend is gone. The editor lives in `ui` and `app`.
+- New look: grey palette with a blue accent, the Inter font, a Unity style toolbar, icons rasterized from Godot's into one texture.
+- Every shortcut is defined once and read from keys, menus and tooltips, and labels use one case and one word each.
+- The editor shows only flat nodes in 2D and only meshes in 3D.
+
+### Fixed
+- The navigation frame no longer drifts off the hierarchy's selection.
+- Delete, duplicate, copy and paste only act on the panel that has the keyboard.
+- Game frames are read into a reused buffer and only the newest is shown.
+
+## v0.2.0 - 2026-11-20
+
+### Added
+- 3D view with a free camera and selection, moving a Node3D along its parent's axes, and drawing the edges of each Camera3D's view and its far plane.
+- The player runs on SDL's offscreen video driver so it can draw with OpenGL.
+- Documentation site on GitHub Pages, published with GitHub Actions.
+
+### Changed
+- Licensed under MIT.
+
+## v0.1.0 - 2026-11-19
+
+- First published version.
