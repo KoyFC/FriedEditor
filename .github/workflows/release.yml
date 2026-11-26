@@ -1,5 +1,8 @@
 name: Release
 
+# Shows the version in the list of runs
+run-name: Release ${{ inputs.version }}
+
 # Release manually from the Actions tab
 on:
   workflow_dispatch:
