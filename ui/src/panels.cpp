@@ -2072,8 +2072,8 @@ namespace editor_ui
         const std::string &name = field.m_schema.m_name;
         const std::string &kind = field.m_schema.m_kind;
         ImGui::PushID(name.c_str());
-        // The text of a Text is written as lines, so its name goes above the area and not beside it.
-        bool isTextArea = kind == "string" && name == "text";
+        // The text of a Label and the cells of a Tilemap are written as lines, so their name goes above the area and not beside it.
+        bool isTextArea = kind == "string" && (name == "text" || name == "cells");
         if (isTextArea)
         {
             ImGui::TextDisabled("%s", name.c_str());

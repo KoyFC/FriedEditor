@@ -24,5 +24,7 @@ A field that holds a file, such as the texture of a sprite or the font of a labe
 
 ## Instancing a scene
 
+The text of a label and the cells of a tilemap are text areas that show their lines, and apply when the area loses focus, so typing in one is one step of undo. A tilemap's cells are one line for each row of the map with the number of each tile separated by spaces, 0 for no tile; the Scene view shows the map as it is typed, and its box is the whole map. There is no painting tool yet.
+
 A scene of the project can be a node of another, as in Godot. The hierarchy's add menu (Instance Scene), a node's menu (Instance Child Scene) and the Assets tab (Instance in Scene, or dragging the file onto the Scene view or onto a node) add one. An instance is one row with a scene icon, and a button on it opens the instanced scene in its own tab. Its fields are the ones of the instanced scene's root: what the instance does not set shows the value the instanced scene has, and what it sets overrides it. Any scene can be instanced, since each has one root, and one that would end up containing itself is refused. The Issues tab lists an instance whose scene is gone, or would contain itself, and offers to remove the instance or to choose another scene for it. The scene view shows an instance as one node, with the box of everything inside it, and a scene's CanvasLayer, which the game draws in screen space, at the origin of the world, where it can be picked.
 
