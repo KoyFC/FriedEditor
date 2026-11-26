@@ -973,6 +973,13 @@ namespace editor_ui
             line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
             std::snprintf(text, sizeof(text), "%d nodes", stats.m_nodes);
             line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
+            // The sections the engine times, in the order of fried.Profile; the last one is the whole of the work already shown above.
+            static const char *const sectionNames[] = {"Fixed steps", "Update", "Draw", "Sort", "Flush", "Batch", "Present"};
+            for (size_t section = 0; section < stats.m_sections.size() && section < sizeof(sectionNames) / sizeof(sectionNames[0]); ++section)
+            {
+                std::snprintf(text, sizeof(text), "%s %.2f ms", sectionNames[section], stats.m_sections[section]);
+                line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(180, 180, 190, 255), text);
+            }
             std::snprintf(text, sizeof(text), "%d x %d", m_gameFrame.width(), m_gameFrame.height());
             line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
 

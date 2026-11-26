@@ -22,6 +22,8 @@ namespace fried::editor
         double m_frameMs = 0.0;
         double m_workMs = 0.0;
         int m_nodes = 0;
+        // The average milliseconds of each of the engine's Profile sections, in the order the engine names them, when the game is built with fried_profile.
+        std::vector<double> m_sections;
     };
 
     // One frame of the game, at the size of its display.

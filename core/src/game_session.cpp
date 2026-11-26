@@ -136,6 +136,13 @@ namespace fried::editor
                 frame.m_stats.m_frameMs = stats.value("frameMs", 0.0);
                 frame.m_stats.m_workMs = stats.value("workMs", 0.0);
                 frame.m_stats.m_nodes = stats.value("nodes", 0);
+                if (stats.contains("sections") && stats["sections"].is_array())
+                {
+                    for (const auto &section : stats["sections"])
+                    {
+                        frame.m_stats.m_sections.push_back(section.is_number() ? section.get<double>() : 0.0);
+                    }
+                }
             }
             m_arrivedFrames.push_back(std::move(frame));
         }
