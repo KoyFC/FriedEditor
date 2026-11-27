@@ -974,9 +974,13 @@ namespace editor_ui
             std::snprintf(text, sizeof(text), "%d nodes", stats.m_nodes);
             line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
             // The sections the engine times, in the order of fried.Profile; the last one is the whole of the work already shown above.
-            static const char *const sectionNames[] = {"Fixed steps", "Update", "Draw", "Sort", "Flush", "Batch", "Present"};
+            static const char *const sectionNames[] = {"Fixed steps", "Update", "Draw", "Sort", "Flush", "Batch", "Present", nullptr, "UI style", "UI layout"};
             for (size_t section = 0; section < stats.m_sections.size() && section < sizeof(sectionNames) / sizeof(sectionNames[0]); ++section)
             {
+                if (sectionNames[section] == nullptr || (section >= 8 && stats.m_sections[section] == 0.0))
+                {
+                    continue;
+                }
                 std::snprintf(text, sizeof(text), "%s %.2f ms", sectionNames[section], stats.m_sections[section]);
                 line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(180, 180, 190, 255), text);
             }
@@ -1941,8 +1945,11 @@ namespace editor_ui
         return false;
     }
 
-    bool Panels::referenceField(const FieldView &field, bool isFont)
+    bool Panels::referenceField(const FieldView &field, AssetKind wanted)
     {
+        const bool isFont = wanted == AssetKind::Font;
+        const char *noun = isFont ? "font" : wanted == AssetKind::Html ? "HTML file" : wanted == AssetKind::Style ? "style sheet" : "image";
+        const char *nouns = isFont ? "fonts" : wanted == AssetKind::Html ? "HTML files" : wanted == AssetKind::Style ? "style sheets" : "images";
         std::string text = fried::editor::assetReferenceText(field.m_value, isFont);
         const float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
         ImGui::SetNextItemWidth(-(side + ImGui::GetStyle().ItemSpacing.x));
@@ -1970,7 +1977,7 @@ namespace editor_ui
 
         // The picker lists the project's files of the kind the field takes, to choose one without typing its path.
         ImGui::SameLine();
-        if (Icons::button("pick", Icon::Search, isFont ? "Choose a font from the project" : "Choose an image from the project"))
+        if (Icons::button("pick", Icon::Search, (std::string("Choose a ") + noun + " from the project").c_str()))
         {
             m_pickSearch.clear();
             ImGui::OpenPopup("pick-asset");
@@ -1983,10 +1990,9 @@ namespace editor_ui
                 ImGui::SetKeyboardFocusHere();
             }
             ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##pick-search", isFont ? "Search the fonts" : "Search the images", &m_pickSearch);
+            ImGui::InputTextWithHint("##pick-search", (std::string("Search the ") + nouns).c_str(), &m_pickSearch);
             ImGui::Separator();
 
-            const AssetKind wanted = isFont ? AssetKind::Font : AssetKind::Image;
             std::vector<const fried::editor::AssetEntry *> matches;
             for (const fried::editor::AssetEntry &entry : m_editor.assets())
             {
@@ -2018,7 +2024,7 @@ namespace editor_ui
                     }
                     else
                     {
-                        const Texture *thumbnail = isFont ? nullptr : m_images.get(m_editor.assetFile(entry->m_root, entry->m_path));
+                        const Texture *thumbnail = wanted != AssetKind::Image ? nullptr : m_images.get(m_editor.assetFile(entry->m_root, entry->m_path));
                         float thumb = row - scaled(4);
                         if (thumbnail)
                         {
@@ -2029,7 +2035,7 @@ namespace editor_ui
                         }
                         else
                         {
-                            Icons::draw(list, isFont ? Icon::Font : Icon::Image, ImVec2(position.x + scaled(4) + (thumb - Icons::size()) / 2, centre - Icons::size() / 2));
+                            Icons::draw(list, isFont ? Icon::Font : wanted == AssetKind::Image ? Icon::Image : Icon::File, ImVec2(position.x + scaled(4) + (thumb - Icons::size()) / 2, centre - Icons::size() / 2));
                         }
                         std::string name = entry->m_path.substr(entry->m_path.rfind('/') == std::string::npos ? 0 : entry->m_path.rfind('/') + 1);
                         float textX = position.x + thumb + scaled(12);
@@ -2059,7 +2065,7 @@ namespace editor_ui
             }
             if (matches.empty())
             {
-                ImGui::TextDisabled("%s", isFont ? "The project has no font like that" : "The project has no image like that");
+                ImGui::TextDisabled("The project has no %s like that", noun);
             }
             ImGui::EndChild();
             ImGui::EndPopup();
@@ -2196,7 +2202,7 @@ namespace editor_ui
         }
         else
         {
-            referenceField(field, kind == "font");
+            referenceField(field, kind == "font" ? AssetKind::Font : kind == "html" ? AssetKind::Html : kind == "stylesheet" ? AssetKind::Style : AssetKind::Image);
         }
         ImGui::PopID();
     }

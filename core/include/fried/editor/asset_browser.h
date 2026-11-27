@@ -15,6 +15,8 @@ namespace fried::editor
         Audio,
         Scene,
         Script,
+        Html,
+        Style,
         Other
     };
 

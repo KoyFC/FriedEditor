@@ -14,6 +14,8 @@ TEST_CASE("files are told apart by their extension")
     CHECK(assetKindOf("NunitoSans.ttf") == AssetKind::Font);
     CHECK(assetKindOf("music.ogg") == AssetKind::Audio);
     CHECK(assetKindOf("scenes/main.scene.json") == AssetKind::Scene);
+    CHECK(assetKindOf("ui/Menu.HTML") == AssetKind::Html);
+    CHECK(assetKindOf("ui/theme.css") == AssetKind::Style);
     CHECK(assetKindOf("notes.txt") == AssetKind::Other);
 }
 
