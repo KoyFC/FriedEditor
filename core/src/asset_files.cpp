@@ -117,8 +117,9 @@ namespace fried::editor
         std::vector<std::string> names;
         for (const fs::path &file : sceneFiles(scenesDirectory))
         {
-            Json data = Json::parse(readFile(file), nullptr, false);
-            if (!data.is_discarded() && countAssetReferences(data, path) > 0)
+            Json data;
+            std::string problem;
+            if (fried::core::parseYaml(readFile(file), &data, &problem) && countAssetReferences(data, path) > 0)
             {
                 names.push_back(file.filename().string());
             }

@@ -10,6 +10,7 @@ All notable changes to Fried Editor are written here, newest version first.
 ## vX.Y.Z
 
 ### Added
+- Projects open and save in YAML: the project file, the scenes (`.scene.yaml`) and the import settings are written as YAML in the order a person reads them, and a project that is still in JSON is offered a conversion when it opens, with a backup of the originals in `.fried/json-backup/`.
 - The `mesh` and `material` fields of a `MeshInstance3D` are a list of the meshes and materials the engine has, with the fields of the one chosen under it, and a mesh can be a model file (`.obj`, `.gltf` or `.glb`), which the Assets panel lists and filters as Models.
 - Play Mode Changes: when the game stops, the edits made while it ran are listed and the ones ticked are made again on the scene.
 - Window > Undo History, a list of the scene's undo steps that goes to any of them.

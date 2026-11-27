@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <set>
+#include <sstream>
 
 namespace fried::editor
 {
@@ -1789,8 +1790,16 @@ namespace fried::editor
             auto cached = m_sceneFiles.find(path);
             if (cached == m_sceneFiles.end() || cached->second.first != written)
             {
-                std::ifstream file(path);
-                m_sceneFiles[path] = std::make_pair(written, file ? Json::parse(file, nullptr, false) : Json());
+                std::ifstream file(path, std::ios::binary);
+                std::stringstream text;
+                text << file.rdbuf();
+                Json parsed;
+                std::string problem;
+                if (!file || !fried::core::parseYaml(text.str(), &parsed, &problem))
+                {
+                    parsed = Json();
+                }
+                m_sceneFiles[path] = std::make_pair(written, parsed);
                 cached = m_sceneFiles.find(path);
             }
             data = &cached->second.second;

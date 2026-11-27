@@ -12,7 +12,7 @@
 ## Decisions
 
 - A scene is a tree of typed nodes, 2D and 3D, with no game objects or components.
-- A scene is a JSON file under the project's `assets/scenes/`, written by this editor and only read by the engine.
+- A scene is a YAML file under the project's `assets/scenes/` (`.scene.yaml`), written by this editor and only read by the engine, which compiles it to a binary file for the game. A scene still named `.scene.json` is read and saved as JSON until the project is converted. Reading and writing YAML is FriedCore's `parseYaml()` and `emitYaml()`.
 - The editor is split into `core/`, which has no UI dependency and is tested headless, and `ui/`, which only draws and forwards input. Nothing under `core/` may include a UI header.
 - The viewport is a separate engine process, the editor player, that renders offscreen on request and talks to the editor over loopback TCP.
 - Code shared with the Project Manager lives in FriedCore, a library with no UI toolkit in it that both take as a submodule.

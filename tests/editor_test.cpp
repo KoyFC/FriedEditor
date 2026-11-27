@@ -127,7 +127,7 @@ TEST_CASE("the editor shows the sandbox's scene with the nodes of the game" * do
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     REQUIRE(editor.status() == Editor::Status::Ready);
-    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.yaml", &error));
     pumpUntil(editor, [&] { return !editor.frame().m_bounds.empty() && editor.frame().m_bounds.size() == 14; });
     REQUIRE(editor.frame().m_bounds.size() == 14);
 
@@ -179,7 +179,7 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     REQUIRE(editor.status() == Editor::Status::Ready);
-    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.yaml", &error));
     pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
     REQUIRE(editor.frame().m_bounds.size() == 14);
 
@@ -288,7 +288,7 @@ TEST_CASE("the picture and the overlay agree on where the wall is, at any pan an
     std::string error;
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
-    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.yaml", &error));
     pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     struct Step
@@ -342,7 +342,7 @@ TEST_CASE("how long a camera move takes to come back as a frame" * doctest::skip
     std::string error;
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
-    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.yaml", &error));
     pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     editor.setViewSize(864, 490);
@@ -379,7 +379,7 @@ TEST_CASE("the display frame is the display's size divided by the camera's zoom"
     std::string error;
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
-    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.yaml", &error));
     pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     auto frameWidth = [&] {
@@ -409,7 +409,7 @@ TEST_CASE("the empty part of a frame has the editor's background color, before a
     std::string error;
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready && !editor.frame().m_bounds.empty(); });
-    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(engine + "/sandbox/assets/scenes/sandbox.scene.yaml", &error));
     pumpUntil(editor, [&] { return editor.frame().m_bounds.size() == 14; });
 
     auto corner = [&](int x, int y) {
@@ -686,31 +686,31 @@ TEST_CASE("scenes open in tabs that keep their own changes and history" * doctes
     Editor editor;
     std::string error;
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
-    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
-    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.yaml", &error));
+    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.yaml", &error));
     CHECK(editor.activeSceneIndex() == (int)editor.openScenes().size() - 1);
 
     editor.select(std::string("hints"));
     editor.setField("text", nlohmann::json("changed"));
-    CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.json"));
-    CHECK_FALSE(editor.isSceneModified(scenes + "sandbox.scene.json"));
+    CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.yaml"));
+    CHECK_FALSE(editor.isSceneModified(scenes + "sandbox.scene.yaml"));
 
     // Going to another tab leaves the change and its undo where they were.
-    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
-    CHECK(editor.scenePath() == scenes + "sandbox.scene.json");
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.yaml", &error));
+    CHECK(editor.scenePath() == scenes + "sandbox.scene.yaml");
     CHECK_FALSE(editor.commands().canUndo());
-    CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.json"));
+    CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.yaml"));
     CHECK(editor.hasModifiedScenes());
-    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
+    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.yaml", &error));
     CHECK(editor.commands().canUndo());
     CHECK(editor.document().nodeField("hints", "text") == nlohmann::json("changed"));
     editor.commands().undo();
     CHECK_FALSE(editor.hasModifiedScenes());
 
     size_t open = editor.openScenes().size();
-    REQUIRE(editor.closeScene(scenes + "sandbox_ui.scene.json", &error));
+    REQUIRE(editor.closeScene(scenes + "sandbox_ui.scene.yaml", &error));
     CHECK(editor.openScenes().size() == open - 1);
-    CHECK(editor.scenePath() != scenes + "sandbox_ui.scene.json");
+    CHECK(editor.scenePath() != scenes + "sandbox_ui.scene.yaml");
     while (editor.openScenes().size() > 1)
     {
         REQUIRE(editor.closeScene(editor.openScenes().back(), &error));
@@ -727,7 +727,7 @@ TEST_CASE("a scene that instances another shows as one node of the class of the 
     REQUIRE(editor.open(engine + "/sandbox", engine, &error));
     pumpUntil(editor, [&] { return editor.status() == Editor::Status::Ready || editor.status() == Editor::Status::Failed; });
     REQUIRE(editor.status() == Editor::Status::Ready);
-    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.yaml", &error));
     CHECK(editor.instanceOf("player") == "player");
     CHECK(editor.document().typeOf("player") == "Player");
 
@@ -753,12 +753,12 @@ TEST_CASE("a scene that instances another shows as one node of the class of the 
     CHECK(editor.instanceProblem("sandbox_ui").empty());
     CHECK(editor.instanceProblem("sandbox_3d").empty());
     CHECK_FALSE(editor.instanceProblem("nothing-here").empty());
-    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.json", &error));
+    REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.yaml", &error));
     CHECK_FALSE(editor.instanceProblem("sandbox").empty());
 
     // Adding one is a command like any other.
-    REQUIRE(editor.openScene(scenes + "sandbox.scene.json", &error));
-    REQUIRE(editor.addInstance(scenes + "player.scene.json", std::nullopt, &error));
+    REQUIRE(editor.openScene(scenes + "sandbox.scene.yaml", &error));
+    REQUIRE(editor.addInstance(scenes + "player.scene.yaml", std::nullopt, &error));
     CHECK(editor.instanceOf("player-2") == "player");
     editor.commands().undo();
     CHECK_FALSE(editor.document().contains("player-2"));
@@ -874,12 +874,12 @@ TEST_CASE("save scene as writes a new file, edits it and leaves the old one as i
         return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
     };
     const std::string original = contents(FRIED_EDITOR_TEST_DATA "/sample.scene.json");
-    const std::string target = engine + "/sandbox/assets/scenes/SaveAsTest.scene.json";
+    const std::string target = engine + "/sandbox/assets/scenes/SaveAsTest.scene.yaml";
     std::filesystem::remove(target);
 
     editor.addNode("Label");
     REQUIRE(editor.saveSceneAs(" SaveAsTest ", &error));
-    CHECK(std::filesystem::path(editor.scenePath()).filename().string() == "SaveAsTest.scene.json");
+    CHECK(std::filesystem::path(editor.scenePath()).filename().string() == "SaveAsTest.scene.yaml");
     CHECK(std::filesystem::exists(target));
     CHECK(editor.commands().isClean());
     CHECK(contents(FRIED_EDITOR_TEST_DATA "/sample.scene.json") == original);
