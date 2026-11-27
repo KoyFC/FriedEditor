@@ -1,6 +1,7 @@
 #include "pointer.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace editor_ui
 {
@@ -79,9 +80,12 @@ namespace editor_ui
 
     void Pointer::endFrame(bool isPanning, bool isDraggingValue)
     {
-        if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != isPanning)
+        // Wayland (SDL2 over SDL3) does not report the relative motion a pan reads, so there the pointer moves freely and its own movement is the pan.
+        const char *driver = SDL_GetCurrentVideoDriver();
+        bool isRelative = isPanning && !(driver && std::strcmp(driver, "wayland") == 0);
+        if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != isRelative)
         {
-            SDL_SetRelativeMouseMode(isPanning ? SDL_TRUE : SDL_FALSE);
+            SDL_SetRelativeMouseMode(isRelative ? SDL_TRUE : SDL_FALSE);
         }
 
         ImGuiMouseCursor wanted = ImGui::GetMouseCursor();

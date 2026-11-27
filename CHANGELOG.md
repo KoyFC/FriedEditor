@@ -15,6 +15,9 @@ All notable changes to Fried Editor are written here, newest version first.
 - Quick Open finds commands with `>` and nodes of the scene with `@`.
 - The cells of a tilemap are edited as a text area, and the Game stats show the time of each section of the frame when the project's player is built with `-D fried_profile`.
 
+### Fixed
+- Panning the view with the right or middle button works in a Wayland session whose SDL2 is `sdl2-compat`, where the pointer is neither locked nor wrapped (see the scene view's documentation).
+
 ## v0.3.0 - 2026-11-26
 
 ### Added

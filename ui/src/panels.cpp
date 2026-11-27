@@ -1133,7 +1133,13 @@ namespace editor_ui
         // The editor works in the frame's own pixels.
         if (m_dragKind >= 2)
         {
-            m_panPosition = ImVec2(m_panPosition.x + m_heldMotion.x, m_panPosition.y + m_heldMotion.y);
+            // Some sessions (SDL2 over SDL3 on Wayland) never report the relative motion, so the pointer's own movement stands in for it.
+            ImVec2 motion = m_heldMotion;
+            if (motion.x == 0 && motion.y == 0)
+            {
+                motion = ImGui::GetIO().MouseDelta;
+            }
+            m_panPosition = ImVec2(m_panPosition.x + motion.x, m_panPosition.y + motion.y);
         }
         else
         {
