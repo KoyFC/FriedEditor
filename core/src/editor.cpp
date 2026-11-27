@@ -2320,6 +2320,31 @@ namespace fried::editor
             return;
         }
         AssetKind kind = assetKindOf(path);
+        if (kind == AssetKind::Style)
+        {
+            // A sheet dropped on a document is its theme.
+            if (auto target = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
+            {
+                for (const ClassSchema *schema : m_session.classChain(m_document.typeOf(*target)))
+                {
+                    for (const FieldSchema &field : schema->m_fields)
+                    {
+                        if (field.m_name == "theme")
+                        {
+                            select(target);
+                            m_commands->execute(std::make_unique<SetNodeField>(*target, "theme", Json({{"root", root}, {"path", path}})));
+                            return;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if (kind == AssetKind::Html)
+        {
+            addAssetNode(root, path, "");
+            return;
+        }
         if (kind != AssetKind::Image && kind != AssetKind::Font)
         {
             return;
@@ -2392,6 +2417,21 @@ namespace fried::editor
             return;
         }
         AssetKind kind = assetKindOf(path);
+        if (kind == AssetKind::Html)
+        {
+            std::string name = fs::path(path).stem().string();
+            std::string documentId = m_document.uniqueId(name.empty() ? "document" : name);
+            Json document = newNode("UIDocument");
+            document["id"] = documentId;
+            document["name"] = name;
+            document["document"] = {{"root", root}, {"path", path}};
+            std::string documentParent = parentId.empty() ? m_document.rootId() : parentId;
+            if (m_commands->execute(std::make_unique<AddNode>(documentParent, m_document.childCount(documentParent), document)))
+            {
+                select(documentId);
+            }
+            return;
+        }
         if (kind != AssetKind::Image && kind != AssetKind::Font)
         {
             return;

@@ -147,7 +147,7 @@ namespace editor_ui
         void settingText(const char *label, const std::string &value, int limit, const std::function<std::string(const std::string &)> &set);
         void applyIcon(fried::editor::Platform platform, const std::string &file, bool isForEveryPlatform);
         bool textArea(const char *label, std::string *value);
-        bool referenceField(const fried::editor::FieldView &field, bool isFont);
+        bool referenceField(const fried::editor::FieldView &field, fried::editor::AssetKind wanted);
 
         fried::editor::Editor &m_editor;
         Texture m_frame;
