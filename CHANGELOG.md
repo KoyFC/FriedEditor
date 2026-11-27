@@ -15,6 +15,7 @@ All notable changes to Fried Editor are written here, newest version first.
 - Window > Undo History, a list of the scene's undo steps that goes to any of them.
 - Quick Open finds commands with `>` and nodes of the scene with `@`.
 - The cells of a tilemap are edited as a text area, and the Game stats show the time of each section of the frame when the project's player is built with `-D fried_profile`.
+- `UIDocument` fields: the `document` and `theme` of a document are chosen from the project's HTML and CSS files, an `.html` file dropped on the scene or added from the Assets dock makes a `UIDocument`, and a `.css` file dropped on a document sets its theme. The Game stats list the time of the UI style and layout.
 
 ### Changed
 - A scene that names a `MeshInstance`, or gives a `MeshInstance3D` a `shape` and a `color`, is opened with a `mesh` and a material instead, and says it was migrated. The protocol with the player is 6, so a player built before has to be built again.

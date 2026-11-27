@@ -17,6 +17,8 @@ TEST_CASE("files are told apart by their extension")
     CHECK(assetKindOf("ship.glb") == AssetKind::Model);
     CHECK(assetKindOf("ship.gltf") == AssetKind::Model);
     CHECK(assetKindOf("scenes/main.scene.json") == AssetKind::Scene);
+    CHECK(assetKindOf("ui/Menu.HTML") == AssetKind::Html);
+    CHECK(assetKindOf("ui/theme.css") == AssetKind::Style);
     CHECK(assetKindOf("notes.txt") == AssetKind::Other);
 }
 

@@ -27,6 +27,14 @@ namespace fried::editor
         {
             return AssetKind::Script;
         }
+        if (endsWith(".html"))
+        {
+            return AssetKind::Html;
+        }
+        if (endsWith(".css"))
+        {
+            return AssetKind::Style;
+        }
         if (endsWith(".png") || endsWith(".jpg") || endsWith(".jpeg"))
         {
             return AssetKind::Image;

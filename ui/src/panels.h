@@ -147,7 +147,7 @@ namespace editor_ui
         void settingText(const char *label, const std::string &value, int limit, const std::function<std::string(const std::string &)> &set);
         void applyIcon(fried::editor::Platform platform, const std::string &file, bool isForEveryPlatform);
         bool textArea(const char *label, std::string *value);
-        bool referenceField(const fried::editor::FieldView &field, bool isFont);
+        bool referenceField(const fried::editor::FieldView &field, fried::editor::AssetKind wanted);
         bool referenceEditor(const nlohmann::json &current, fried::editor::AssetKind wanted, const std::function<void(const nlohmann::json &)> &commit);
         void resourceEditor(const nlohmann::json &value, const std::string &category, bool allowsFile, const std::function<void(const nlohmann::json &)> &commit);
 
