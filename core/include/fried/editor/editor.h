@@ -156,6 +156,12 @@ namespace fried::editor
         // Reads the project and its first scene, builds the player if it is not built, and starts it.
         bool open(const std::string &projectDirectory, const std::string &enginePath, std::string *error);
 
+        // Whether the project that was just opened still has files written in JSON, which the editor offers to rewrite as YAML.
+        bool isYamlMigrationOffered() const { return m_isYamlMigrationOffered; }
+        void declineYamlMigration() { m_isYamlMigrationOffered = false; }
+        // Rewrites them, keeping the originals in .fried/json-backup, and opens the project again. The report says what was done or what went wrong.
+        bool migrateToYaml(std::string *report);
+
         // Called often by the backend, from its own thread.
         void pump();
 
@@ -552,6 +558,7 @@ namespace fried::editor
         GameFrame m_gameFrame;
         unsigned long long m_gameFrameSerial = 0;
         bool m_isFailureShown = false;
+        bool m_isYamlMigrationOffered = false;
         std::string m_failedTitle;
         std::vector<fried::core::OutputLine> m_failedLines;
         std::string m_failedMessage;

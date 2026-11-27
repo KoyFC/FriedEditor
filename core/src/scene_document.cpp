@@ -1,4 +1,6 @@
 #include "fried/editor/scene_document.h"
+#include "fried/core/scene_files.h"
+#include "fried/core/yaml.h"
 
 #include <algorithm>
 #include <fstream>
@@ -206,10 +208,16 @@ namespace fried::editor
 
     bool SceneDocument::parse(const std::string &text, std::string *error)
     {
-        Json parsed = Json::parse(text, nullptr, false);
+        Json parsed;
+        std::string problem;
+        if (!fried::core::parseYaml(text, &parsed, &problem))
+        {
+            *error = "The scene file is not valid YAML: " + problem;
+            return false;
+        }
         if (!parsed.is_object())
         {
-            *error = "The scene file is not a JSON object.";
+            *error = "The scene file is not a map of keys and values.";
             return false;
         }
         if (parsed.value("version", 0) != s_version)
@@ -285,7 +293,7 @@ namespace fried::editor
             *error = "Cannot write " + path + ".";
             return false;
         }
-        file << dump();
+        file << fried::core::sceneText(path, m_data);
         if (!file)
         {
             *error = "Writing " + path + " failed.";
@@ -296,7 +304,7 @@ namespace fried::editor
 
     std::string SceneDocument::dump() const
     {
-        return m_data.dump(1, '\t') + "\n";
+        return fried::core::emitYaml(m_data, fried::core::YamlLayout::Scene);
     }
 
     Json *SceneDocument::listOf(const std::string &parentId)

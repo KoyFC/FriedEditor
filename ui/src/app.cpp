@@ -859,6 +859,7 @@ namespace editor_ui
             panels.playChangesDialog();
             panels.newSceneDialog();
             panels.saveSceneAsDialog();
+            panels.yamlMigrationDialog();
             panels.createNodeDialog();
 
             if (isCloseAsked)

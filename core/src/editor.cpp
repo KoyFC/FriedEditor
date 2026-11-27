@@ -1,4 +1,7 @@
 #include "fried/editor/editor.h"
+#include "fried/core/migration.h"
+#include "fried/core/scene_files.h"
+#include "fried/core/yaml.h"
 
 #include "fried/editor/asset_files.h"
 #include "fried/editor/commands.h"
@@ -20,6 +23,32 @@ namespace fried::editor
     using Json = nlohmann::json;
     namespace fs = std::filesystem;
 
+    bool Editor::migrateToYaml(std::string *report)
+    {
+        std::string directory = m_project.directory();
+        std::string engine = m_enginePath;
+        fried::core::MigrationReport result;
+        std::string error;
+        if (!fried::core::migrateToYaml(directory, &result, &error))
+        {
+            *report = error;
+            return false;
+        }
+        std::string openError;
+        bool isOpen = open(directory, engine, &openError);
+        m_isYamlMigrationOffered = false;
+        *report = "Converted " + std::to_string(result.m_converted.size()) + " files to YAML. The originals are in " + result.m_backupDirectory + ".";
+        for (const std::string &failure : result.m_failed)
+        {
+            *report += "\nLeft alone: " + failure;
+        }
+        if (!isOpen)
+        {
+            *report += "\n" + openError;
+        }
+        return isOpen && result.m_failed.empty();
+    }
+
     // An engine from before the editor player existed cannot show a scene, so it does not count.
     std::string Editor::findEngine(const std::string &projectDirectory)
     {
@@ -37,6 +66,7 @@ namespace fried::editor
             return false;
         }
         m_enginePath = enginePath;
+        m_isYamlMigrationOffered = fried::core::needsYamlMigration(projectDirectory);
         m_toolchains = machineToolchains();
         m_settings.m_onSaved = [this] { projectChanged(); };
         m_settings.m_projectClasses = [this] {
@@ -54,7 +84,7 @@ namespace fried::editor
         std::vector<std::string> scenes = scenePaths();
         if (scenes.empty())
         {
-            m_scenePath = m_project.scenesDirectory() + "/main.scene.json";
+            m_scenePath = m_project.scenesDirectory() + "/main" + fried::core::s_sceneSuffix;
             m_document = SceneDocument::withRoot("Main", "Node2D");
         }
         else
@@ -65,11 +95,12 @@ namespace fried::editor
             std::string remembered = EditorState::lastScene(m_project.directory());
             if (remembered.empty() && !m_project.startScene().empty())
             {
-                remembered = m_project.startScene() + ".scene.json";
+                remembered = m_project.startScene();
             }
+            remembered = fried::core::isSceneFile(remembered) ? fried::core::sceneName(remembered) : remembered;
             for (const std::string &path : scenes)
             {
-                if (!remembered.empty() && fs::path(path).filename() == remembered)
+                if (!remembered.empty() && fried::core::sceneName(fs::path(path).filename().string()) == remembered)
                 {
                     chosen = path;
                 }
@@ -99,7 +130,9 @@ namespace fried::editor
             std::error_code ignored;
             for (const Json &name : openScenes)
             {
-                std::string path = m_project.scenesDirectory() + "/" + (name.is_string() ? name.get<std::string>() : std::string());
+                std::string remembered = name.is_string() ? name.get<std::string>() : std::string();
+                std::string path = fried::core::isSceneFile(remembered) ? fried::core::scenePath(m_project, fried::core::sceneName(remembered))
+                                                                        : m_project.scenesDirectory() + "/" + remembered;
                 if (!name.is_string() || std::find(m_tabs.begin(), m_tabs.end(), path) != m_tabs.end())
                 {
                     continue;
@@ -475,10 +508,9 @@ namespace fried::editor
         };
 
         std::string name = fs::path(m_scenePath).filename().string();
-        const std::string suffix = ".scene.json";
-        if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
+        if (fried::core::isSceneFile(name))
         {
-            name.resize(name.size() - suffix.size());
+            name = fried::core::sceneName(name);
         }
         std::string error;
         // The game draws at what the previewed platform's screen shows, as the scene view's frame and the Game tab's preview do.
@@ -580,7 +612,7 @@ namespace fried::editor
 
     void Editor::followGameScene(const std::string &name)
     {
-        std::string path = m_project.scenesDirectory() + "/" + name + ".scene.json";
+        std::string path = fried::core::scenePath(m_project, name);
         if (!m_isPlaying || name.empty() || path == m_scenePath)
         {
             return;
@@ -937,7 +969,7 @@ namespace fried::editor
         for (const auto &entry : fs::directory_iterator(m_project.scenesDirectory(), ignored))
         {
             std::string name = entry.path().filename().string();
-            if (name.size() > 11 && name.compare(name.size() - 11, 11, ".scene.json") == 0)
+            if (fried::core::isSceneFile(name))
             {
                 paths.push_back(entry.path().string());
             }
@@ -1701,8 +1733,7 @@ namespace fried::editor
         std::string sceneNameOf(const std::string &path)
         {
             std::string name = fs::path(path).filename().string();
-            const std::string suffix = ".scene.json";
-            return name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 ? name.substr(0, name.size() - suffix.size()) : name;
+            return fried::core::isSceneFile(name) ? fried::core::sceneName(name) : name;
         }
 
         void collectInstances(const Json &node, std::vector<std::string> *names)
@@ -1731,7 +1762,7 @@ namespace fried::editor
 
     std::string Editor::scenePathOf(const std::string &name) const
     {
-        return m_project.scenesDirectory() + "/" + name + ".scene.json";
+        return fried::core::scenePath(m_project, name);
     }
 
     // The only top-level node of a scene, as the scene being edited or another open one has it now and as the file has it otherwise. Nothing when there is no such scene or it has not exactly one.
@@ -2309,7 +2340,7 @@ namespace fried::editor
 
     void Editor::dropAsset(const std::string &root, const std::string &path, double frameX, double frameY)
     {
-        if (path.size() > 11 && path.compare(path.size() - 11, 11, ".scene.json") == 0)
+        if (fried::core::isSceneFile(path))
         {
             std::string error;
             if (!addInstance(assetFile(root, path), std::nullopt, &error))
@@ -2406,7 +2437,7 @@ namespace fried::editor
 
     void Editor::addAssetNode(const std::string &root, const std::string &path, const std::string &parentId)
     {
-        if (path.size() > 11 && path.compare(path.size() - 11, 11, ".scene.json") == 0)
+        if (fried::core::isSceneFile(path))
         {
             std::string error;
             if (!addInstance(assetFile(root, path), parentId.empty() ? std::nullopt : std::optional<std::string>(parentId), &error))

@@ -1,9 +1,11 @@
 #include "fried/editor/import_settings.h"
+#include "fried/core/yaml.h"
 
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <iterator>
 #include <vector>
 
@@ -157,8 +159,11 @@ namespace fried::editor
         {
             return Json::object();
         }
-        Json data = Json::parse(stream, nullptr, false);
-        return data.is_object() ? data : Json::object();
+        std::stringstream text;
+        text << stream.rdbuf();
+        Json data;
+        std::string problem;
+        return fried::core::parseYaml(text.str(), &data, &problem) && data.is_object() ? data : Json::object();
     }
 
     bool saveImportSettings(const std::string &assetPath, ImportSettings settings, std::string *error)
@@ -181,7 +186,7 @@ namespace fried::editor
             return true;
         }
         std::ofstream stream(sidecar, std::ios::binary | std::ios::trunc);
-        stream << settings.dump(2) << "\n";
+        stream << fried::core::emitYaml(settings, fried::core::YamlLayout::Plain);
         if (!stream)
         {
             *error = "The settings file could not be written.";

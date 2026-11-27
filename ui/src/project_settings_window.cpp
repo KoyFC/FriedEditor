@@ -1,4 +1,5 @@
 #include "fried/core/android.h"
+#include "fried/core/scene_files.h"
 #include "panels.h"
 
 #include "style.h"
@@ -308,12 +309,9 @@ namespace editor_ui
                 if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(s_assetPayload))
                 {
                     std::string root, path;
-                    const std::string suffix = ".scene.json";
-                    if (fried::editor::parseAssetReference(std::string((const char *)payload->Data, payload->DataSize - 1), &root, &path) && path.size() > suffix.size()
-                        && path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0)
+                    if (fried::editor::parseAssetReference(std::string((const char *)payload->Data, payload->DataSize - 1), &root, &path) && fried::core::isSceneFile(path))
                     {
-                        std::string name = std::filesystem::path(path).filename().string();
-                        name.resize(name.size() - suffix.size());
+                        std::string name = fried::core::sceneName(std::filesystem::path(path).filename().string());
                         if (std::find(candidates.begin(), candidates.end(), name) != candidates.end())
                         {
                             next.push_back(name);

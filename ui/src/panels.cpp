@@ -1,4 +1,5 @@
 #include "panels.h"
+#include "fried/core/scene_files.h"
 
 #include "fried/editor/script_files.h"
 
@@ -1025,10 +1026,9 @@ namespace editor_ui
         for (const std::string &path : scenes)
         {
             std::string name = std::filesystem::path(path).filename().string();
-            const std::string suffix = ".scene.json";
-            if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
+            if (fried::core::isSceneFile(name))
             {
-                name.resize(name.size() - suffix.size());
+                name = fried::core::sceneName(name);
             }
             bool isModified = m_editor.isSceneModified(path);
             std::string label = name + (isModified ? " *" : "") + "###tab-" + path;
@@ -4134,10 +4134,9 @@ namespace editor_ui
         if (m_isSaveAsAsked)
         {
             std::string name = std::filesystem::path(m_editor.scenePath()).filename().string();
-            const std::string suffix = ".scene.json";
-            if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
+            if (fried::core::isSceneFile(name))
             {
-                name.resize(name.size() - suffix.size());
+                name = fried::core::sceneName(name);
             }
             m_saveAsName = name;
             m_saveAsError.clear();
@@ -4173,6 +4172,52 @@ namespace editor_ui
         if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
         {
             ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    void Panels::yamlMigrationDialog()
+    {
+        if (!m_isMigrationChecked)
+        {
+            m_isMigrationChecked = true;
+            if (m_editor.isYamlMigrationOffered())
+            {
+                ImGui::OpenPopup("Convert Project to YAML");
+            }
+        }
+        if (!ImGui::BeginPopupModal("Convert Project to YAML", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            return;
+        }
+        if (m_migrationReport.empty())
+        {
+            ImGui::PushTextWrapPos(scaled(460));
+            ImGui::TextWrapped("The project file, scenes and import settings of this project are written in JSON. The engine reads YAML, which has comments and is easier to edit by hand, and a JSON file still works until it is converted. The originals are copied to .fried/json-backup first.");
+            ImGui::PopTextWrapPos();
+            ImGui::Spacing();
+            if (ImGui::Button("Convert"))
+            {
+                m_editor.migrateToYaml(&m_migrationReport);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Not Now") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+            {
+                m_editor.declineYamlMigration();
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        else
+        {
+            ImGui::PushTextWrapPos(scaled(460));
+            ImGui::TextWrapped("%s", m_migrationReport.c_str());
+            ImGui::PopTextWrapPos();
+            ImGui::Spacing();
+            if (ImGui::Button("Close"))
+            {
+                m_migrationReport.clear();
+                ImGui::CloseCurrentPopup();
+            }
         }
         ImGui::EndPopup();
     }

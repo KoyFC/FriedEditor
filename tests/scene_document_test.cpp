@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "fried/core/yaml.h"
 
 #include "fried/editor/scene_document.h"
 
@@ -46,14 +47,14 @@ TEST_CASE("the file text is stable, so a scene read and written is the same byte
     REQUIRE(again.parse(first, &error));
     CHECK(again.dump() == first);
     CHECK(first.back() == '\n');
-    CHECK(first.find("\"nodes\"") < first.find("\"version\""));
+    CHECK(first.find("version") < first.find("nodes"));
 }
 
 TEST_CASE("the scene files the engine's sandbox ships round-trip byte for byte" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
 {
     for (const char *name : {"sandbox", "sandbox_ui", "sandbox_3d"})
     {
-        std::ifstream file(std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/" + name + ".scene.json");
+        std::ifstream file(std::string(std::getenv("FRIED_ENGINE")) + "/sandbox/assets/scenes/" + name + ".scene.yaml");
         std::stringstream text;
         text << file.rdbuf();
 
@@ -244,7 +245,8 @@ TEST_CASE("a MeshInstance with a shape and a color is read as a MeshInstance3D w
     CHECK(document.wasMigrated());
     CHECK(document.typeOf("ball") == "MeshInstance3D");
 
-    nlohmann::json dumped = nlohmann::json::parse(document.dump());
+    nlohmann::json dumped;
+    REQUIRE(fried::core::parseYaml(document.dump(), &dumped, &error));
     const nlohmann::json &ball = dumped["nodes"][0]["children"][0];
     CHECK_FALSE(ball.contains("shape"));
     CHECK_FALSE(ball.contains("color"));
@@ -281,4 +283,31 @@ TEST_CASE("a file with several top-level nodes is read with them under a plain r
     REQUIRE(again.parse(read.dump(), &error));
     CHECK_FALSE(again.wasMigrated());
     CHECK(again.dump() == read.dump());
+}
+
+TEST_CASE("a scene is read from YAML and saved in the format of the file it goes to")
+{
+    SceneDocument document;
+    std::string error;
+    REQUIRE(document.parse("version: 2\nname: Level\nnodes:\n  - type: Node2D\n    id: root\n    x: 1.5\n", &error));
+    CHECK(document.typeOf("root") == "Node2D");
+
+    std::filesystem::path directory = std::filesystem::temp_directory_path() / "fried-editor-test-yaml-scene";
+    std::filesystem::create_directories(directory);
+    std::string yaml = (directory / "a.scene.yaml").string();
+    std::string json = (directory / "b.scene.json").string();
+    REQUIRE(document.save(yaml, &error));
+    REQUIRE(document.save(json, &error));
+    std::ifstream yamlFile(yaml), jsonFile(json);
+    std::stringstream yamlText, jsonText;
+    yamlText << yamlFile.rdbuf();
+    jsonText << jsonFile.rdbuf();
+    CHECK(yamlText.str().rfind("version: 2\n", 0) == 0);
+    CHECK(jsonText.str().front() == '{');
+
+    SceneDocument fromYaml, fromJson;
+    REQUIRE(fromYaml.load(yaml, &error));
+    REQUIRE(fromJson.load(json, &error));
+    CHECK(fromYaml.data() == fromJson.data());
+    std::filesystem::remove_all(directory);
 }

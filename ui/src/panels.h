@@ -110,6 +110,8 @@ namespace editor_ui
         // Asks for the name the open scene is saved under. The question is drawn by saveSceneAsDialog.
         void showSaveSceneAs() { m_isSaveAsAsked = true; }
         void saveSceneAsDialog();
+        // Offers once, when the project opens, to rewrite its JSON files as YAML.
+        void yamlMigrationDialog();
         void quickOpen();
         void quickOpenList(bool isCommands);
 
@@ -249,6 +251,8 @@ namespace editor_ui
         bool m_isNewSceneAsked = false;
         std::string m_newSceneName;
         bool m_isSaveAsAsked = false;
+        bool m_isMigrationChecked = false;
+        std::string m_migrationReport;
         std::string m_saveAsName;
         std::string m_saveAsError;
         std::string m_newSceneType = "Node2D";

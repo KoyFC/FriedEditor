@@ -71,7 +71,7 @@ TEST_CASE("a setting that passes its check is written to the project file at onc
     CHECK(onDisk.vitaTitleId() == "SAMP00001");
     CHECK(onDisk.startScene() == "menu");
     CHECK(onDisk.packagingText("nds", "subtitle1") == "A line");
-    CHECK(project.read("project.fried").find("\"customKey\": \"Main\"") != std::string::npos);
+    CHECK(project.read("project.fried").find("customKey: Main") != std::string::npos);
 
     // Setting what is already there writes nothing.
     CHECK(settings.setName("Renamed").empty());
@@ -118,7 +118,7 @@ TEST_CASE("the precision of a platform is saved, and only a value other than its
 
     CHECK(settings.setPrecision(Platform::NintendoDs, Precision::Double).empty());
     CHECK(project.m_project.precision(Platform::NintendoDs) == Precision::Double);
-    CHECK(project.read("project.fried").find("\"precision\": \"double\"") != std::string::npos);
+    CHECK(project.read("project.fried").find("precision: double") != std::string::npos);
 
     CHECK(settings.setPrecision(Platform::NintendoDs, Precision::Single).empty());
     CHECK(project.read("project.fried").find("precision") == std::string::npos);
@@ -155,7 +155,7 @@ TEST_CASE("vsync is saved as it is turned off and on")
     CHECK(project.m_project.vsync());
 
     CHECK(settings.setVsync(false).empty());
-    CHECK(project.read("project.fried").find("\"vsync\": false") != std::string::npos);
+    CHECK(project.read("project.fried").find("vsync: false") != std::string::npos);
 
     CHECK(settings.setVsync(true).empty());
     CHECK(project.read("project.fried").find("vsync") == std::string::npos);
@@ -169,7 +169,7 @@ TEST_CASE("the physics rate is saved, leaves no key at 60 and refuses one out of
     CHECK(settings.setPhysicsRate(0) == "The physics rate must be between 1 and 1000 steps a second.");
     CHECK(settings.setPhysicsRate(1001) == "The physics rate must be between 1 and 1000 steps a second.");
     CHECK(settings.setPhysicsRate(30).empty());
-    CHECK(project.read("project.fried").find("\"physicsRate\": 30") != std::string::npos);
+    CHECK(project.read("project.fried").find("physicsRate: 30") != std::string::npos);
     CHECK(settings.setPhysicsRate(60).empty());
     CHECK(project.read("project.fried").find("physicsRate") == std::string::npos);
 }
@@ -184,7 +184,7 @@ TEST_CASE("a platform is declared or taken out, and the last one cannot be")
     CHECK_FALSE(project.m_project.declares(Platform::Vita));
     CHECK(project.m_project.declares(Platform::Pc));
     CHECK(project.m_project.declaredPlatforms().size() == fried::core::s_platforms.size() - 1);
-    CHECK(project.read("project.fried").find("\"platforms\"") != std::string::npos);
+    CHECK(project.read("project.fried").find("platforms:") != std::string::npos);
 
     CHECK(settings.setPlatformDeclared(Platform::Vita, true).empty());
     CHECK(project.read("project.fried").find("platforms") == std::string::npos);
@@ -206,7 +206,7 @@ TEST_CASE("the default target framerate is saved and refuses a negative one")
     ProjectSettings settings(project.m_project);
     CHECK(settings.setDefaultTargetFramerate(-1) == "The target framerate cannot be negative.");
     CHECK(settings.setDefaultTargetFramerate(144).empty());
-    CHECK(project.read("project.fried").find("\"defaultTargetFramerate\": 144") != std::string::npos);
+    CHECK(project.read("project.fried").find("defaultTargetFramerate: 144") != std::string::npos);
     CHECK(settings.setDefaultTargetFramerate(0).empty());
     CHECK(project.read("project.fried").find("defaultTargetFramerate") == std::string::npos);
 }
@@ -363,7 +363,7 @@ TEST_CASE("the autoloads are saved in order and only name scenes of the project"
 
     CHECK(settings.setAutoloads({"menu", "main"}).empty());
     CHECK(project.m_project.autoloads() == std::vector<std::string>({"menu", "main"}));
-    CHECK(project.read("project.fried").find("\"autoload\"") != std::string::npos);
+    CHECK(project.read("project.fried").find("autoload:") != std::string::npos);
 
     // A node class of the project is an autoload too, and the editor says which classes those are.
     settings.m_projectClasses = [] { return std::vector<std::string>({"Shell"}); };
@@ -376,7 +376,7 @@ TEST_CASE("the autoloads are saved in order and only name scenes of the project"
     CHECK(project.m_project.autoloads() == std::vector<std::string>({"menu", "main"}));
 
     CHECK(settings.setAutoloads({}).empty());
-    CHECK(project.read("project.fried").find("\"autoload\"") == std::string::npos);
+    CHECK(project.read("project.fried").find("autoload:") == std::string::npos);
 }
 
 TEST_CASE("an Android package Android would refuse is repaired and saved as repaired")

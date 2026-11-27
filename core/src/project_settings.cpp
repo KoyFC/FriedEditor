@@ -1,4 +1,5 @@
 #include "fried/editor/project_settings.h"
+#include "fried/core/scene_files.h"
 
 #include "fried/editor/editor_state.h"
 #include "fried/editor/player_builder.h"
@@ -18,8 +19,7 @@ namespace fried::editor
         using Json = nlohmann::json;
         using fried::core::BuildTarget;
 
-        const std::string s_sceneSuffix = ".scene.json";
-
+        
         // Letters as a reader counts them, not bytes, which is how the engine's build measures a line.
         int lengthOf(const std::string &text)
         {
@@ -230,9 +230,9 @@ namespace fried::editor
         for (const auto &entry : fs::directory_iterator(m_project.scenesDirectory(), ignored))
         {
             std::string name = entry.path().filename().string();
-            if (name.size() > s_sceneSuffix.size() && name.compare(name.size() - s_sceneSuffix.size(), s_sceneSuffix.size(), s_sceneSuffix) == 0)
+            if (fried::core::isSceneFile(name))
             {
-                names.push_back(name.substr(0, name.size() - s_sceneSuffix.size()));
+                names.push_back(fried::core::sceneName(name));
             }
         }
         std::sort(names.begin(), names.end());

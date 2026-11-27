@@ -1,4 +1,6 @@
 #include "fried/editor/asset_files.h"
+#include "fried/core/scene_files.h"
+#include "fried/core/yaml.h"
 
 #include "fried/editor/import_settings.h"
 #include "fried/editor/trash.h"
@@ -37,7 +39,7 @@ namespace fried::editor
             for (const auto &entry : fs::directory_iterator(scenesDirectory, ignored))
             {
                 std::string name = entry.path().filename().string();
-                if (entry.is_regular_file(ignored) && name.size() > 11 && name.compare(name.size() - 11, 11, ".scene.json") == 0)
+                if (entry.is_regular_file(ignored) && fried::core::isSceneFile(name))
                 {
                     files.push_back(entry.path());
                 }
@@ -244,8 +246,9 @@ namespace fried::editor
         }
         for (const fs::path &file : sceneFiles(scenesDirectory))
         {
-            Json data = Json::parse(readFile(file), nullptr, false);
-            if (data.is_discarded())
+            Json data;
+            std::string problem;
+            if (!fried::core::parseYaml(readFile(file), &data, &problem))
             {
                 continue;
             }
@@ -253,7 +256,7 @@ namespace fried::editor
             if (count > 0)
             {
                 std::ofstream out(file, std::ios::binary | std::ios::trunc);
-                out << data.dump(1, '\t') << "\n";
+                out << fried::core::sceneText(file.string(), data);
                 *rewritten += count;
             }
         }

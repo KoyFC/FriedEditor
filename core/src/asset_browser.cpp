@@ -19,7 +19,7 @@ namespace fried::editor
             std::string tail = suffix;
             return lower.size() >= tail.size() && lower.compare(lower.size() - tail.size(), tail.size(), tail) == 0;
         };
-        if (endsWith(".scene.json"))
+        if (endsWith(".scene.json") || endsWith(".scene.yaml"))
         {
             return AssetKind::Scene;
         }
