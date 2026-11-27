@@ -10,10 +10,14 @@ All notable changes to Fried Editor are written here, newest version first.
 ## vX.Y.Z
 
 ### Added
+- The `mesh` and `material` fields of a `MeshInstance3D` are a list of the meshes and materials the engine has, with the fields of the one chosen under it, and a mesh can be a model file (`.obj`, `.gltf` or `.glb`), which the Assets panel lists and filters as Models.
 - Play Mode Changes: when the game stops, the edits made while it ran are listed and the ones ticked are made again on the scene.
 - Window > Undo History, a list of the scene's undo steps that goes to any of them.
 - Quick Open finds commands with `>` and nodes of the scene with `@`.
 - The cells of a tilemap are edited as a text area, and the Game stats show the time of each section of the frame when the project's player is built with `-D fried_profile`.
+
+### Changed
+- A scene that names a `MeshInstance`, or gives a `MeshInstance3D` a `shape` and a `color`, is opened with a `mesh` and a material instead, and says it was migrated. The protocol with the player is 6, so a player built before has to be built again.
 
 ### Fixed
 - Panning the view with the right or middle button works in a Wayland session whose SDL2 is `sdl2-compat`, where the pointer is neither locked nor wrapped (see the scene view's documentation).
