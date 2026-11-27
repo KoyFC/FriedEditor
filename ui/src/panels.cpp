@@ -1359,7 +1359,7 @@ namespace editor_ui
             {"Camera3D", Icon::Camera3D},
             {"Collider", Icon::CollisionShape2D},
             {"KinematicBody", Icon::CharacterBody2D},
-            {"MeshInstance", Icon::MeshInstance3D},
+            {"MeshInstance3D", Icon::MeshInstance3D},
             {"DirectionalLight", Icon::DirectionalLight3D},
             {"Control", Icon::Control},
             {"Label", Icon::Label},
@@ -1949,15 +1949,23 @@ namespace editor_ui
 
     bool Panels::referenceField(const FieldView &field, bool isFont)
     {
-        std::string text = fried::editor::assetReferenceText(field.m_value, isFont);
+        return referenceEditor(field.m_value, isFont ? AssetKind::Font : AssetKind::Image, [&](const Json &value) { m_editor.setField(field.m_schema.m_name, value); });
+    }
+
+    // A reference to a file of a kind, as text to type in, a place to drop one from the assets and a list to choose from. What is chosen is handed to commit, so the same field can be a field of a node or one inside a resource.
+    bool Panels::referenceEditor(const Json &current, AssetKind wanted, const std::function<void(const Json &)> &commit)
+    {
+        const bool isFont = wanted == AssetKind::Font;
+        const bool isModel = wanted == AssetKind::Model;
+        std::string text = fried::editor::assetReferenceText(current, isFont);
         const float side = Icons::size() + ImGui::GetStyle().FramePadding.y * 2;
         ImGui::SetNextItemWidth(-(side + ImGui::GetStyle().ItemSpacing.x));
-        bool changed = textField(("##" + field.m_schema.m_name).c_str(), &text);
+        bool changed = textField("##reference", &text);
         if (changed)
         {
             if (auto reference = fried::editor::assetReferenceFromText(text, isFont))
             {
-                m_editor.setField(field.m_schema.m_name, *reference);
+                commit(*reference);
             }
         }
 
@@ -1968,7 +1976,7 @@ namespace editor_ui
             {
                 if (auto reference = fried::editor::assetReferenceFromText(std::string((const char *)payload->Data, payload->DataSize - 1) + (isFont ? "@16" : ""), isFont))
                 {
-                    m_editor.setField(field.m_schema.m_name, *reference);
+                    commit(*reference);
                 }
             }
             ImGui::EndDragDropTarget();
@@ -1976,7 +1984,7 @@ namespace editor_ui
 
         // The picker lists the project's files of the kind the field takes, to choose one without typing its path.
         ImGui::SameLine();
-        if (Icons::button("pick", Icon::Search, isFont ? "Choose a font from the project" : "Choose an image from the project"))
+        if (Icons::button("pick", Icon::Search, isFont ? "Choose a font from the project" : isModel ? "Choose a model from the project" : "Choose an image from the project"))
         {
             m_pickSearch.clear();
             ImGui::OpenPopup("pick-asset");
@@ -1989,10 +1997,9 @@ namespace editor_ui
                 ImGui::SetKeyboardFocusHere();
             }
             ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##pick-search", isFont ? "Search the fonts" : "Search the images", &m_pickSearch);
+            ImGui::InputTextWithHint("##pick-search", isFont ? "Search the fonts" : isModel ? "Search the models" : "Search the images", &m_pickSearch);
             ImGui::Separator();
 
-            const AssetKind wanted = isFont ? AssetKind::Font : AssetKind::Image;
             std::vector<const fried::editor::AssetEntry *> matches;
             for (const fried::editor::AssetEntry &entry : m_editor.assets())
             {
@@ -2003,7 +2010,7 @@ namespace editor_ui
             }
 
             ImGui::BeginChild("##pick-list", ImVec2(0, 0));
-            std::string current = fried::editor::assetReferenceText(field.m_value, false);
+            std::string currentText = fried::editor::assetReferenceText(current, false);
             const float row = std::max(Icons::size(), scaled(24)) + scaled(4);
             ImGuiListClipper clipper;
             clipper.Begin((int)matches.size() + 1, row);
@@ -2014,7 +2021,7 @@ namespace editor_ui
                     ImGui::PushID(index);
                     ImVec2 position = ImGui::GetCursorScreenPos();
                     const fried::editor::AssetEntry *entry = index == 0 ? nullptr : matches[index - 1];
-                    bool isCurrent = entry ? entry->reference() == current : field.m_value.is_null();
+                    bool isCurrent = entry ? entry->reference() == currentText : current.is_null();
                     bool isChosen = ImGui::Selectable("##choice", isCurrent, ImGuiSelectableFlags_None, ImVec2(0, row));
                     ImDrawList *list = ImGui::GetWindowDrawList();
                     float centre = position.y + row / 2;
@@ -2024,7 +2031,7 @@ namespace editor_ui
                     }
                     else
                     {
-                        const Texture *thumbnail = isFont ? nullptr : m_images.get(m_editor.assetFile(entry->m_root, entry->m_path));
+                        const Texture *thumbnail = isFont || isModel ? nullptr : m_images.get(m_editor.assetFile(entry->m_root, entry->m_path));
                         float thumb = row - scaled(4);
                         if (thumbnail)
                         {
@@ -2035,7 +2042,7 @@ namespace editor_ui
                         }
                         else
                         {
-                            Icons::draw(list, isFont ? Icon::Font : Icon::Image, ImVec2(position.x + scaled(4) + (thumb - Icons::size()) / 2, centre - Icons::size() / 2));
+                            Icons::draw(list, isFont ? Icon::Font : isModel ? Icon::MeshInstance3D : Icon::Image, ImVec2(position.x + scaled(4) + (thumb - Icons::size()) / 2, centre - Icons::size() / 2));
                         }
                         std::string name = entry->m_path.substr(entry->m_path.rfind('/') == std::string::npos ? 0 : entry->m_path.rfind('/') + 1);
                         float textX = position.x + thumb + scaled(12);
@@ -2047,14 +2054,14 @@ namespace editor_ui
                     {
                         if (!entry)
                         {
-                            m_editor.setField(field.m_schema.m_name, Json());
+                            commit(Json());
                         }
                         else
                         {
-                            int size = field.m_value.is_object() ? field.m_value.value("size", 16) : 16;
+                            int size = current.is_object() ? current.value("size", 16) : 16;
                             if (auto reference = fried::editor::assetReferenceFromText(entry->reference() + (isFont ? "@" + std::to_string(size) : ""), isFont))
                             {
-                                m_editor.setField(field.m_schema.m_name, *reference);
+                                commit(*reference);
                             }
                         }
                         changed = true;
@@ -2065,12 +2072,142 @@ namespace editor_ui
             }
             if (matches.empty())
             {
-                ImGui::TextDisabled("%s", isFont ? "The project has no font like that" : "The project has no image like that");
+                ImGui::TextDisabled("%s", isFont ? "The project has no font like that" : isModel ? "The project has no model like that" : "The project has no image like that");
             }
             ImGui::EndChild();
             ImGui::EndPopup();
         }
         return changed;
+    }
+
+    // The resource that data holds, as the player's schema says its fields are. A change to one of them writes the whole of the data again to commit, which is what a scene file keeps, so that undoing it is one step.
+    void Panels::resourceEditor(const Json &value, const std::string &category, bool allowsFile, const std::function<void(const Json &)> &commit)
+    {
+        const bool isFile = value.is_object() && !value.contains("type") && value.contains("path");
+        const std::string typeName = value.is_object() && value.contains("type") && value["type"].is_string() ? value["type"].get<std::string>() : std::string();
+        const std::string shown = isFile ? "File" : typeName.empty() ? "(none)" : typeName;
+
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        if (ImGui::BeginCombo("##type", shown.c_str()))
+        {
+            if (ImGui::Selectable("(none)", shown == "(none)"))
+            {
+                commit(Json());
+            }
+            for (const fried::editor::ResourceSchema &resource : m_editor.resources())
+            {
+                if (resource.m_category != category)
+                {
+                    continue;
+                }
+                if (ImGui::Selectable(resource.m_name.c_str(), resource.m_name == typeName))
+                {
+                    Json fresh = {{"type", resource.m_name}};
+                    // A mesh keeps its material when it becomes another shape.
+                    if (category == "mesh" && value.is_object() && value.contains("material"))
+                    {
+                        fresh["material"] = value["material"];
+                    }
+                    commit(fresh);
+                }
+            }
+            if (allowsFile && ImGui::Selectable("File...", isFile))
+            {
+                commit(Json{{"root", "game"}, {"path", ""}});
+            }
+            ImGui::EndCombo();
+        }
+
+        if (isFile)
+        {
+            referenceEditor(value, AssetKind::Model, commit);
+            return;
+        }
+        const fried::editor::ResourceSchema *schema = typeName.empty() ? nullptr : m_editor.resourceNamed(typeName);
+        if (!schema)
+        {
+            return;
+        }
+
+        ImGui::Indent();
+        for (const fried::editor::FieldSchema &field : schema->m_fields)
+        {
+            const std::string &name = field.m_name;
+            const Json current = value.contains(name) ? value[name] : field.m_default;
+            // What a field changes is the same data with its own key set.
+            auto set = [&](const Json &changed) {
+                Json copy = value;
+                if (changed.is_null())
+                {
+                    copy.erase(name);
+                }
+                else
+                {
+                    copy[name] = changed;
+                }
+                commit(copy);
+            };
+            ImGui::PushID(name.c_str());
+            caption(name);
+            if (field.m_kind == "int")
+            {
+                int edit = current.is_number() ? current.get<int>() : 0;
+                if (dragInt("##v", &edit))
+                {
+                    set(Json(edit));
+                }
+            }
+            else if (field.m_kind == "float")
+            {
+                float edit = current.is_number() ? current.get<float>() : 0.0f;
+                if (dragFloat("##v", &edit, 0.01f, 0, 0, "%.3f"))
+                {
+                    set(Json((double)edit));
+                }
+            }
+            else if (field.m_kind == "bool")
+            {
+                bool edit = current.is_boolean() && current.get<bool>();
+                if (ImGui::Checkbox("##v", &edit))
+                {
+                    set(Json(edit));
+                }
+            }
+            else if (field.m_kind == "color")
+            {
+                ImVec4 color = vectorOf(current);
+                if (ImGui::ColorEdit4("##v", &color.x, ImGuiColorEditFlags_AlphaPreviewHalf))
+                {
+                    set(Json{{"r", channel(color.x)}, {"g", channel(color.y)}, {"b", channel(color.z)}, {"a", channel(color.w)}});
+                }
+            }
+            else if (!field.m_values.empty())
+            {
+                std::string chosen = current.is_string() ? current.get<std::string>() : std::string();
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                if (ImGui::BeginCombo("##v", chosen.c_str()))
+                {
+                    for (const std::string &option : field.m_values)
+                    {
+                        if (ImGui::Selectable(option.c_str(), option == chosen))
+                        {
+                            set(Json(option));
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+            }
+            else if (field.m_kind == "texture")
+            {
+                referenceEditor(current, AssetKind::Image, set);
+            }
+            else if (field.m_kind == "material")
+            {
+                resourceEditor(current, "material", false, set);
+            }
+            ImGui::PopID();
+        }
+        ImGui::Unindent();
     }
 
     void Panels::fieldEditor(const FieldView &field)
@@ -2199,6 +2336,10 @@ namespace editor_ui
                 }
                 ImGui::EndCombo();
             }
+        }
+        else if (kind == "mesh" || kind == "material")
+        {
+            resourceEditor(field.m_value, kind, kind == "mesh", [&](const Json &value) { m_editor.setField(name, value); });
         }
         else
         {
@@ -2484,7 +2625,7 @@ namespace editor_ui
         const bool isReference = fried::editor::parseAssetReference(m_assetSelected, &root, &path);
         const AssetKind kind = isReference ? fried::editor::assetKindOf(path) : AssetKind::Other;
         const std::string name = m_assetSelected.substr(m_assetSelected.rfind('/') + 1);
-        Icon icon = kind == AssetKind::Image ? Icon::Image : kind == AssetKind::Audio ? Icon::AudioStreamWAV : kind == AssetKind::Font ? Icon::Font : kind == AssetKind::Scene ? Icon::PackedScene : Icon::File;
+        Icon icon = kind == AssetKind::Image ? Icon::Image : kind == AssetKind::Audio ? Icon::AudioStreamWAV : kind == AssetKind::Font ? Icon::Font : kind == AssetKind::Model ? Icon::MeshInstance3D : kind == AssetKind::Scene ? Icon::PackedScene : Icon::File;
         Icons::draw(ImGui::GetWindowDrawList(), icon, ImGui::GetCursorScreenPos());
         ImGui::Dummy(ImVec2(Icons::size(), Icons::size()));
         ImGui::SameLine();
@@ -2931,6 +3072,7 @@ namespace editor_ui
             Icon icon = entry.m_kind == AssetKind::Image  ? Icon::Image
                         : entry.m_kind == AssetKind::Font  ? Icon::Font
                         : entry.m_kind == AssetKind::Audio ? Icon::AudioStreamWAV
+                        : entry.m_kind == AssetKind::Model ? Icon::MeshInstance3D
                         : entry.m_kind == AssetKind::Scene ? Icon::PackedScene
                                                            : Icon::File;
             ImDrawList *list = ImGui::GetWindowDrawList();
@@ -3136,8 +3278,8 @@ namespace editor_ui
 
     void Panels::assets()
     {
-        static const char *filters[] = {"All Types", "Images", "Fonts", "Audio", "Scenes"};
-        static const AssetKind kinds[] = {AssetKind::Other, AssetKind::Image, AssetKind::Font, AssetKind::Audio, AssetKind::Scene};
+        static const char *filters[] = {"All Types", "Images", "Fonts", "Audio", "Models", "Scenes"};
+        static const AssetKind kinds[] = {AssetKind::Other, AssetKind::Image, AssetKind::Font, AssetKind::Audio, AssetKind::Model, AssetKind::Scene};
         const std::vector<fried::editor::AssetEntry> &entries = m_editor.assets();
 
         // The folders are found again only when the files changed.
@@ -3442,6 +3584,7 @@ namespace editor_ui
                             : item.m_entry->m_kind == AssetKind::Image ? Icon::Image
                             : item.m_entry->m_kind == AssetKind::Font  ? Icon::Font
                             : item.m_entry->m_kind == AssetKind::Audio ? Icon::AudioStreamWAV
+                            : item.m_entry->m_kind == AssetKind::Model ? Icon::MeshInstance3D
                             : isScene                                  ? Icon::PackedScene
                                                                        : Icon::File;
                 float centre = row.y + ImGui::GetItemRectSize().y / 2;
@@ -3509,7 +3652,7 @@ namespace editor_ui
                     else
                     {
                         AssetKind kind = item.m_entry->m_kind;
-                        Icon icon = kind == AssetKind::Font ? Icon::Font : kind == AssetKind::Audio ? Icon::AudioStreamWAV : kind == AssetKind::Scene ? Icon::PackedScene : kind == AssetKind::Image ? Icon::Image : Icon::File;
+                        Icon icon = kind == AssetKind::Font ? Icon::Font : kind == AssetKind::Audio ? Icon::AudioStreamWAV : kind == AssetKind::Model ? Icon::MeshInstance3D : kind == AssetKind::Scene ? Icon::PackedScene : kind == AssetKind::Image ? Icon::Image : Icon::File;
                         Icons::drawBig(list, BigIcon::FileBigThumb, iconLow, inner, IM_COL32(150, 150, 160, 255));
                         Icons::draw(list, icon, ImVec2(low.x + (box - Icons::size()) / 2, low.y + (box - Icons::size()) / 2 + inner * 0.08f));
                     }

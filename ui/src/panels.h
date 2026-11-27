@@ -148,6 +148,9 @@ namespace editor_ui
         void applyIcon(fried::editor::Platform platform, const std::string &file, bool isForEveryPlatform);
         bool textArea(const char *label, std::string *value);
         bool referenceField(const fried::editor::FieldView &field, bool isFont);
+        bool referenceEditor(const nlohmann::json &current, fried::editor::AssetKind wanted, const std::function<void(const nlohmann::json &)> &commit);
+        // A mesh or a material: which of the resources of a category it is, and the fields of that resource. A file is the other thing a mesh can be.
+        void resourceEditor(const nlohmann::json &value, const std::string &category, bool allowsFile, const std::function<void(const nlohmann::json &)> &commit);
 
         fried::editor::Editor &m_editor;
         Texture m_frame;

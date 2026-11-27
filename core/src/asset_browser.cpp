@@ -39,6 +39,10 @@ namespace fried::editor
         {
             return AssetKind::Audio;
         }
+        if (endsWith(".obj") || endsWith(".gltf") || endsWith(".glb"))
+        {
+            return AssetKind::Model;
+        }
         return AssetKind::Other;
     }
 

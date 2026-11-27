@@ -31,6 +31,67 @@ namespace fried::editor
             return field == "id" || field == "type" || field == "children" || field == "instance";
         }
 
+        // A MeshInstance had a shape named by a word and a color. A MeshInstance3D has a mesh that holds both, as the engine reads an older file: the same shapes, as the primitives that come closest. True if the node changed.
+        bool migrateMeshInstance(Json &node)
+        {
+            if (!node.is_object() || !node.contains("type") || !node["type"].is_string())
+            {
+                return false;
+            }
+            bool isChanged = false;
+            if (node["type"] == "MeshInstance")
+            {
+                node["type"] = "MeshInstance3D";
+                isChanged = true;
+            }
+            if (node["type"] == "MeshInstance3D" && (node.contains("shape") || node.contains("color")))
+            {
+                std::string shape = node.contains("shape") && node["shape"].is_string() ? node["shape"].get<std::string>() : "Cube";
+                Json color = node.contains("color") ? node["color"] : Json{{"r", 200}, {"g", 200}, {"b", 200}, {"a", 255}};
+                node.erase("shape");
+                node.erase("color");
+                if (!node.contains("mesh"))
+                {
+                    Json mesh;
+                    if (shape == "Plane")
+                    {
+                        mesh = {{"type", "PlaneMesh"}, {"sizeX", 1}, {"sizeZ", 1}, {"subdivideWidth", 15}, {"subdivideDepth", 15}};
+                    }
+                    else if (shape == "Sphere")
+                    {
+                        mesh = {{"type", "SphereMesh"}, {"radialSegments", 8}, {"rings", 6}};
+                    }
+                    else if (shape == "Pyramid")
+                    {
+                        mesh = {{"type", "CylinderMesh"}, {"topRadius", 0}, {"bottomRadius", 0.7071}, {"height", 1}, {"radialSegments", 4}, {"rings", 0}, {"capTop", false}};
+                    }
+                    else
+                    {
+                        mesh = {{"type", "BoxMesh"}};
+                    }
+                    mesh["material"] = {{"type", "StandardMaterial3D"}, {"albedoColor", color}};
+                    node["mesh"] = mesh;
+                }
+                isChanged = true;
+            }
+            return isChanged;
+        }
+
+        bool migrateMeshInstances(Json &nodes)
+        {
+            bool isChanged = false;
+            for (Json &node : nodes)
+            {
+                isChanged = migrateMeshInstance(node) || isChanged;
+                auto children = node.find("children");
+                if (children != node.end() && children->is_array())
+                {
+                    isChanged = migrateMeshInstances(*children) || isChanged;
+                }
+            }
+            return isChanged;
+        }
+
         void collectIds(const Json &node, std::vector<std::string> *ids)
         {
             ids->push_back(node.value("id", ""));
@@ -166,6 +227,10 @@ namespace fried::editor
 
         SceneDocument next;
         next.m_data = std::move(parsed);
+        if (migrateMeshInstances(next.m_data["nodes"]))
+        {
+            next.m_wasMigrated = true;
+        }
         if (next.m_data["nodes"].size() != 1)
         {
             // A scene has exactly one root, so the nodes of an older file go under a plain Node that changes nothing about them.

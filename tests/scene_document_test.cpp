@@ -233,6 +233,30 @@ TEST_CASE("a node of a type the player does not know is kept as it is")
     std::filesystem::remove(path);
 }
 
+TEST_CASE("a MeshInstance with a shape and a color is read as a MeshInstance3D with a mesh, and says so")
+{
+    std::string text = R"({"version": 2, "name": "Level", "nodes": [{"id": "root", "type": "Node", "children": [
+        {"id": "ball", "type": "MeshInstance", "shape": "Sphere", "color": {"r": 1, "g": 2, "b": 3, "a": 255}},
+        {"id": "box", "type": "MeshInstance3D"}]}]})";
+    SceneDocument document;
+    std::string error;
+    REQUIRE(document.parse(text, &error));
+    CHECK(document.wasMigrated());
+    CHECK(document.typeOf("ball") == "MeshInstance3D");
+
+    nlohmann::json dumped = nlohmann::json::parse(document.dump());
+    const nlohmann::json &ball = dumped["nodes"][0]["children"][0];
+    CHECK_FALSE(ball.contains("shape"));
+    CHECK_FALSE(ball.contains("color"));
+    CHECK(ball["mesh"]["type"] == "SphereMesh");
+    CHECK(ball["mesh"]["material"]["albedoColor"]["b"] == 3);
+
+    // A node that already has the new fields is left as it is.
+    SceneDocument again;
+    REQUIRE(again.parse(document.dump(), &error));
+    CHECK_FALSE(again.wasMigrated());
+}
+
 TEST_CASE("a new scene has one root named like it, of the type chosen")
 {
     SceneDocument document = SceneDocument::withRoot("Level One", "Node3D");

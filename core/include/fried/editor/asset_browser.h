@@ -13,6 +13,7 @@ namespace fried::editor
         Image,
         Font,
         Audio,
+        Model,
         Scene,
         Script,
         Other

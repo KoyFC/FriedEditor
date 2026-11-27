@@ -300,6 +300,10 @@ namespace fried::editor
 
         // Every class the player knows, each after the class it extends, which is what a menu of node types is made from.
         const std::vector<ClassSchema> &classes() const { return m_session.schema(); }
+
+        // The resources a field can hold, as a mesh or a material.
+        const std::vector<ResourceSchema> &resources() const { return m_session.resources(); }
+        const ResourceSchema *resourceNamed(const std::string &name) const { return m_session.resourceNamed(name); }
         bool isClassOf(const std::string &type, const std::string &ancestor) const;
 
         // The class and the ones it extends, its own name first, which is how a class without a look of its own takes its parent's.

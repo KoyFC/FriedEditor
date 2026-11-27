@@ -13,6 +13,9 @@ TEST_CASE("files are told apart by their extension")
     CHECK(assetKindOf("a.jpeg") == AssetKind::Image);
     CHECK(assetKindOf("NunitoSans.ttf") == AssetKind::Font);
     CHECK(assetKindOf("music.ogg") == AssetKind::Audio);
+    CHECK(assetKindOf("models/Crate.OBJ") == AssetKind::Model);
+    CHECK(assetKindOf("ship.glb") == AssetKind::Model);
+    CHECK(assetKindOf("ship.gltf") == AssetKind::Model);
     CHECK(assetKindOf("scenes/main.scene.json") == AssetKind::Scene);
     CHECK(assetKindOf("notes.txt") == AssetKind::Other);
 }

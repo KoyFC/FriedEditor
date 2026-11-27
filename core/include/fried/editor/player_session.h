@@ -33,6 +33,15 @@ namespace fried::editor
         std::vector<FieldSchema> m_fields;
     };
 
+    // A resource a field can hold, as a mesh or a material, which a scene file writes inside the field with its "type". Its fields are all in one list, since an inspector shows it as one.
+    struct ResourceSchema
+    {
+        std::string m_name;
+        // What it is for: "mesh" or "material".
+        std::string m_category;
+        std::vector<FieldSchema> m_fields;
+    };
+
     // What a node's parent gives it in the world, so a position in the world can be turned into one in the parent's space.
     struct ParentValues
     {
@@ -105,7 +114,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 5;
+        static constexpr int s_protocol = 6;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);
@@ -124,6 +133,10 @@ namespace fried::editor
         // The names of keys, buttons and axes the engine writes input actions with, which arrive with the schema.
         const InputNames &inputNames() const { return m_inputNames; }
         const ClassSchema *classNamed(const std::string &name) const;
+
+        // The resources a field can hold, which arrive with the schema.
+        const std::vector<ResourceSchema> &resources() const { return m_resources; }
+        const ResourceSchema *resourceNamed(const std::string &name) const;
 
         // The class and every class above it, the most derived first, which is the order an inspector shows them in.
         std::vector<const ClassSchema *> classChain(const std::string &name) const;
@@ -160,6 +173,7 @@ namespace fried::editor
         State m_state = State::Waiting;
         std::string m_platform;
         std::vector<ClassSchema> m_schema;
+        std::vector<ResourceSchema> m_resources;
         InputNames m_inputNames;
     };
 }

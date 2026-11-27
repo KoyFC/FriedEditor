@@ -120,6 +120,26 @@ namespace fried::editor
                 }
                 m_schema.push_back(std::move(schema));
             }
+            m_resources.clear();
+            for (const auto &entry : listOf(header, "resources"))
+            {
+                ResourceSchema resource;
+                resource.m_name = entry.value("name", "");
+                resource.m_category = entry.value("category", "");
+                for (const auto &field : listOf(entry, "fields"))
+                {
+                    FieldSchema fieldSchema;
+                    fieldSchema.m_name = field.value("name", "");
+                    fieldSchema.m_kind = field.value("kind", "");
+                    for (const auto &value : listOf(field, "values"))
+                    {
+                        fieldSchema.m_values.push_back(value.get<std::string>());
+                    }
+                    fieldSchema.m_default = field.contains("defaultValue") ? field["defaultValue"] : nlohmann::json();
+                    resource.m_fields.push_back(std::move(fieldSchema));
+                }
+                m_resources.push_back(std::move(resource));
+            }
             m_inputNames = InputNames::fromJson(header.contains("inputNames") ? header["inputNames"] : nlohmann::json());
             m_state = State::Ready;
             if (m_onReady)
@@ -258,6 +278,18 @@ namespace fried::editor
             if (schema.m_name == name)
             {
                 return &schema;
+            }
+        }
+        return nullptr;
+    }
+
+    const ResourceSchema *PlayerSession::resourceNamed(const std::string &name) const
+    {
+        for (const ResourceSchema &resource : m_resources)
+        {
+            if (resource.m_name == name)
+            {
+                return &resource;
             }
         }
         return nullptr;
