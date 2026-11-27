@@ -1952,7 +1952,6 @@ namespace editor_ui
         return referenceEditor(field.m_value, isFont ? AssetKind::Font : AssetKind::Image, [&](const Json &value) { m_editor.setField(field.m_schema.m_name, value); });
     }
 
-    // A reference to a file of a kind, as text to type in, a place to drop one from the assets and a list to choose from. What is chosen is handed to commit, so the same field can be a field of a node or one inside a resource.
     bool Panels::referenceEditor(const Json &current, AssetKind wanted, const std::function<void(const Json &)> &commit)
     {
         const bool isFont = wanted == AssetKind::Font;
@@ -2080,7 +2079,6 @@ namespace editor_ui
         return changed;
     }
 
-    // The resource that data holds, as the player's schema says its fields are. A change to one of them writes the whole of the data again to commit, which is what a scene file keeps, so that undoing it is one step.
     void Panels::resourceEditor(const Json &value, const std::string &category, bool allowsFile, const std::function<void(const Json &)> &commit)
     {
         const bool isFile = value.is_object() && !value.contains("type") && value.contains("path");
@@ -2103,7 +2101,6 @@ namespace editor_ui
                 if (ImGui::Selectable(resource.m_name.c_str(), resource.m_name == typeName))
                 {
                     Json fresh = {{"type", resource.m_name}};
-                    // A mesh keeps its material when it becomes another shape.
                     if (category == "mesh" && value.is_object() && value.contains("material"))
                     {
                         fresh["material"] = value["material"];
@@ -2134,7 +2131,6 @@ namespace editor_ui
         {
             const std::string &name = field.m_name;
             const Json current = value.contains(name) ? value[name] : field.m_default;
-            // What a field changes is the same data with its own key set.
             auto set = [&](const Json &changed) {
                 Json copy = value;
                 if (changed.is_null())

@@ -33,11 +33,9 @@ namespace fried::editor
         std::vector<FieldSchema> m_fields;
     };
 
-    // A resource a field can hold, as a mesh or a material, which a scene file writes inside the field with its "type". Its fields are all in one list, since an inspector shows it as one.
     struct ResourceSchema
     {
         std::string m_name;
-        // What it is for: "mesh" or "material".
         std::string m_category;
         std::vector<FieldSchema> m_fields;
     };
@@ -134,7 +132,6 @@ namespace fried::editor
         const InputNames &inputNames() const { return m_inputNames; }
         const ClassSchema *classNamed(const std::string &name) const;
 
-        // The resources a field can hold, which arrive with the schema.
         const std::vector<ResourceSchema> &resources() const { return m_resources; }
         const ResourceSchema *resourceNamed(const std::string &name) const;
 

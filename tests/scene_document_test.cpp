@@ -251,7 +251,6 @@ TEST_CASE("a MeshInstance with a shape and a color is read as a MeshInstance3D w
     CHECK(ball["mesh"]["type"] == "SphereMesh");
     CHECK(ball["mesh"]["material"]["albedoColor"]["b"] == 3);
 
-    // A node that already has the new fields is left as it is.
     SceneDocument again;
     REQUIRE(again.parse(document.dump(), &error));
     CHECK_FALSE(again.wasMigrated());

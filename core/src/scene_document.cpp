@@ -31,7 +31,6 @@ namespace fried::editor
             return field == "id" || field == "type" || field == "children" || field == "instance";
         }
 
-        // A MeshInstance had a shape named by a word and a color. A MeshInstance3D has a mesh that holds both, as the engine reads an older file: the same shapes, as the primitives that come closest. True if the node changed.
         bool migrateMeshInstance(Json &node)
         {
             if (!node.is_object() || !node.contains("type") || !node["type"].is_string())
