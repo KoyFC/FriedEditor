@@ -2848,6 +2848,75 @@ namespace editor_ui
         }
     }
 
+    namespace
+    {
+        // Where a component is left out because the platform uses another backend of its module, or one that only works in part there.
+        struct LeftOut
+        {
+            std::string m_module;
+            std::string m_backend;
+            std::vector<fried::core::Platform> m_platforms;
+            bool m_isEverywhere = false;
+            bool m_isOnShown = false;
+        };
+
+        LeftOut leftOutOf(const fried::editor::Editor &editor, const std::string &type)
+        {
+            LeftOut result;
+            const fried::editor::ClassSchema *owner = nullptr;
+            std::string name = type;
+            while (!name.empty() && owner == nullptr)
+            {
+                const fried::editor::ClassSchema *found = nullptr;
+                for (const fried::editor::ClassSchema &schema : editor.classes())
+                {
+                    if (schema.m_name == name)
+                    {
+                        found = &schema;
+                        break;
+                    }
+                }
+                if (found == nullptr)
+                {
+                    break;
+                }
+                owner = found->m_module.empty() ? nullptr : found;
+                name = found->m_parent;
+            }
+            if (owner == nullptr)
+            {
+                return result;
+            }
+            result.m_module = owner->m_module;
+            result.m_backend = owner->m_backend;
+            std::vector<fried::core::Platform> considered = editor.project().declaredPlatforms();
+            if (considered.empty())
+            {
+                considered.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
+            }
+            for (fried::core::Platform platform : considered)
+            {
+                if (fried::editor::isLeftOut(editor.modules(), owner->m_module, owner->m_backend, editor.project(), platform))
+                {
+                    result.m_platforms.push_back(platform);
+                }
+            }
+            result.m_isEverywhere = !result.m_platforms.empty() && result.m_platforms.size() == considered.size();
+            result.m_isOnShown = fried::editor::isLeftOut(editor.modules(), owner->m_module, owner->m_backend, editor.project(), editor.platform());
+            return result;
+        }
+
+        std::string platformList(const std::vector<fried::core::Platform> &platforms)
+        {
+            std::string text;
+            for (fried::core::Platform platform : platforms)
+            {
+                text += (text.empty() ? "" : ", ") + fried::editor::platformLabel(platform);
+            }
+            return text;
+        }
+    }
+
     void Panels::inspector()
     {
         if (m_editor.selected() != m_lastInspectedNode)
@@ -2897,13 +2966,52 @@ namespace editor_ui
         fieldEditor(object.m_name);
         ImGui::Separator();
 
+        std::vector<fried::core::Platform> leaving;
+        std::vector<LeftOut> leftOuts;
+        for (const fried::editor::ComponentView &component : object.m_components)
+        {
+            leftOuts.push_back(leftOutOf(m_editor, component.m_type));
+            for (fried::core::Platform platform : leftOuts.back().m_platforms)
+            {
+                if (std::find(leaving.begin(), leaving.end(), platform) == leaving.end())
+                {
+                    leaving.push_back(platform);
+                }
+            }
+        }
+        if (!leaving.empty())
+        {
+            std::sort(leaving.begin(), leaving.end());
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::warning);
+            ImGui::TextWrapped("Some components are left out of the game on: %s.", platformList(leaving).c_str());
+            ImGui::PopStyleColor();
+        }
+
         for (std::size_t position = 0; position < object.m_components.size(); ++position)
         {
             const fried::editor::ComponentView &component = object.m_components[position];
+            const LeftOut &left = leftOuts[position];
+            bool isGrey = left.m_isEverywhere || left.m_isOnShown;
             m_component = component.m_ref;
             ImGui::PushID((int)position);
             bool isRemoved = false;
+            if (isGrey)
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.55f);
+            }
             bool isOpen = componentHeader(component, &isRemoved);
+            if (isGrey)
+            {
+                ImGui::PopStyleVar();
+            }
+            if (!left.m_platforms.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
+            {
+                ImGui::SetTooltip("%s: %s is not used on %s, so this component is left out there.", left.m_module.c_str(), left.m_backend.c_str(), platformList(left.m_platforms).c_str());
+            }
+            if (isOpen && isGrey)
+            {
+                ImGui::BeginDisabled();
+            }
             if (isOpen)
             {
                 bool isRect = component.m_ref.m_isTransform && m_editor.isClassOf(component.m_type, "RectTransform");
@@ -2929,6 +3037,10 @@ namespace editor_ui
                     }
                 }
                 ImGui::Dummy(ImVec2(0, scaled(2)));
+            }
+            if (isOpen && isGrey)
+            {
+                ImGui::EndDisabled();
             }
             ImGui::PopID();
             if (isRemoved)
@@ -4007,7 +4119,13 @@ namespace editor_ui
         ImGui::BeginChild("##create-classes", ImVec2(0, -scaled(38)), ImGuiChildFlags_Borders);
         const bool isFiltering = !m_createFilter.empty();
         std::vector<std::string> listed;
+        // A component whose backend no platform of the project uses is listed and cannot be added.
+        auto blockedReason = [&](const std::string &name) {
+            LeftOut left = leftOutOf(m_editor, name);
+            return left.m_isEverywhere ? "Needs " + left.m_module + ": " + left.m_backend + " on some platform. Choose it in Player Settings." : std::string();
+        };
         auto row = [&](const std::string &name, bool isLeaf, const std::string &note) {
+            std::string blocked = blockedReason(name);
             listed.push_back(name);
             ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_DefaultOpen;
             flags |= isLeaf ? ImGuiTreeNodeFlags_Leaf : 0;
@@ -4018,14 +4136,18 @@ namespace editor_ui
             bool isOpen = ImGui::TreeNodeEx(name.c_str(), flags, "%s", "");
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(2);
-            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+            if (blocked.empty() && ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
             {
                 m_createChosen = name;
             }
-            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+            if (blocked.empty() && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
                 m_createChosen = name;
                 isCreating = true;
+            }
+            if (!blocked.empty() && ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("%s", blocked.c_str());
             }
             if (m_isCreateScrollAsked && name == m_createChosen)
             {
@@ -4038,7 +4160,7 @@ namespace editor_ui
             ImDrawList *list = ImGui::GetWindowDrawList();
             Icons::draw(list, iconOf(name), ImVec2(x, (low.y + high.y - Icons::size()) / 2));
             float textX = x + Icons::size() + scaled(6);
-            list->AddText(ImVec2(textX, (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+            list->AddText(ImVec2(textX, (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(blocked.empty() ? ImGuiCol_Text : ImGuiCol_TextDisabled), name.c_str());
             if (!note.empty())
             {
                 list->AddText(ImVec2(textX + ImGui::CalcTextSize(name.c_str()).x + scaled(8), (low.y + high.y - ImGui::GetFontSize()) / 2), ImGui::GetColorU32(ImGuiCol_TextDisabled),
@@ -4106,6 +4228,7 @@ namespace editor_ui
         bool isEmpty = !m_isChangingType && !m_isAddingComponent && std::any_of(s_empties.begin(), s_empties.end(), [&](const auto &empty) { return empty.first == m_createChosen; });
         bool isKnown = isEmpty || (m_isChangingType && m_createChosen == "Transform")
                        || std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &schema) { return schema.m_name == m_createChosen; });
+        isKnown = isKnown && blockedReason(m_createChosen).empty();
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", isKnown ? m_createChosen.c_str() : "Nothing chosen");
         float buttons = scaled(170);
