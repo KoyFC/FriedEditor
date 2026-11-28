@@ -526,7 +526,7 @@ TEST_CASE("a node is duplicated, copied and pasted with its children, under new 
     // Pasting twice gives two more, each with ids and names of its own.
     editor.select(std::string("sprite"));
     std::string text = editor.copySelected();
-    CHECK(text.rfind("fried-nodes:", 0) == 0);
+    CHECK(text.rfind("fried-objects:", 0) == 0);
     REQUIRE(editor.paste(text));
     std::string first = *editor.selected();
     editor.select(std::string("sprite"));
