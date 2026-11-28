@@ -38,6 +38,8 @@ namespace fried::editor
         const ModuleBackend *backendNamed(const std::string &name) const;
         // What a project makes of the module on a platform: the platform's choice, else the project's, else the default.
         std::string backendFor(const fried::core::Project &project, fried::core::Platform platform) const;
+        // The backend a platform gets from the project-wide choice: that choice where the platform runs it, else the default.
+        std::string inheritedBackend(const fried::core::Project &project, fried::core::Platform platform) const;
         // Why a backend cannot be chosen for a platform, empty when it can.
         std::string refusal(const std::string &backend, fried::core::Platform platform) const;
     };
@@ -53,6 +55,9 @@ namespace fried::editor
                                     const std::string &field, const std::vector<fried::core::Platform> &considered);
 
     // The manifest of modules the player sends with its schema, which is the manifest of the engine it was built from.
+    // What is wrong with the modules a platform gets: a project-wide choice it cannot run, which it replaces with the module's default, or a choice of its own it cannot run.
+    std::vector<std::string> moduleProblems(const std::vector<ModuleSchema> &modules, const fried::core::Project &project, fried::core::Platform platform);
+
     std::vector<ModuleSchema> modulesFromManifest(const nlohmann::json &manifest);
 
     // Whether a component of a backend is left out of the platform's build: the platform uses another backend of the module, or one that only works in part there.

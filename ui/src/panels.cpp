@@ -1381,6 +1381,75 @@ namespace editor_ui
         }
     }
 
+    namespace
+    {
+        // Where a component is left out because the platform uses another backend of its module, or one that only works in part there.
+        struct LeftOut
+        {
+            std::string m_module;
+            std::string m_backend;
+            std::vector<fried::core::Platform> m_platforms;
+            bool m_isEverywhere = false;
+            bool m_isOnShown = false;
+        };
+
+        LeftOut leftOutOf(const fried::editor::Editor &editor, const std::string &type)
+        {
+            LeftOut result;
+            const fried::editor::ClassSchema *owner = nullptr;
+            std::string name = type;
+            while (!name.empty() && owner == nullptr)
+            {
+                const fried::editor::ClassSchema *found = nullptr;
+                for (const fried::editor::ClassSchema &schema : editor.classes())
+                {
+                    if (schema.m_name == name)
+                    {
+                        found = &schema;
+                        break;
+                    }
+                }
+                if (found == nullptr)
+                {
+                    break;
+                }
+                owner = found->m_module.empty() ? nullptr : found;
+                name = found->m_parent;
+            }
+            if (owner == nullptr)
+            {
+                return result;
+            }
+            result.m_module = owner->m_module;
+            result.m_backend = owner->m_backend;
+            std::vector<fried::core::Platform> considered = editor.project().declaredPlatforms();
+            if (considered.empty())
+            {
+                considered.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
+            }
+            for (fried::core::Platform platform : considered)
+            {
+                if (fried::editor::isLeftOut(editor.modules(), owner->m_module, owner->m_backend, editor.project(), platform))
+                {
+                    result.m_platforms.push_back(platform);
+                }
+            }
+            result.m_isEverywhere = !result.m_platforms.empty() && result.m_platforms.size() == considered.size();
+            result.m_isOnShown = fried::editor::isLeftOut(editor.modules(), owner->m_module, owner->m_backend, editor.project(), editor.platform());
+            return result;
+        }
+
+        std::string platformList(const std::vector<fried::core::Platform> &platforms)
+        {
+            std::string text;
+            for (fried::core::Platform platform : platforms)
+            {
+                text += (text.empty() ? "" : ", ") + fried::editor::platformLabel(platform);
+            }
+            return text;
+        }
+    }
+
     void Panels::hierarchy()
     {
         if (Icons::button("add", Icon::Add, m_editor.selected() ? "Add an object under the selected one (Ctrl+A)" : "Add an object to the scene (Ctrl+A)"))
@@ -1648,6 +1717,23 @@ namespace editor_ui
                         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
                             openSceneFile(m_editor.scenePathOf(row.m_instance));
+                        }
+                    }
+                }
+                if (isRowHovered)
+                {
+                    bool isLeftOut = false;
+                    for (const fried::editor::ComponentRef &component : m_editor.document().componentsOf(row.m_id))
+                    {
+                        isLeftOut = isLeftOut || !leftOutOf(m_editor, component.m_type).m_platforms.empty();
+                    }
+                    if (isLeftOut)
+                    {
+                        ImVec2 warnLow(windowPosition.x + scaled(2), top + (rowHeight - iconSize) / 2);
+                        Icons::draw(list, Icon::Warning, warnLow);
+                        if (ImGui::IsMouseHoveringRect(warnLow, ImVec2(warnLow.x + iconSize, warnLow.y + iconSize)))
+                        {
+                            ImGui::SetTooltip("This object has components that are not available on every platform. Select it to see which.");
                         }
                     }
                 }
@@ -2848,75 +2934,6 @@ namespace editor_ui
         }
     }
 
-    namespace
-    {
-        // Where a component is left out because the platform uses another backend of its module, or one that only works in part there.
-        struct LeftOut
-        {
-            std::string m_module;
-            std::string m_backend;
-            std::vector<fried::core::Platform> m_platforms;
-            bool m_isEverywhere = false;
-            bool m_isOnShown = false;
-        };
-
-        LeftOut leftOutOf(const fried::editor::Editor &editor, const std::string &type)
-        {
-            LeftOut result;
-            const fried::editor::ClassSchema *owner = nullptr;
-            std::string name = type;
-            while (!name.empty() && owner == nullptr)
-            {
-                const fried::editor::ClassSchema *found = nullptr;
-                for (const fried::editor::ClassSchema &schema : editor.classes())
-                {
-                    if (schema.m_name == name)
-                    {
-                        found = &schema;
-                        break;
-                    }
-                }
-                if (found == nullptr)
-                {
-                    break;
-                }
-                owner = found->m_module.empty() ? nullptr : found;
-                name = found->m_parent;
-            }
-            if (owner == nullptr)
-            {
-                return result;
-            }
-            result.m_module = owner->m_module;
-            result.m_backend = owner->m_backend;
-            std::vector<fried::core::Platform> considered = editor.project().declaredPlatforms();
-            if (considered.empty())
-            {
-                considered.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
-            }
-            for (fried::core::Platform platform : considered)
-            {
-                if (fried::editor::isLeftOut(editor.modules(), owner->m_module, owner->m_backend, editor.project(), platform))
-                {
-                    result.m_platforms.push_back(platform);
-                }
-            }
-            result.m_isEverywhere = !result.m_platforms.empty() && result.m_platforms.size() == considered.size();
-            result.m_isOnShown = fried::editor::isLeftOut(editor.modules(), owner->m_module, owner->m_backend, editor.project(), editor.platform());
-            return result;
-        }
-
-        std::string platformList(const std::vector<fried::core::Platform> &platforms)
-        {
-            std::string text;
-            for (fried::core::Platform platform : platforms)
-            {
-                text += (text.empty() ? "" : ", ") + fried::editor::platformLabel(platform);
-            }
-            return text;
-        }
-    }
-
     void Panels::inspector()
     {
         if (m_editor.selected() != m_lastInspectedNode)
@@ -2966,6 +2983,11 @@ namespace editor_ui
         fieldEditor(object.m_name);
         ImGui::Separator();
 
+        std::vector<fried::core::Platform> considered = m_editor.project().declaredPlatforms();
+        if (considered.empty())
+        {
+            considered.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
+        }
         std::vector<fried::core::Platform> leaving;
         std::vector<LeftOut> leftOuts;
         for (const fried::editor::ComponentView &component : object.m_components)
@@ -2983,15 +3005,17 @@ namespace editor_ui
         {
             std::sort(leaving.begin(), leaving.end());
             ImGui::PushStyleColor(ImGuiCol_Text, palette::warning);
-            ImGui::TextWrapped("Some components are left out of the game on: %s.", platformList(leaving).c_str());
+            if (leaving.size() >= considered.size())
+            {
+                ImGui::TextWrapped("Some components are left out of the game on every platform.");
+            }
+            else
+            {
+                ImGui::TextWrapped("Some components are left out of the game on: %s.", platformList(leaving).c_str());
+            }
             ImGui::PopStyleColor();
         }
 
-        std::vector<fried::core::Platform> considered = m_editor.project().declaredPlatforms();
-        if (considered.empty())
-        {
-            considered.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
-        }
         std::vector<fried::core::Platform> ignoring;
         for (const fried::editor::ComponentView &component : object.m_components)
         {
@@ -3014,7 +3038,14 @@ namespace editor_ui
         {
             std::sort(ignoring.begin(), ignoring.end());
             ImGui::PushStyleColor(ImGuiCol_Text, palette::warning);
-            ImGui::TextWrapped("Some settings are not used on: %s.", platformList(ignoring).c_str());
+            if (ignoring.size() >= considered.size())
+            {
+                ImGui::TextWrapped("Some settings are not used on any platform.");
+            }
+            else
+            {
+                ImGui::TextWrapped("Some settings are not used on: %s.", platformList(ignoring).c_str());
+            }
             ImGui::PopStyleColor();
         }
         if (!ignoring.empty() || m_isUnusedHidden)

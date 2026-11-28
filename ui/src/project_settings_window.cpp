@@ -107,12 +107,29 @@ namespace editor_ui
                 {
                     continue;
                 }
-                if (ImGui::Selectable(fried::editor::platformLabel(fried::core::s_platforms[index]).c_str(), m_settingsPage == index + 1))
+                const std::string label = fried::editor::platformLabel(fried::core::s_platforms[index]);
+                if (ImGui::Selectable(label.c_str(), m_settingsPage == index + 1))
                 {
                     m_settingsPage = index + 1;
                     m_iconNotes.clear();
                     m_iconError.clear();
                     m_buildMessage.clear();
+                }
+                std::vector<std::string> problems = fried::editor::moduleProblems(m_editor.modules(), m_editor.project(), fried::core::s_platforms[index]);
+                if (!problems.empty())
+                {
+                    ImVec2 low = ImGui::GetItemRectMin();
+                    ImVec2 at(low.x + ImGui::CalcTextSize(label.c_str()).x + scaled(6), low.y + (ImGui::GetItemRectSize().y - Icons::size()) / 2);
+                    Icons::draw(ImGui::GetWindowDrawList(), Icon::Warning, at);
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(at, ImVec2(at.x + Icons::size(), at.y + Icons::size())))
+                    {
+                        std::string text;
+                        for (const std::string &problem : problems)
+                        {
+                            text += (text.empty() ? "" : "\n") + problem;
+                        }
+                        ImGui::SetTooltip("%s", text.c_str());
+                    }
                 }
             }
             ImGui::EndChild();
@@ -514,7 +531,7 @@ namespace editor_ui
         {
             row(module.m_name.c_str());
             std::string own = platform != nullptr ? project.moduleBackend(*platform, module.m_name) : project.moduleBackend(module.m_name);
-            std::string inherited = platform != nullptr ? (project.moduleBackend(module.m_name).empty() ? module.m_default : project.moduleBackend(module.m_name)) : module.m_default;
+            std::string inherited = platform != nullptr ? module.inheritedBackend(project, *platform) : module.m_default;
             std::string shown = own.empty() ? (platform != nullptr ? "Inherit (" + inherited + ")" : module.m_default + " (default)") : own;
             std::string id = "##module-" + module.m_name;
             if (ImGui::BeginCombo(id.c_str(), shown.c_str()))
@@ -540,6 +557,13 @@ namespace editor_ui
                     }
                 }
                 ImGui::EndCombo();
+            }
+            if (platform != nullptr && own.empty() && !project.moduleBackend(module.m_name).empty() && inherited != project.moduleBackend(module.m_name))
+            {
+                ImGui::SetCursorPosX(scaled(s_labelBase));
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::warning);
+                ImGui::TextWrapped("The project-wide %s does not run on this platform, so it uses %s.", project.moduleBackend(module.m_name).c_str(), inherited.c_str());
+                ImGui::PopStyleColor();
             }
             std::string effective = platform != nullptr ? module.backendFor(project, *platform) : (own.empty() ? module.m_default : own);
             const fried::editor::ModuleBackend *used = module.backendNamed(effective);

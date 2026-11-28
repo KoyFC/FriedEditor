@@ -48,11 +48,14 @@ namespace fried::editor
     std::string ModuleSchema::backendFor(const fried::core::Project &project, fried::core::Platform platform) const
     {
         std::string chosen = project.moduleBackend(platform, m_name);
-        if (chosen.empty())
-        {
-            chosen = project.moduleBackend(m_name);
-        }
-        return chosen.empty() ? m_default : chosen;
+        return chosen.empty() ? inheritedBackend(project, platform) : chosen;
+    }
+
+    std::string ModuleSchema::inheritedBackend(const fried::core::Project &project, fried::core::Platform platform) const
+    {
+        std::string shared = project.moduleBackend(m_name);
+        const ModuleBackend *found = shared.empty() ? nullptr : backendNamed(shared);
+        return found != nullptr && found->runsOn(platform) ? shared : m_default;
     }
 
     std::string ModuleSchema::refusal(const std::string &backend, fried::core::Platform platform) const
@@ -71,6 +74,31 @@ namespace fried::editor
             return backend + " does not run on " + fried::core::platformKey(platform) + ".";
         }
         return std::string();
+    }
+
+    std::vector<std::string> moduleProblems(const std::vector<ModuleSchema> &modules, const fried::core::Project &project, fried::core::Platform platform)
+    {
+        std::vector<std::string> problems;
+        const std::string place = platformLabel(platform);
+        for (const ModuleSchema &module : modules)
+        {
+            std::string own = project.moduleBackend(platform, module.m_name);
+            if (!own.empty())
+            {
+                std::string refusal = module.refusal(own, platform);
+                if (!refusal.empty())
+                {
+                    problems.push_back(module.m_name + ": " + refusal);
+                }
+                continue;
+            }
+            std::string shared = project.moduleBackend(module.m_name);
+            if (!shared.empty() && module.inheritedBackend(project, platform) != shared)
+            {
+                problems.push_back(module.m_name + ": the project-wide " + shared + " does not run on " + place + ", so it uses " + module.m_default + ".");
+            }
+        }
+        return problems;
     }
 
     std::vector<ModuleSchema> modulesFromManifest(const nlohmann::json &manifest)

@@ -75,6 +75,7 @@ TEST_CASE("a platform's choice beats the project's, which beats the default")
     value.setModuleBackend(Platform::Vita, "physics2d", "kinematic");
     CHECK(physics.backendFor(value, Platform::Vita) == "kinematic");
     CHECK(physics.backendFor(value, Platform::Pc) == "box2d");
+    CHECK(physics.backendFor(value, Platform::NintendoDs) == "kinematic");
 }
 
 TEST_CASE("a component is left out where its backend is not the one in use or only works in part")
@@ -104,4 +105,16 @@ TEST_CASE("a setting is ignored on the platforms whose backend does not use it")
     CHECK(ignored.m_backend == "kinematic");
     CHECK(settingIgnoredOn(modules, value, "Body2D", "velocityX", considered).m_platforms.empty());
     CHECK(settingIgnoredOn(modules, value, "Collider2D", "bullet", considered).m_platforms.empty());
+}
+
+TEST_CASE("a project-wide backend a platform cannot run is a problem there, and falls back to the default")
+{
+    std::vector<ModuleSchema> modules = sample();
+    fried::core::Project value = project();
+    value.setModuleBackend("physics2d", "box2d");
+    CHECK(moduleProblems(modules, value, Platform::Pc).empty());
+    CHECK(moduleProblems(modules, value, Platform::NintendoDs).size() == 1);
+
+    value.setModuleBackend(Platform::NintendoDs, "physics2d", "kinematic");
+    CHECK(moduleProblems(modules, value, Platform::NintendoDs).empty());
 }
