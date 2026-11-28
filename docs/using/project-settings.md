@@ -12,7 +12,7 @@ The Android page holds the package the device knows the game by, which is repair
 
 The precision is the width of Haxe's `Float` in that platform's build: single, a 32-bit float, or double, a 64-bit one. The DS defaults to single, since it has no floating point unit and does a double in software, and every other platform to double; the calculator takes only double. Single holds whole numbers exactly only up to 16,777,216, and the clock as a `Float` loses its milliseconds with it, so a game that reads `Sys.time()` should read `fried.Clock` instead. The choice is saved as `precision` in the platform's section of `project.fried`, only when it is not the default, and takes effect at the next build. The editor's own player is always built with double.
 
-The autoloads are node classes of the project, as a Godot script is, or scenes, which the game loads once when it starts and keeps while it runs, in the order listed, for what the whole game needs, such as music or a debug overlay. Either is added from the list of what the project has, and each can be moved up or down or removed. They are not shown in the hierarchy, since they only exist while the game runs.
+The autoloads are component classes of the project, as a Unity script is, or scenes, which the game loads once when it starts and keeps while it runs, in the order listed, for what the whole game needs, such as music or a debug overlay. Either is added from the list of what the project has, and each can be moved up or down or removed. They are not shown in the hierarchy, since they only exist while the game runs.
 
 ## Input Map
 

@@ -1,54 +1,74 @@
 {
 	"camera": "camera",
 	"name": "Sample",
-	"nodes": [
+	"objects": [
 		{
 			"children": [
 				{
+					"components": [
+						{
+							"type": "Camera",
+							"zoom": 1
+						}
+					],
 					"id": "camera",
 					"name": "Camera",
-					"type": "Camera",
-					"x": 320,
-					"y": 240,
-					"zoom": 1
+					"transform": {
+						"type": "Transform2D",
+						"x": 320,
+						"y": 240
+					}
 				},
 				{
+					"components": [
+						{
+							"texture": {
+								"path": "sprite.png",
+								"root": "game"
+							},
+							"type": "SpriteRenderer"
+						}
+					],
 					"id": "sprite",
 					"name": "Sprite",
-					"scaleX": 8,
-					"scaleY": 8,
-					"texture": {
-						"path": "sprite.png",
-						"root": "game"
-					},
-					"type": "Sprite",
-					"x": 288,
-					"y": 160
+					"transform": {
+						"scaleX": 8,
+						"scaleY": 8,
+						"type": "Transform2D",
+						"x": 288,
+						"y": 160
+					}
 				},
 				{
-					"color": {
-						"a": 255,
-						"b": 230,
-						"g": 220,
-						"r": 220
-					},
-					"font": {
-						"path": "NunitoSans.ttf",
-						"root": "engine",
-						"size": 16
-					},
+					"components": [
+						{
+							"color": {
+								"a": 255,
+								"b": 230,
+								"g": 220,
+								"r": 220
+							},
+							"font": {
+								"path": "NunitoSans.ttf",
+								"root": "engine",
+								"size": 16
+							},
+							"text": "This scene is a JSON file",
+							"type": "Label"
+						}
+					],
 					"id": "label",
 					"name": "Label",
-					"offsetX": 220,
-					"offsetY": 400,
-					"text": "This scene is a JSON file",
-					"type": "Label"
+					"transform": {
+						"offsetX": 220,
+						"offsetY": 400,
+						"type": "RectTransform"
+					}
 				}
 			],
 			"id": "sample-root",
-			"name": "Sample",
-			"type": "Node"
+			"name": "Sample"
 		}
 	],
-	"version": 2
+	"version": 3
 }

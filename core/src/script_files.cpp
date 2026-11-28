@@ -118,7 +118,7 @@ namespace fried::editor
 
     std::string scriptTemplate(const std::string &package, const std::string &name, const std::string &baseModule)
     {
-        std::string base = baseModule.empty() ? "fried.scene.Node" : baseModule;
+        std::string base = baseModule.empty() ? "fried.scene.Component" : baseModule;
         std::string baseName = base.substr(base.rfind('.') == std::string::npos ? 0 : base.rfind('.') + 1);
         std::string text;
         if (!package.empty())
@@ -131,11 +131,7 @@ namespace fried::editor
         }
         text += "@:serializable\n";
         text += "class " + name + " extends " + baseName + " {\n";
-        text += "\tpublic function new() {\n";
-        text += "\t\tsuper();\n";
-        text += "\t\tname = \"" + name + "\";\n";
-        text += "\t}\n\n";
-        text += "\toverride function ready():Void {}\n\n";
+        text += "\toverride function start():Void {}\n\n";
         text += "\toverride function update(delta:Float):Void {}\n";
         text += "}\n";
         return text;

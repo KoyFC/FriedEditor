@@ -23,11 +23,11 @@ TEST_CASE("a scene of five thousand nodes is edited, moved and written quickly")
     for (int group = 0; group < 50; ++group)
     {
         std::string parent = "g" + std::to_string(group);
-        REQUIRE(document.insertNode("", group, Json{{"id", parent}, {"type", "Node2D"}}));
+        REQUIRE(document.insertNode("", group, Json{{"id", parent}, {"transform", {{"type", "Transform2D"}}}}));
         Json children = Json::array();
         for (int child = 0; child < 99; ++child)
         {
-            children.push_back(Json{{"id", parent + "-" + std::to_string(child)}, {"type", "Sprite"}, {"x", child}});
+            children.push_back(Json{{"id", parent + "-" + std::to_string(child)}, {"transform", {{"type", "Transform2D"}, {"x", child}}}});
         }
         Json withChildren = *document.node(parent);
         withChildren["children"] = children;
@@ -41,7 +41,7 @@ TEST_CASE("a scene of five thousand nodes is edited, moved and written quickly")
 
     CommandStack stack(document);
     double move = millisecondsOf([&] {
-        REQUIRE(stack.execute(std::make_unique<MoveNode>("g3-5", "g40", 0)));
+        REQUIRE(stack.execute(std::make_unique<MoveObject>("g3-5", "g40", 0)));
         stack.undo();
         stack.redo();
         stack.undo();
@@ -49,7 +49,7 @@ TEST_CASE("a scene of five thousand nodes is edited, moved and written quickly")
     double field = millisecondsOf([&] {
         for (int step = 0; step < 100; ++step)
         {
-            stack.execute(std::make_unique<SetNodeField>("g20-50", "x", Json(step)), true);
+            stack.execute(std::make_unique<SetField>("g20-50", ComponentRef{"", 0, true}, "x", Json(step)), true);
         }
     });
     std::string text;

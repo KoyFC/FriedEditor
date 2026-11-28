@@ -60,7 +60,26 @@ int main(int argc, char *argv[])
 
     fried::editor::Editor editor;
     std::string error;
-    if (!editor.open(project, engine, &error))
+    if (!editor.open(project, engine, &error) && editor.isSceneMigrationOffered())
+    {
+        std::cout << "The scenes of this project are version 2, made of nodes, and the editor reads game objects with components.\n"
+                     "Rewrite them with the engine's fried_import? The originals are kept in .fried/v2-backup. [y/N] ";
+        std::string answer;
+        std::getline(std::cin, answer);
+        if (answer.empty() || (answer[0] != 'y' && answer[0] != 'Y'))
+        {
+            return fail(error);
+        }
+        std::string report;
+        bool isMigrated = editor.migrateScenes(&report);
+        std::cout << report << "\n";
+        if (!isMigrated)
+        {
+            return fail("The scenes were not converted.");
+        }
+        error.clear();
+    }
+    else if (!error.empty())
     {
         return fail(error);
     }

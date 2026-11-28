@@ -2,26 +2,26 @@
 
 namespace fried::editor
 {
-    SetNodeField::SetNodeField(std::string id, std::string field, std::optional<nlohmann::json> value)
-        : m_id(std::move(id)), m_field(std::move(field)), m_value(std::move(value))
+    SetField::SetField(std::string id, ComponentRef component, std::string field, std::optional<nlohmann::json> value)
+        : m_id(std::move(id)), m_component(std::move(component)), m_field(std::move(field)), m_value(std::move(value))
     {
     }
 
-    bool SetNodeField::apply(SceneDocument &document)
+    bool SetField::apply(SceneDocument &document)
     {
-        m_before = document.nodeField(m_id, m_field);
-        return document.setNodeField(m_id, m_field, m_value);
+        m_before = document.componentField(m_id, m_component, m_field);
+        return document.setComponentField(m_id, m_component, m_field, m_value);
     }
 
-    void SetNodeField::revert(SceneDocument &document)
+    void SetField::revert(SceneDocument &document)
     {
-        document.setNodeField(m_id, m_field, m_before);
+        document.setComponentField(m_id, m_component, m_field, m_before);
     }
 
-    bool SetNodeField::mergeWith(const Command &later)
+    bool SetField::mergeWith(const Command &later)
     {
-        auto *next = dynamic_cast<const SetNodeField *>(&later);
-        if (!next || next->m_id != m_id || next->m_field != m_field)
+        auto *next = dynamic_cast<const SetField *>(&later);
+        if (!next || next->m_id != m_id || !(next->m_component == m_component) || next->m_field != m_field)
         {
             return false;
         }
@@ -29,18 +29,18 @@ namespace fried::editor
         return true;
     }
 
-    ClearNodeFields::ClearNodeFields(std::string id, std::vector<std::string> fields)
-        : m_id(std::move(id)), m_fields(std::move(fields))
+    ClearFields::ClearFields(std::string id, ComponentRef component, std::vector<std::string> fields)
+        : m_id(std::move(id)), m_component(std::move(component)), m_fields(std::move(fields))
     {
     }
 
-    bool ClearNodeFields::apply(SceneDocument &document)
+    bool ClearFields::apply(SceneDocument &document)
     {
         m_before.clear();
         for (const std::string &field : m_fields)
         {
-            m_before.push_back(document.nodeField(m_id, field));
-            if (!document.setNodeField(m_id, field, std::nullopt))
+            m_before.push_back(document.componentField(m_id, m_component, field));
+            if (!document.setComponentField(m_id, m_component, field, std::nullopt))
             {
                 return false;
             }
@@ -48,26 +48,26 @@ namespace fried::editor
         return true;
     }
 
-    void ClearNodeFields::revert(SceneDocument &document)
+    void ClearFields::revert(SceneDocument &document)
     {
         for (std::size_t index = 0; index < m_fields.size() && index < m_before.size(); ++index)
         {
-            document.setNodeField(m_id, m_fields[index], m_before[index]);
+            document.setComponentField(m_id, m_component, m_fields[index], m_before[index]);
         }
     }
 
-    SetNodeFields::SetNodeFields(std::string id, std::map<std::string, double> fields)
-        : m_id(std::move(id)), m_fields(std::move(fields))
+    SetFields::SetFields(std::string id, ComponentRef component, std::map<std::string, double> fields)
+        : m_id(std::move(id)), m_component(std::move(component)), m_fields(std::move(fields))
     {
     }
 
-    bool SetNodeFields::apply(SceneDocument &document)
+    bool SetFields::apply(SceneDocument &document)
     {
         m_before.clear();
         for (const auto &[field, value] : m_fields)
         {
-            m_before[field] = document.nodeField(m_id, field);
-            if (!document.setNodeField(m_id, field, nlohmann::json(value)))
+            m_before[field] = document.componentField(m_id, m_component, field);
+            if (!document.setComponentField(m_id, m_component, field, nlohmann::json(value)))
             {
                 return false;
             }
@@ -75,18 +75,18 @@ namespace fried::editor
         return true;
     }
 
-    void SetNodeFields::revert(SceneDocument &document)
+    void SetFields::revert(SceneDocument &document)
     {
         for (const auto &[field, before] : m_before)
         {
-            document.setNodeField(m_id, field, before);
+            document.setComponentField(m_id, m_component, field, before);
         }
     }
 
-    bool SetNodeFields::mergeWith(const Command &later)
+    bool SetFields::mergeWith(const Command &later)
     {
-        auto *next = dynamic_cast<const SetNodeFields *>(&later);
-        if (!next || next->m_id != m_id)
+        auto *next = dynamic_cast<const SetFields *>(&later);
+        if (!next || next->m_id != m_id || !(next->m_component == m_component))
         {
             return false;
         }
@@ -104,17 +104,17 @@ namespace fried::editor
         return true;
     }
 
-    AddNode::AddNode(std::string parentId, int index, nlohmann::json node, std::string label)
+    AddObject::AddObject(std::string parentId, int index, nlohmann::json node, std::string label)
         : m_parentId(std::move(parentId)), m_index(index), m_node(std::move(node)), m_label(std::move(label))
     {
     }
 
-    bool AddNode::apply(SceneDocument &document)
+    bool AddObject::apply(SceneDocument &document)
     {
         return document.insertNode(m_parentId, m_index, m_node);
     }
 
-    void AddNode::revert(SceneDocument &document)
+    void AddObject::revert(SceneDocument &document)
     {
         nlohmann::json removed;
         std::string parentId;
@@ -122,12 +122,12 @@ namespace fried::editor
         document.removeNode(m_node.value("id", ""), &removed, &parentId, &index);
     }
 
-    RemoveNode::RemoveNode(std::string id)
+    RemoveObject::RemoveObject(std::string id)
         : m_id(std::move(id))
     {
     }
 
-    bool RemoveNode::apply(SceneDocument &document)
+    bool RemoveObject::apply(SceneDocument &document)
     {
         std::optional<std::string> camera = document.cameraId();
         bool inCamera = false;
@@ -144,7 +144,7 @@ namespace fried::editor
         return true;
     }
 
-    void RemoveNode::revert(SceneDocument &document)
+    void RemoveObject::revert(SceneDocument &document)
     {
         document.insertNode(m_parentId, m_index, m_node);
         if (m_wasCamera)
@@ -153,12 +153,12 @@ namespace fried::editor
         }
     }
 
-    MoveNode::MoveNode(std::string id, std::string parentId, int index)
+    MoveObject::MoveObject(std::string id, std::string parentId, int index)
         : m_id(std::move(id)), m_parentId(std::move(parentId)), m_index(index)
     {
     }
 
-    bool MoveNode::apply(SceneDocument &document)
+    bool MoveObject::apply(SceneDocument &document)
     {
         m_beforeParentId = document.parentOf(m_id);
         m_beforeIndex = document.indexOf(m_id);
@@ -169,38 +169,105 @@ namespace fried::editor
         return document.moveNode(m_id, m_parentId, m_index);
     }
 
-    void MoveNode::revert(SceneDocument &document)
+    void MoveObject::revert(SceneDocument &document)
     {
         document.moveNode(m_id, m_beforeParentId, m_beforeIndex);
     }
 
-    ChangeNodeType::ChangeNodeType(std::string id, std::string type, std::set<std::string> keptFields)
+    ChangeTransformType::ChangeTransformType(std::string id, std::string type, std::set<std::string> keptFields)
         : m_id(std::move(id)), m_type(std::move(type)), m_keptFields(std::move(keptFields))
     {
     }
 
-    bool ChangeNodeType::apply(SceneDocument &document)
+    bool ChangeTransformType::apply(SceneDocument &document)
     {
         const nlohmann::json *current = document.node(m_id);
-        if (!current || current->value("type", "") == m_type)
+        if (!current)
         {
             return false;
         }
-        nlohmann::json next = {{"id", m_id}, {"type", m_type}};
-        for (auto field = current->begin(); field != current->end(); ++field)
+        std::string currentType = document.transformTypeOf(m_id);
+        if (currentType == (m_type.empty() ? "Transform" : m_type))
         {
-            if (field.key() != "id" && field.key() != "type" && field.key() != "children" && (field.key() == "name" || m_keptFields.count(field.key())))
+            return false;
+        }
+        nlohmann::json next = nullptr;
+        if (!m_type.empty() && m_type != "Transform")
+        {
+            next = {{"type", m_type}};
+            if (current->contains("transform"))
             {
-                next[field.key()] = field.value();
+                for (auto field = (*current)["transform"].begin(); field != (*current)["transform"].end(); ++field)
+                {
+                    if (field.key() != "type" && m_keptFields.count(field.key()))
+                    {
+                        next[field.key()] = field.value();
+                    }
+                }
             }
         }
-        return document.replaceNode(m_id, next, &m_before);
+        return document.replaceTransform(m_id, next, &m_before);
     }
 
-    void ChangeNodeType::revert(SceneDocument &document)
+    void ChangeTransformType::revert(SceneDocument &document)
     {
         nlohmann::json ignored;
-        document.replaceNode(m_id, m_before, &ignored);
+        document.replaceTransform(m_id, m_before, &ignored);
+    }
+
+    AddComponent::AddComponent(std::string id, nlohmann::json component, int position)
+        : m_id(std::move(id)), m_component(std::move(component)), m_position(position)
+    {
+    }
+
+    bool AddComponent::apply(SceneDocument &document)
+    {
+        const nlohmann::json *object = document.node(m_id);
+        if (!object)
+        {
+            return false;
+        }
+        int size = object->contains("components") ? (int)(*object)["components"].size() : 0;
+        if (m_position < 0 || m_position > size)
+        {
+            m_position = size;
+        }
+        if (!document.insertComponent(m_id, m_position, m_component))
+        {
+            return false;
+        }
+        m_ref.m_type = m_component.value("type", "");
+        m_ref.m_index = 0;
+        for (int index = 0; index < m_position; ++index)
+        {
+            if ((*document.node(m_id))["components"][index].value("type", "") == m_ref.m_type)
+            {
+                m_ref.m_index++;
+            }
+        }
+        return true;
+    }
+
+    void AddComponent::revert(SceneDocument &document)
+    {
+        nlohmann::json removed;
+        int position = 0;
+        document.removeComponent(m_id, m_ref, &removed, &position);
+    }
+
+    RemoveComponent::RemoveComponent(std::string id, ComponentRef component)
+        : m_id(std::move(id)), m_component(std::move(component))
+    {
+    }
+
+    bool RemoveComponent::apply(SceneDocument &document)
+    {
+        return document.removeComponent(m_id, m_component, &m_removed, &m_position);
+    }
+
+    void RemoveComponent::revert(SceneDocument &document)
+    {
+        document.insertComponent(m_id, m_position, m_removed);
     }
 
     SetCamera::SetCamera(std::optional<std::string> id)

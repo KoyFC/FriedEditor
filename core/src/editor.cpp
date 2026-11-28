@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <set>
 #include <sstream>
+#include <thread>
 
 namespace fried::editor
 {
@@ -50,6 +51,53 @@ namespace fried::editor
         return isOpen && result.m_failed.empty();
     }
 
+    bool Editor::migrateScenes(std::string *report)
+    {
+        std::string directory = m_project.directory();
+        std::string engine = m_enginePath;
+        std::string tool;
+        for (const char *candidate : {"/build/fried_import_tool/fried_import", "/build/tools/fried_import/fried_import", "/build/fried_import"})
+        {
+            std::error_code ignored;
+            if (fs::exists(engine + candidate, ignored))
+            {
+                tool = engine + candidate;
+                break;
+            }
+        }
+        if (tool.empty())
+        {
+            *report = "The engine's fried_import is not built. Build the engine, then run: fried_import migrate-scenes " + directory;
+            return false;
+        }
+        std::string error;
+        SubprocessOptions options;
+        options.m_arguments = {tool, "migrate-scenes", directory};
+        options.m_captureOutput = true;
+        std::unique_ptr<Subprocess> process = startSubprocess(options, &error);
+        if (!process)
+        {
+            *report = error;
+            return false;
+        }
+        std::string output;
+        while (process->isRunning())
+        {
+            output += process->readOutput();
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        output += process->readOutput();
+        if (process->exitCode() != 0)
+        {
+            *report = "fried_import failed:\n" + output;
+            return false;
+        }
+        std::string openError;
+        bool isOpen = open(directory, engine, &openError);
+        *report = output + (isOpen ? std::string() : "\n" + openError);
+        return isOpen;
+    }
+
     // An engine from before the editor player existed cannot show a scene, so it does not count.
     std::string Editor::findEngine(const std::string &projectDirectory)
     {
@@ -68,13 +116,27 @@ namespace fried::editor
         }
         m_enginePath = enginePath;
         m_isYamlMigrationOffered = fried::core::needsYamlMigration(projectDirectory);
+        m_isSceneMigrationOffered = false;
+        for (const std::string &path : scenePaths())
+        {
+            std::ifstream scene(path, std::ios::binary);
+            std::string line;
+            while (std::getline(scene, line))
+            {
+                if (line.compare(0, 8, "version:") == 0)
+                {
+                    m_isSceneMigrationOffered = m_isSceneMigrationOffered || line.find_first_not_of(" \t", 8) != std::string::npos && line.compare(line.find_first_not_of(" \t", 8), 1, "2") == 0;
+                    break;
+                }
+            }
+        }
         m_toolchains = machineToolchains();
         m_settings.m_onSaved = [this] { projectChanged(); };
         m_settings.m_projectClasses = [this] {
             std::vector<std::string> names;
             for (const ClassSchema &schema : m_session.schema())
             {
-                if (!schema.m_isBuiltin)
+                if (!schema.m_isBuiltin && schema.m_kind == "component")
                 {
                     names.push_back(schema.m_name);
                 }
@@ -86,7 +148,7 @@ namespace fried::editor
         if (scenes.empty())
         {
             m_scenePath = m_project.scenesDirectory() + "/main" + fried::core::s_sceneSuffix;
-            m_document = SceneDocument::withRoot("Main", "Node2D");
+            m_document = SceneDocument::withRoot("Main", "Transform2D");
         }
         else
         {
@@ -480,15 +542,22 @@ namespace fried::editor
         m_play.m_onState = [this](const Json &nodes) {
             for (const Json &entry : nodes)
             {
-                if (!entry.is_object() || !entry.contains("id") || !entry.contains("fields") || !entry["fields"].is_object())
+                if (!entry.is_object() || !entry.contains("id") || !entry.contains("components") || !entry["components"].is_array())
                 {
                     continue;
                 }
                 const std::string id = entry["id"].get<std::string>();
-                Json &live = m_liveFields[id];
-                for (const auto &field : entry["fields"].items())
+                for (const Json &component : entry["components"])
                 {
-                    live[field.key()] = field.value();
+                    if (!component.is_object() || !component.contains("type") || !component.contains("fields") || !component["fields"].is_object())
+                    {
+                        continue;
+                    }
+                    Json &live = m_liveFields[id][{component["type"].get<std::string>(), component.value("index", 0)}];
+                    for (const auto &field : component["fields"].items())
+                    {
+                        live[field.key()] = field.value();
+                    }
                 }
                 if (m_selected && *m_selected == id)
                 {
@@ -837,7 +906,12 @@ namespace fried::editor
                 Json restored = Json::array();
                 for (const auto &entry : m_liveFields)
                 {
-                    restored.push_back({{"id", entry.first}, {"fields", entry.second}});
+                    Json components = Json::array();
+                    for (const auto &component : entry.second)
+                    {
+                        components.push_back({{"type", component.first.first}, {"index", component.first.second}, {"fields", component.second}});
+                    }
+                    restored.push_back({{"id", entry.first}, {"components", components}});
                 }
                 m_session.setFields(restored);
             }
@@ -1219,7 +1293,7 @@ namespace fried::editor
         m_viewMode = ViewMode::TwoD;
         for (const std::string &id : m_document.nodeIds())
         {
-            if (isClassOf(m_document.typeOf(id), "Node3D"))
+            if (isClassOf(m_document.transformTypeOf(id), "Transform3D"))
             {
                 m_viewMode = ViewMode::ThreeD;
                 break;
@@ -1504,7 +1578,8 @@ namespace fried::editor
         {
             const Json *node = m_document.node(id);
             std::string name = node && node->contains("name") && (*node)["name"].is_string() ? (*node)["name"].get<std::string>() : id;
-            m_hierarchyRows.push_back({id, std::move(name), m_document.typeOf(id), camera == id, m_document.instanceOf(id), m_document.depthOf(id), m_document.childCount(id) > 0});
+            bool isActive = !node || !node->contains("active") || !(*node)["active"].is_boolean() || (*node)["active"].get<bool>();
+            m_hierarchyRows.push_back({id, std::move(name), m_document.primaryTypeOf(id), m_document.transformTypeOf(id), camera == id, isActive, m_document.instanceOf(id), m_document.depthOf(id), m_document.childCount(id) > 0});
         }
         m_hierarchyVersion = m_document.version();
         return m_hierarchyRows;
@@ -1532,9 +1607,19 @@ namespace fried::editor
         return names;
     }
 
+    namespace
+    {
+        ComponentRef transformRef()
+        {
+            ComponentRef ref;
+            ref.m_isTransform = true;
+            return ref;
+        }
+    }
+
     bool Editor::isControl(const std::string &id) const
     {
-        return isClassOf(m_document.typeOf(id), "Control");
+        return isClassOf(m_document.transformTypeOf(id), "RectTransform");
     }
 
     const ObjectBounds *Editor::boundsOf(const std::string &id) const
@@ -1549,13 +1634,13 @@ namespace fried::editor
         return nullptr;
     }
 
-    // A new node holds what its class says by default, except what every node has, which the file leaves out.
-    Json Editor::newNode(const std::string &type) const
+    // The defaults of a component's class and of the classes it extends, except what every component has, which the file leaves out.
+    Json Editor::componentDefaults(const std::string &type) const
     {
-        Json node = {{"type", type}};
+        Json component = {{"type", type}};
         for (const ClassSchema *schema : m_session.classChain(type))
         {
-            if (schema->m_name == "Node" || schema->m_name == "CanvasItem")
+            if (schema->m_name == "Component" || schema->m_name == "Renderer2D")
             {
                 continue;
             }
@@ -1563,43 +1648,123 @@ namespace fried::editor
             {
                 if (!field.m_default.is_null())
                 {
-                    node[field.m_name] = field.m_default;
+                    component[field.m_name] = field.m_default;
                 }
             }
         }
-        return node;
+        return component;
     }
 
-    void Editor::addNode(const std::string &type, const std::optional<std::string> &parentId)
+    std::string Editor::requiredTransform(const std::string &type) const
     {
-        std::string base = type;
+        for (const ClassSchema *schema : m_session.classChain(type))
+        {
+            if (!schema->m_requires.empty())
+            {
+                return schema->m_requires;
+            }
+        }
+        return std::string();
+    }
+
+    // Where a new object starts: at the middle of the view the scene is seen through.
+    void Editor::placeAtView(Json *object, const std::string &transformType) const
+    {
+        if (isClassOf(transformType, "Transform2D"))
+        {
+            (*object)["transform"]["x"] = std::round(m_viewport.cameraX());
+            (*object)["transform"]["y"] = std::round(m_viewport.cameraY());
+        }
+        else if (isClassOf(transformType, "Transform3D"))
+        {
+            (*object)["transform"]["x"] = std::round(m_viewport3D.targetX() * 100) / 100;
+            (*object)["transform"]["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
+            (*object)["transform"]["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
+        }
+    }
+
+    Json Editor::newObject(const std::string &transformType, const std::string &component) const
+    {
+        std::string transform = transformType.empty() ? requiredTransform(component) : transformType;
+        Json object = Json::object();
+        if (!transform.empty() && transform != "Transform")
+        {
+            object["transform"] = {{"type", transform}};
+            for (const ClassSchema *schema : m_session.classChain(transform))
+            {
+                if (schema->m_name == "Component" || schema->m_name == "Transform")
+                {
+                    continue;
+                }
+                for (const FieldSchema &field : schema->m_fields)
+                {
+                    if (!field.m_default.is_null() && field.m_name != "type")
+                    {
+                        object["transform"][field.m_name] = field.m_default;
+                    }
+                }
+            }
+        }
+        if (!component.empty())
+        {
+            object["components"] = Json::array({componentDefaults(component)});
+        }
+        return object;
+    }
+
+    void Editor::addObject(const std::string &transformType, const std::string &component, const std::optional<std::string> &parentId)
+    {
+        std::string label = component.empty() ? (transformType.empty() ? std::string("Object") : transformType) : component;
+        std::string base = label;
         std::transform(base.begin(), base.end(), base.begin(), [](unsigned char c) { return (char)std::tolower(c); });
         std::string id = m_document.uniqueId(base);
 
-        Json node = newNode(type);
-        node["id"] = id;
-        node["name"] = type;
-        if (isClassOf(type, "Node2D"))
-        {
-            node["x"] = std::round(m_viewport.cameraX());
-            node["y"] = std::round(m_viewport.cameraY());
-        }
-        else if (isClassOf(type, "Node3D"))
-        {
-            node["x"] = std::round(m_viewport3D.targetX() * 100) / 100;
-            node["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
-            node["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
-        }
+        Json object = newObject(transformType, component);
+        object["id"] = id;
+        object["name"] = label;
+        std::string transform = transformType.empty() ? requiredTransform(component) : transformType;
+        placeAtView(&object, transform);
         std::string parent = parentId ? *parentId : m_document.rootId();
-        if (m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node)))
+        if (m_commands->execute(std::make_unique<AddObject>(parent, m_document.childCount(parent), object)))
         {
             select(id);
         }
     }
 
+    bool Editor::canHaveComponent(const std::string &id, const std::string &type) const
+    {
+        std::string needed = requiredTransform(type);
+        return needed.empty() || isClassOf(m_document.transformTypeOf(id), needed);
+    }
+
+    bool Editor::addComponent(const std::string &id, const std::string &type)
+    {
+        if (!m_document.node(id))
+        {
+            return false;
+        }
+        if (!canHaveComponent(id, type))
+        {
+            m_message = type + " needs a " + requiredTransform(type) + ", and " + id + " has a " + m_document.transformTypeOf(id) + ".";
+            changed();
+            return false;
+        }
+        return m_commands->execute(std::make_unique<AddComponent>(id, componentDefaults(type)));
+    }
+
+    void Editor::removeComponent(const std::string &id, const ComponentRef &component)
+    {
+        m_commands->execute(std::make_unique<RemoveComponent>(id, component));
+    }
+
+    void Editor::setActive(const std::string &id, bool isActive)
+    {
+        m_commands->execute(std::make_unique<SetField>(id, ComponentRef{}, "active", isActive ? std::optional<Json>() : std::optional<Json>(Json(false))));
+    }
+
     namespace
     {
-        constexpr const char *s_clipboardPrefix = "fried-nodes:";
+        constexpr const char *s_clipboardPrefix = "fried-objects:";
 
         // The text without the number at its end, and without the separator before it when there is one: "post-3" with a dash is "post", and "Enemy2" with none is "Enemy".
         std::string withoutNumber(const std::string &text, char separator)
@@ -1669,7 +1834,7 @@ namespace fried::editor
         }
 
         std::string id = copy.value("id", "");
-        if (!m_commands->execute(std::make_unique<AddNode>(parentId, index, copy, label)))
+        if (!m_commands->execute(std::make_unique<AddObject>(parentId, index, copy, label)))
         {
             return false;
         }
@@ -1689,7 +1854,7 @@ namespace fried::editor
             changed();
             return false;
         }
-        return insertCopy(*m_document.node(*m_selected), m_document.parentOf(*m_selected), m_document.indexOf(*m_selected) + 1, "Duplicate node");
+        return insertCopy(*m_document.node(*m_selected), m_document.parentOf(*m_selected), m_document.indexOf(*m_selected) + 1, "Duplicate object");
     }
 
     std::string Editor::copySelected()
@@ -1709,7 +1874,7 @@ namespace fried::editor
         if (clipboardText.compare(0, prefix.size(), prefix) == 0)
         {
             Json parsed = Json::parse(clipboardText.substr(prefix.size()), nullptr, false);
-            if (parsed.is_object() && parsed.contains("type") && parsed["type"].is_string())
+            if (parsed.is_object() && parsed.contains("id") && parsed["id"].is_string())
             {
                 source = parsed;
             }
@@ -1726,7 +1891,7 @@ namespace fried::editor
             parent = m_document.rootId();
             index = m_document.childCount(parent);
         }
-        return insertCopy(source, parent, index, "Paste node");
+        return insertCopy(source, parent, index, "Paste object");
     }
 
     namespace
@@ -1755,10 +1920,7 @@ namespace fried::editor
 
     void Editor::bind(SceneDocument &document)
     {
-        document.m_instanceType = [this](const std::string &name) {
-            std::optional<Json> root = sceneRoot(name);
-            return root && root->contains("type") && (*root)["type"].is_string() ? (*root)["type"].get<std::string>() : std::string();
-        };
+        document.m_instanceRoot = [this](const std::string &name) { return sceneRoot(name).value_or(Json()); };
     }
 
     std::string Editor::scenePathOf(const std::string &name) const
@@ -1804,11 +1966,11 @@ namespace fried::editor
             }
             data = &cached->second.second;
         }
-        if (!data->is_object() || !data->contains("nodes") || !(*data)["nodes"].is_array() || (*data)["nodes"].size() != 1 || !(*data)["nodes"][0].is_object())
+        if (!data->is_object() || !data->contains("objects") || !(*data)["objects"].is_array() || (*data)["objects"].size() != 1 || !(*data)["objects"][0].is_object())
         {
             return std::nullopt;
         }
-        return (*data)["nodes"][0];
+        return (*data)["objects"][0];
     }
 
     // Whether the scene, or a scene it instances at any depth, instances the target.
@@ -1844,7 +2006,7 @@ namespace fried::editor
         {
             return "The scene " + sceneName + " has more or fewer than one top-level node, and only a scene with exactly one can be instanced.";
         }
-        if (root->contains("instance") && !root->contains("type"))
+        if (root->contains("instance"))
         {
             return "The root of " + sceneName + " is itself an instance, which is not supported.";
         }
@@ -1868,20 +2030,10 @@ namespace fried::editor
         Json root = *sceneRoot(name);
         std::string id = m_document.uniqueId(root.value("id", name));
         Json node = {{"id", id}, {"instance", name}};
-        std::string type = root.value("type", "");
-        if (isClassOf(type, "Node2D"))
-        {
-            node["x"] = std::round(m_viewport.cameraX());
-            node["y"] = std::round(m_viewport.cameraY());
-        }
-        else if (isClassOf(type, "Node3D"))
-        {
-            node["x"] = std::round(m_viewport3D.targetX() * 100) / 100;
-            node["y"] = std::round(m_viewport3D.targetY() * 100) / 100;
-            node["z"] = std::round(m_viewport3D.targetZ() * 100) / 100;
-        }
+        std::string type = root.contains("transform") && root["transform"].is_object() ? root["transform"].value("type", std::string()) : std::string();
+        placeAtView(&node, type);
         std::string parent = parentId ? *parentId : m_document.rootId();
-        if (!m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node, "Instance scene")))
+        if (!m_commands->execute(std::make_unique<AddObject>(parent, m_document.childCount(parent), node, "Instance scene")))
         {
             *error = "The scene could not be added.";
             return false;
@@ -1916,7 +2068,7 @@ namespace fried::editor
 
     void Editor::chooseInstanceScene(const std::string &id, const std::string &sceneName)
     {
-        m_commands->execute(std::make_unique<SetNodeField>(id, "instance", Json(sceneName)));
+        m_commands->execute(std::make_unique<SetField>(id, ComponentRef{}, "instance", Json(sceneName)));
     }
 
     void Editor::removeSelected()
@@ -1927,7 +2079,7 @@ namespace fried::editor
             changed();
             return;
         }
-        if (m_selected && m_commands->execute(std::make_unique<RemoveNode>(*m_selected)))
+        if (m_selected && m_commands->execute(std::make_unique<RemoveObject>(*m_selected)))
         {
             select(std::nullopt);
         }
@@ -1941,7 +2093,7 @@ namespace fried::editor
             std::string parent = m_document.parentOf(*m_selected);
             if (target >= 0 && target < m_document.childCount(parent))
             {
-                m_commands->execute(std::make_unique<MoveNode>(*m_selected, parent, target));
+                m_commands->execute(std::make_unique<MoveObject>(*m_selected, parent, target));
             }
         }
     }
@@ -1958,20 +2110,20 @@ namespace fried::editor
         {
             --index;
         }
-        m_commands->execute(std::make_unique<MoveNode>(id, parentId, index));
+        m_commands->execute(std::make_unique<MoveObject>(id, parentId, index));
     }
 
-    void Editor::changeType(const std::string &id, const std::string &type)
+    void Editor::changeTransformType(const std::string &id, const std::string &type)
     {
         std::set<std::string> kept;
-        for (const ClassSchema *schema : m_session.classChain(type))
+        for (const ClassSchema *schema : m_session.classChain(type.empty() ? std::string("Transform") : type))
         {
             for (const FieldSchema &field : schema->m_fields)
             {
                 kept.insert(field.m_name);
             }
         }
-        m_commands->execute(std::make_unique<ChangeNodeType>(id, type, kept));
+        m_commands->execute(std::make_unique<ChangeTransformType>(id, type, kept));
     }
 
     void Editor::setCameraToSelected()
@@ -1984,7 +2136,7 @@ namespace fried::editor
 
     void Editor::rename(const std::string &id, const std::string &name)
     {
-        m_commands->execute(std::make_unique<SetNodeField>(id, "name", Json(name)));
+        m_commands->execute(std::make_unique<SetField>(id, ComponentRef{}, "name", Json(name)));
     }
 
     void Editor::renameSelected(const std::string &name)
@@ -1995,83 +2147,135 @@ namespace fried::editor
         }
     }
 
-    const std::vector<ClassView> &Editor::inspector() const
+    namespace
+    {
+        // The transform or component of an object's JSON that a reference names, null when it has none.
+        const Json *baseComponent(const Json &object, const ComponentRef &ref)
+        {
+            if (ref.m_isTransform)
+            {
+                return object.contains("transform") && object["transform"].is_object() ? &object["transform"] : nullptr;
+            }
+            if (!object.contains("components") || !object["components"].is_array())
+            {
+                return nullptr;
+            }
+            int seen = 0;
+            for (const Json &component : object["components"])
+            {
+                if (component.value("type", std::string()) == ref.m_type && seen++ == ref.m_index)
+                {
+                    return &component;
+                }
+            }
+            return nullptr;
+        }
+    }
+
+    const ObjectView &Editor::inspector() const
     {
         if (m_inspectorVersion == m_document.version() && m_inspectorVersion != 0 && m_inspectorSelected == m_selected
             && m_inspectorSchemaSize == m_session.schema().size() && m_inspectorLiveSerial == m_liveSerial)
         {
-            return m_inspectorViews;
+            return m_inspectorView;
         }
-        std::vector<ClassView> &views = m_inspectorViews;
-        views.clear();
+        ObjectView &view = m_inspectorView;
+        view = ObjectView();
         m_inspectorVersion = m_document.version();
         m_inspectorSelected = m_selected;
         m_inspectorSchemaSize = m_session.schema().size();
         m_inspectorLiveSerial = m_liveSerial;
-        const Json *live = nullptr;
-        if (m_isPlaying && m_selected)
-        {
-            auto found = m_liveFields.find(*m_selected);
-            live = found != m_liveFields.end() ? &found->second : nullptr;
-        }
         const Json *node = m_selected ? m_document.node(*m_selected) : nullptr;
         if (!node)
         {
-            return views;
+            return view;
         }
-        std::string instanced = m_document.instanceOf(*m_selected);
+        const std::string &id = *m_selected;
+        const auto *live = [&]() -> const std::map<std::pair<std::string, int>, Json> * {
+            if (!m_isPlaying)
+            {
+                return nullptr;
+            }
+            auto found = m_liveFields.find(id);
+            return found != m_liveFields.end() ? &found->second : nullptr;
+        }();
+        std::string instanced = m_document.instanceOf(id);
         std::optional<Json> base = instanced.empty() ? std::nullopt : sceneRoot(instanced);
-        std::vector<const ClassSchema *> chain = m_session.classChain(m_document.typeOf(*m_selected));
-        for (std::size_t position = 0; position < chain.size(); ++position)
-        {
-            const ClassSchema *schema = chain[position];
-            ClassView view;
-            view.m_class = schema->m_name;
-            // The name belongs to every node, so it is the first field of the section of the class every node is.
-            if (position + 1 == chain.size())
+
+        view.m_id = id;
+        view.m_instance = instanced;
+        view.m_name.m_schema = {"name", "string", {}, Json(id)};
+        view.m_name.m_isSet = node->contains("name");
+        view.m_name.m_value = view.m_name.m_isSet ? (*node)["name"] : base && base->contains("name") ? (*base)["name"] : Json(id);
+        view.m_active.m_schema = {"active", "bool", {}, Json(true)};
+        view.m_active.m_isSet = node->contains("active");
+        view.m_active.m_value = view.m_active.m_isSet ? (*node)["active"] : base && base->contains("active") ? (*base)["active"] : Json(true);
+
+        auto describe = [&](const ComponentRef &ref, const std::string &type) {
+            ComponentView component;
+            component.m_ref = ref;
+            component.m_type = type;
+            const Json *inherited = base ? baseComponent(*base, ref) : nullptr;
+            const Json *liveValues = nullptr;
+            if (live)
             {
-                FieldView name;
-                name.m_schema = {"name", "string", {}, Json(*m_selected)};
-                name.m_isSet = node->contains("name");
-                name.m_value = name.m_isSet ? (*node)["name"] : base && base->contains("name") ? (*base)["name"] : Json(*m_selected);
-                view.m_fields.push_back(std::move(name));
+                auto found = live->find({ref.m_isTransform ? m_document.transformTypeOf(id) : ref.m_type, ref.m_index});
+                liveValues = found != live->end() ? &found->second : nullptr;
             }
-            for (const FieldSchema &field : schema->m_fields)
+            std::vector<const ClassSchema *> chain = m_session.classChain(type);
+            for (const ClassSchema *schema : chain)
             {
-                FieldView fieldView;
-                fieldView.m_schema = field;
-                fieldView.m_isSet = node->contains(field.m_name);
-                fieldView.m_value = fieldView.m_isSet ? (*node)[field.m_name] : base && base->contains(field.m_name) ? (*base)[field.m_name] : field.m_default;
-                if (live && live->contains(field.m_name))
+                ClassView classView;
+                classView.m_class = schema->m_name;
+                for (const FieldSchema &field : schema->m_fields)
                 {
-                    fieldView.m_value = (*live)[field.m_name];
+                    FieldView fieldView;
+                    fieldView.m_schema = field;
+                    std::optional<Json> own = m_document.componentField(id, ref, field.m_name);
+                    fieldView.m_isSet = own.has_value();
+                    fieldView.m_value = own ? *own : inherited && inherited->contains(field.m_name) ? (*inherited)[field.m_name] : field.m_default;
+                    if (liveValues && liveValues->contains(field.m_name))
+                    {
+                        fieldView.m_value = (*liveValues)[field.m_name];
+                    }
+                    classView.m_fields.push_back(std::move(fieldView));
                 }
-                view.m_fields.push_back(std::move(fieldView));
+                component.m_classes.push_back(std::move(classView));
             }
-            views.push_back(std::move(view));
+            view.m_components.push_back(std::move(component));
+        };
+
+        ComponentRef transform;
+        transform.m_isTransform = true;
+        describe(transform, m_document.transformTypeOf(id));
+        for (const ComponentRef &ref : m_document.componentsOf(id))
+        {
+            describe(ref, ref.m_type);
         }
-        return views;
+        return view;
     }
 
-    void Editor::setField(const std::string &field, const std::optional<Json> &value)
+    void Editor::setField(const ComponentRef &component, const std::string &field, const std::optional<Json> &value)
     {
         if (m_selected)
         {
-            m_commands->execute(std::make_unique<SetNodeField>(*m_selected, field, value), true);
+            m_commands->execute(std::make_unique<SetField>(*m_selected, component, field, value), true);
         }
     }
 
-    void Editor::revertFields(const std::vector<std::string> &fields)
+    void Editor::revertFields(const ComponentRef &component, const std::vector<std::string> &fields)
     {
         if (m_selected && !fields.empty())
         {
-            m_commands->execute(std::make_unique<ClearNodeFields>(*m_selected, fields));
+            m_commands->execute(std::make_unique<ClearFields>(*m_selected, component, fields));
         }
     }
 
     void Editor::setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge)
     {
-        m_commands->execute(std::make_unique<SetNodeFields>(id, fields), merge);
+        ComponentRef transform;
+        transform.m_isTransform = true;
+        m_commands->execute(std::make_unique<SetFields>(id, transform, fields), merge);
     }
 
     const std::vector<AssetEntry> &Editor::assets() const
@@ -2302,8 +2506,8 @@ namespace fried::editor
             *error = "Scripts go in the game's source, not in its assets.";
             return false;
         }
-        std::string base = baseClass == "Node" || baseClass.empty() ? std::string() : findClassModule({directory, m_enginePath + "/src"}, baseClass);
-        if (base.empty() && baseClass != "Node" && !baseClass.empty())
+        std::string base = baseClass == "Component" || baseClass.empty() ? std::string() : findClassModule({directory, m_enginePath + "/src"}, baseClass);
+        if (base.empty() && baseClass != "Component" && !baseClass.empty())
         {
             *error = "The file of " + baseClass + " is not in the source of the game or the engine.";
             return false;
@@ -2365,17 +2569,10 @@ namespace fried::editor
             // A sheet dropped on a document is its theme.
             if (auto target = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
             {
-                for (const ClassSchema *schema : m_session.classChain(m_document.typeOf(*target)))
+                if (auto component = componentWithField(*target, "theme"))
                 {
-                    for (const FieldSchema &field : schema->m_fields)
-                    {
-                        if (field.m_name == "theme")
-                        {
-                            select(target);
-                            m_commands->execute(std::make_unique<SetNodeField>(*target, "theme", Json({{"root", root}, {"path", path}})));
-                            return;
-                        }
-                    }
+                    select(target);
+                    m_commands->execute(std::make_unique<SetField>(*target, *component, "theme", Json({{"root", root}, {"path", path}})));
                 }
             }
             return;
@@ -2395,18 +2592,10 @@ namespace fried::editor
         {
             if (auto target = Viewport::hit(m_viewport, m_frame.m_bounds, frameX, frameY))
             {
-                bool hasTexture = false;
-                for (const ClassSchema *schema : m_session.classChain(m_document.typeOf(*target)))
-                {
-                    for (const FieldSchema &field : schema->m_fields)
-                    {
-                        hasTexture = hasTexture || field.m_name == "texture";
-                    }
-                }
-                if (hasTexture)
+                if (auto component = componentWithField(*target, "texture"))
                 {
                     select(target);
-                    m_commands->execute(std::make_unique<SetNodeField>(*target, "texture", reference));
+                    m_commands->execute(std::make_unique<SetField>(*target, *component, "texture", reference));
                     return;
                 }
             }
@@ -2420,28 +2609,48 @@ namespace fried::editor
         std::string id = m_document.uniqueId(stem.empty() ? "asset" : stem);
         double worldX = std::round(m_viewport.frameToWorldX(frameX));
         double worldY = std::round(m_viewport.frameToWorldY(frameY));
-        Json node = newNode(kind == AssetKind::Image ? "Sprite" : "Label");
-        node["id"] = id;
-        node["name"] = stem;
-        node[kind == AssetKind::Image ? "texture" : "font"] = reference;
+        Json object = newObject("", kind == AssetKind::Image ? "SpriteRenderer" : "Label");
+        object["id"] = id;
+        object["name"] = stem;
+        Json &component = object["components"][0];
+        component[kind == AssetKind::Image ? "texture" : "font"] = reference;
         if (kind == AssetKind::Image)
         {
-            node["x"] = worldX;
-            node["y"] = worldY;
+            object["transform"]["x"] = worldX;
+            object["transform"]["y"] = worldY;
         }
         else
         {
-            // A label sits at its offset from the top left of its parent, which for a node at the top of the scene is the world's origin.
-            node["offsetX"] = worldX;
-            node["offsetY"] = worldY;
-            node["text"] = "Text";
-            node["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
+            // A label sits at its offset from the top left of its parent, which for an object at the top of the scene is the world's origin.
+            object["transform"]["offsetX"] = worldX;
+            object["transform"]["offsetY"] = worldY;
+            component["text"] = "Text";
+            component["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
         }
         std::string top = m_document.rootId();
-        if (m_commands->execute(std::make_unique<AddNode>(top, m_document.childCount(top), node)))
+        if (m_commands->execute(std::make_unique<AddObject>(top, m_document.childCount(top), object)))
         {
             select(id);
         }
+    }
+
+    // The first component of the object whose class, or one it extends, declares the field.
+    std::optional<ComponentRef> Editor::componentWithField(const std::string &id, const std::string &field) const
+    {
+        for (const ComponentRef &ref : m_document.componentsOf(id))
+        {
+            for (const ClassSchema *schema : m_session.classChain(ref.m_type))
+            {
+                for (const FieldSchema &candidate : schema->m_fields)
+                {
+                    if (candidate.m_name == field)
+                    {
+                        return ref;
+                    }
+                }
+            }
+        }
+        return std::nullopt;
     }
 
     void Editor::addAssetNode(const std::string &root, const std::string &path, const std::string &parentId)
@@ -2457,45 +2666,36 @@ namespace fried::editor
             return;
         }
         AssetKind kind = assetKindOf(path);
-        if (kind == AssetKind::Html)
-        {
-            std::string name = fs::path(path).stem().string();
-            std::string documentId = m_document.uniqueId(name.empty() ? "document" : name);
-            Json document = newNode("UIDocument");
-            document["id"] = documentId;
-            document["name"] = name;
-            document["document"] = {{"root", root}, {"path", path}};
-            std::string documentParent = parentId.empty() ? m_document.rootId() : parentId;
-            if (m_commands->execute(std::make_unique<AddNode>(documentParent, m_document.childCount(documentParent), document)))
-            {
-                select(documentId);
-            }
-            return;
-        }
-        if (kind != AssetKind::Image && kind != AssetKind::Font)
+        if (kind != AssetKind::Html && kind != AssetKind::Image && kind != AssetKind::Font)
         {
             return;
         }
 
         Json reference = {{"root", root}, {"path", path}};
         std::string stem = fs::path(path).stem().stem().string();
-        std::string id = m_document.uniqueId(stem.empty() ? "asset" : stem);
-        Json node = newNode(kind == AssetKind::Image ? "Sprite" : "Label");
-        node["id"] = id;
-        node["name"] = stem;
-        if (kind == AssetKind::Image)
+        std::string name = kind == AssetKind::Html ? fs::path(path).stem().string() : stem;
+        std::string id = m_document.uniqueId(name.empty() ? (kind == AssetKind::Html ? "document" : "asset") : name);
+        Json object = newObject("", kind == AssetKind::Html ? "UIDocument" : kind == AssetKind::Image ? "SpriteRenderer" : "Label");
+        object["id"] = id;
+        object["name"] = name;
+        Json &component = object["components"][0];
+        if (kind == AssetKind::Html)
         {
-            node["texture"] = reference;
+            component["document"] = reference;
+        }
+        else if (kind == AssetKind::Image)
+        {
+            component["texture"] = reference;
         }
         else
         {
             reference["size"] = 16;
-            node["font"] = reference;
-            node["text"] = "Text";
-            node["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
+            component["font"] = reference;
+            component["text"] = "Text";
+            component["color"] = {{"r", 255}, {"g", 255}, {"b", 255}, {"a", 255}};
         }
         std::string parent = parentId.empty() ? m_document.rootId() : parentId;
-        if (m_commands->execute(std::make_unique<AddNode>(parent, m_document.childCount(parent), node)))
+        if (m_commands->execute(std::make_unique<AddObject>(parent, m_document.childCount(parent), object)))
         {
             select(id);
         }
@@ -2527,7 +2727,7 @@ namespace fried::editor
     TransformValues Editor::transformOf(const std::string &id) const
     {
         auto number = [&](const char *field, double fallback) {
-            std::optional<Json> value = m_document.nodeField(id, field);
+            std::optional<Json> value = m_document.componentField(id, transformRef(), field);
             return value && value->is_number() ? value->get<double>() : fallback;
         };
         TransformValues values = {number("x", 0), number("y", 0), number("rotation", 0), number("scaleX", 1), number("scaleY", 1)};
@@ -2584,7 +2784,7 @@ namespace fried::editor
             return std::nullopt;
         }
         auto number = [&](const char *field) {
-            std::optional<Json> value = m_document.nodeField(*m_selected, field);
+            std::optional<Json> value = m_document.componentField(*m_selected, transformRef(), field);
             return value && value->is_number() ? value->get<double>() : 0.0;
         };
         auto axisOf = [](double minimum, double maximum) {
@@ -2621,7 +2821,7 @@ namespace fried::editor
         preview.m_pivotY = number("pivotY");
         preview.m_horizontal = axisOf(preview.m_anchorMinX, preview.m_anchorMaxX);
         preview.m_vertical = axisOf(preview.m_anchorMinY, preview.m_anchorMaxY);
-        std::optional<Json> below = m_document.nodeField(*m_selected, "below");
+        std::optional<Json> below = m_document.componentField(*m_selected, transformRef(), "below");
         preview.m_isBelow = below && below->is_string() && !below->get<std::string>().empty();
         return preview;
     }
@@ -2798,7 +2998,7 @@ namespace fried::editor
             m_drag.m_appliedY = start.m_y;
         }
         auto number = [&](const char *field) {
-            std::optional<Json> value = m_document.nodeField(id, field);
+            std::optional<Json> value = m_document.componentField(id, transformRef(), field);
             return value && value->is_number() ? value->get<double>() : 0.0;
         };
         auto moveAxis = [&](const char *position, double &applied, const char *anchorMin, const char *anchorMax, const char *insetStart, const char *insetEnd,
@@ -2860,7 +3060,7 @@ namespace fried::editor
         {
             return 1.0;
         }
-        std::optional<Json> zoom = m_document.nodeField(*id, "zoom");
+        std::optional<Json> zoom = m_document.componentField(*id, ComponentRef{"Camera", 0, false}, "zoom");
         return zoom && zoom->is_number() && zoom->get<double>() > 0 ? zoom->get<double>() : 1.0;
     }
 
@@ -2915,6 +3115,14 @@ namespace fried::editor
         // The player is told of an edit as it is made only while it is ready and no whole scene is waiting to be sent, which would include the edit.
         bool isLive = m_status == Status::Ready && !m_needsLoad;
         // A game that is running is told of the same edits, which it applies to the scene it has on screen. A change of class cannot be, and waits for the next run.
+        // A component that is put last in the object's list is where the engine puts one it is given. Any other place, and any object that instances a scene, waits for the whole scene to be sent.
+        bool isAppended = false;
+        if (change.m_kind == Kind::ComponentAdded)
+        {
+            const Json *object = m_document.node(change.m_nodeId);
+            isAppended = object && !object->contains("instance") && object->contains("components") && change.m_index == (int)(*object)["components"].size() - 1;
+        }
+        std::string componentType = change.m_isTransform ? m_document.transformTypeOf(change.m_nodeId) : change.m_component;
         if (m_isPlaying)
         {
             switch (change.m_kind)
@@ -2922,17 +3130,26 @@ namespace fried::editor
             case Kind::Field:
                 if (!change.m_value.is_null())
                 {
-                    m_play.setField(change.m_nodeId, change.m_field, change.m_value);
+                    m_play.setField(change.m_nodeId, componentType, change.m_componentIndex, change.m_field, change.m_value);
                 }
                 break;
             case Kind::Added:
-                m_play.addNode(change.m_parentId, change.m_index, change.m_value);
+                m_play.addObject(change.m_parentId, change.m_index, change.m_value);
                 break;
             case Kind::Removed:
-                m_play.removeNode(change.m_nodeId);
+                m_play.removeObject(change.m_nodeId);
                 break;
             case Kind::Moved:
-                m_play.moveNode(change.m_nodeId, change.m_parentId, change.m_index);
+                m_play.moveObject(change.m_nodeId, change.m_parentId, change.m_index);
+                break;
+            case Kind::ComponentAdded:
+                if (isAppended)
+                {
+                    m_play.addComponent(change.m_nodeId, change.m_value);
+                }
+                break;
+            case Kind::ComponentRemoved:
+                m_play.removeComponent(change.m_nodeId, change.m_component, change.m_componentIndex);
                 break;
             default:
                 break;
@@ -2947,14 +3164,14 @@ namespace fried::editor
             }
             else if (m_status == Status::Ready)
             {
-                m_session.setField(change.m_nodeId, change.m_field, change.m_value);
+                m_session.setField(change.m_nodeId, componentType, change.m_componentIndex, change.m_field, change.m_value);
             }
             break;
         case Kind::Added:
             if (isLive)
             {
                 m_mayResync = true;
-                m_session.addNode(change.m_parentId, change.m_index, change.m_value);
+                m_session.addObject(change.m_parentId, change.m_index, change.m_value);
             }
             else
             {
@@ -2965,7 +3182,7 @@ namespace fried::editor
             if (isLive)
             {
                 m_mayResync = true;
-                m_session.removeNode(change.m_nodeId);
+                m_session.removeObject(change.m_nodeId);
             }
             else
             {
@@ -2976,7 +3193,29 @@ namespace fried::editor
             if (isLive)
             {
                 m_mayResync = true;
-                m_session.moveNode(change.m_nodeId, change.m_parentId, change.m_index);
+                m_session.moveObject(change.m_nodeId, change.m_parentId, change.m_index);
+            }
+            else
+            {
+                m_needsLoad = true;
+            }
+            break;
+        case Kind::ComponentAdded:
+            if (isLive && isAppended)
+            {
+                m_mayResync = true;
+                m_session.addComponent(change.m_nodeId, change.m_value);
+            }
+            else
+            {
+                m_needsLoad = true;
+            }
+            break;
+        case Kind::ComponentRemoved:
+            if (isLive)
+            {
+                m_mayResync = true;
+                m_session.removeComponent(change.m_nodeId, change.m_component, change.m_componentIndex);
             }
             else
             {
@@ -3033,7 +3272,7 @@ namespace fried::editor
         {
             if (auto handle = Gizmo3D::hit(handles3D(), frameX, frameY))
             {
-                std::optional<Json> value = m_document.nodeField(*m_selected, Gizmo3D::fieldOf(handle->m_axis));
+                std::optional<Json> value = m_document.componentField(*m_selected, transformRef(), Gizmo3D::fieldOf(handle->m_axis));
                 m_drag.m_kind = Drag::Kind::Handle3D;
                 m_drag.m_id = *m_selected;
                 m_drag.m_axisHandle = *handle;

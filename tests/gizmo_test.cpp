@@ -160,16 +160,16 @@ TEST_CASE("dragging a scale handle scales by how much the size grew")
 TEST_CASE("a handle drag is one step to undo")
 {
     SceneDocument document = SceneDocument::empty("Main");
-    document.insertNode("", 0, nlohmann::json{{"id", "a"}, {"type", "Node2D"}});
+    document.insertNode("", 0, nlohmann::json{{"id", "a"}, {"transform", {{"type", "Transform2D"}}}});
     CommandStack stack(document);
 
     for (int step = 1; step <= 3; ++step)
     {
-        stack.execute(std::make_unique<SetNodeFields>("a", std::map<std::string, double>{{"scaleX", 1.0 + step}}), true);
+        stack.execute(std::make_unique<SetFields>("a", ComponentRef{"", 0, true}, std::map<std::string, double>{{"scaleX", 1.0 + step}}), true);
     }
-    CHECK(document.nodeField("a", "scaleX") == nlohmann::json(4.0));
+    CHECK(document.componentField("a", ComponentRef{"", 0, true}, "scaleX") == nlohmann::json(4.0));
     stack.undo();
-    CHECK_FALSE(document.nodeField("a", "scaleX").has_value());
+    CHECK_FALSE(document.componentField("a", ComponentRef{"", 0, true}, "scaleX").has_value());
 }
 
 TEST_CASE("the 3D gizmo has an arrow for each axis that faces the camera and a drag along one measures units")

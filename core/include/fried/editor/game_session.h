@@ -21,7 +21,7 @@ namespace fried::editor
         // The milliseconds a whole frame takes, waiting included, and the part of it spent updating and drawing.
         double m_frameMs = 0.0;
         double m_workMs = 0.0;
-        int m_nodes = 0;
+        int m_objects = 0;
         // The average milliseconds of each of the engine's Profile sections, in the order the engine names them, when the game is built with fried_profile.
         std::vector<double> m_sections;
     };
@@ -61,10 +61,12 @@ namespace fried::editor
 
         State state() const { return m_state; }
 
-        void setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value);
-        void addNode(const std::string &parentId, int index, const nlohmann::json &node);
-        void removeNode(const std::string &nodeId);
-        void moveNode(const std::string &nodeId, const std::string &parentId, int index);
+        void setField(const std::string &objectId, const std::string &component, int index, const std::string &field, const nlohmann::json &value);
+        void addObject(const std::string &parentId, int index, const nlohmann::json &object);
+        void removeObject(const std::string &objectId);
+        void moveObject(const std::string &objectId, const std::string &parentId, int index);
+        void addComponent(const std::string &objectId, const nlohmann::json &component);
+        void removeComponent(const std::string &objectId, const std::string &type, int index);
 
         // How many frames a second the game is held to: 0 for as many as it can draw, or a negative number for the project's own rule, which follows the rate of the display when the project waits for vsync. The display's rate is what the editor is shown on.
         void setFrameLimit(int fps, int refreshRate);

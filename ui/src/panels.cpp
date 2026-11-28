@@ -972,7 +972,7 @@ namespace editor_ui
         {
             std::snprintf(text, sizeof(text), "Update and draw %.2f ms", stats.m_workMs);
             line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
-            std::snprintf(text, sizeof(text), "%d nodes", stats.m_nodes);
+            std::snprintf(text, sizeof(text), "%d objects", stats.m_objects);
             line(ImGui::GetFont(), ImGui::GetFontSize(), IM_COL32(220, 220, 225, 255), text);
             // The sections the engine times, in the order of fried.Profile; the last one is the whole of the work already shown above.
             static const char *const sectionNames[] = {"Fixed steps", "Update", "Draw", "Sort", "Flush", "Batch", "Present", nullptr, "UI style", "UI layout"};
@@ -1282,7 +1282,7 @@ namespace editor_ui
         ImGui::SetCursorScreenPos(barLow);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0.45f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.27f, 0.85f));
-        if (Icons::button("frame", Icon::CenterView, withShortcut("Bring the selected node to the middle", Shortcut::FrameSelected).c_str()))
+        if (Icons::button("frame", Icon::CenterView, withShortcut("Bring the selected object to the middle", Shortcut::FrameSelected).c_str()))
         {
             m_editor.focusSelected();
         }
@@ -1310,35 +1310,6 @@ namespace editor_ui
     {
         constexpr const char *s_nodePayload = "fried-node";
 
-        // The classes of nodes as a menu that follows the inheritance: a class with others under it opens a submenu that starts with itself.
-        void classMenu(const std::vector<fried::editor::ClassSchema> &classes, const std::string &parent, const std::function<void(const std::string &)> &choose)
-        {
-            for (const fried::editor::ClassSchema &schema : classes)
-            {
-                if (schema.m_parent != parent)
-                {
-                    continue;
-                }
-                bool hasSubclasses = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &other) { return other.m_parent == schema.m_name; });
-                if (!hasSubclasses)
-                {
-                    if (ImGui::MenuItem(schema.m_name.c_str()))
-                    {
-                        choose(schema.m_name);
-                    }
-                }
-                else if (ImGui::BeginMenu(schema.m_name.c_str()))
-                {
-                    if (ImGui::MenuItem(schema.m_name.c_str()))
-                    {
-                        choose(schema.m_name);
-                    }
-                    ImGui::Separator();
-                    classMenu(classes, schema.m_name, choose);
-                    ImGui::EndMenu();
-                }
-            }
-        }
     }
 
     Icon Panels::iconOf(const std::string &type)
@@ -1355,17 +1326,18 @@ namespace editor_ui
             return cached->second;
         }
         static const std::map<std::string, Icon> s_builtIn = {
-            {"Node", Icon::Node},
-            {"Node2D", Icon::Node2D},
-            {"Node3D", Icon::Node3D},
-            {"Sprite", Icon::Sprite2D},
+            {"Transform", Icon::Node},
+            {"Transform2D", Icon::Node2D},
+            {"Transform3D", Icon::Node3D},
+            {"RectTransform", Icon::Control},
+            {"SpriteRenderer", Icon::Sprite2D},
             {"Camera", Icon::Camera2D},
             {"Camera3D", Icon::Camera3D},
             {"Collider", Icon::CollisionShape2D},
             {"KinematicBody", Icon::CharacterBody2D},
-            {"MeshInstance3D", Icon::MeshInstance3D},
-            {"DirectionalLight", Icon::DirectionalLight3D},
-            {"Control", Icon::Control},
+            {"MeshRenderer", Icon::MeshInstance3D},
+            {"Light", Icon::DirectionalLight3D},
+            {"Canvas", Icon::Control},
             {"Label", Icon::Label},
             {"Button", Icon::Button},
             {"TextureRect", Icon::TextureRect},
@@ -1392,7 +1364,7 @@ namespace editor_ui
         for (const std::string &path : m_editor.scenePaths())
         {
             std::string name = std::filesystem::path(path).filename().string();
-            name.resize(name.size() - std::string(".scene.json").size());
+            name = fried::core::sceneName(name);
             std::string problem = m_editor.instanceProblem(name);
             if (ImGui::MenuItem(name.c_str(), nullptr, false, problem.empty()))
             {
@@ -1411,18 +1383,18 @@ namespace editor_ui
 
     void Panels::hierarchy()
     {
-        if (Icons::button("add", Icon::Add, m_editor.selected() ? "Add a node under the selected one (Ctrl+A)" : "Add a node to the scene (Ctrl+A)"))
+        if (Icons::button("add", Icon::Add, m_editor.selected() ? "Add an object under the selected one (Ctrl+A)" : "Add an object to the scene (Ctrl+A)"))
         {
             showCreateNode(m_editor.selected());
         }
         ImGui::SameLine();
-        if (Icons::button("instance", Icon::PackedScene, "Instance a scene as a child of the selected node"))
+        if (Icons::button("instance", Icon::PackedScene, "Instance a scene as a child of the selected object"))
         {
             ImGui::OpenPopup("add-node");
         }
         if (ImGui::BeginPopup("add-node"))
         {
-            ImGui::TextDisabled(m_editor.selected() ? "Instance under the selected node" : "Instance in the scene");
+            ImGui::TextDisabled(m_editor.selected() ? "Instance under the selected object" : "Instance in the scene");
             instanceMenu(m_editor.selected());
             ImGui::EndPopup();
         }
@@ -1473,7 +1445,7 @@ namespace editor_ui
                 const auto &row = rows[position];
                 ancestors.resize(std::min<std::size_t>(ancestors.size(), (std::size_t)row.m_depth));
                 ancestors.push_back(position);
-                if (containsIgnoringCase(row.m_name, m_hierarchyFilter) || containsIgnoringCase(row.m_type, m_hierarchyFilter))
+                if (containsIgnoringCase(row.m_name, m_hierarchyFilter) || containsIgnoringCase(row.m_type, m_hierarchyFilter) || containsIgnoringCase(row.m_transformType, m_hierarchyFilter))
                 {
                     m_filterKeep[position] = 2;
                     for (auto above = ancestors.rbegin() + 1; above != ancestors.rend() && m_filterKeep[*above] == 0; ++above)
@@ -1510,7 +1482,7 @@ namespace editor_ui
         }
         if (isFiltering && m_visibleRows.empty())
         {
-            ImGui::TextDisabled("No node matches");
+            ImGui::TextDisabled("No object matches");
         }
 
         // Rows are as tall as a button and touch each other, so the stripes behind them tile.
@@ -1647,7 +1619,12 @@ namespace editor_ui
                     list->AddRectFilled(ImVec2(windowPosition.x, top), ImVec2(windowPosition.x + scaled(2), top + rowHeight), ImGui::GetColorU32(palette::accentHot));
                 }
                 Icons::draw(list, row.m_instance.empty() ? iconOf(row.m_type) : Icon::PackedScene, ImVec2(contentX, top + (rowHeight - iconSize) / 2));
-                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::accentText : ImGui::GetStyleColorVec4(ImGuiCol_Text)), row.m_name.c_str());
+                ImVec4 nameColor = isFiltering && m_filterKeep[m_visibleRows[visible]] == 2 ? palette::accentText : ImGui::GetStyleColorVec4(ImGuiCol_Text);
+                if (!row.m_isActive)
+                {
+                    nameColor.w *= 0.45f;
+                }
+                list->AddText(ImVec2(contentX + iconSize + scaled(6), top + rowPadding), ImGui::GetColorU32(nameColor), row.m_name.c_str());
                 if (isLocked)
                 {
                     Icons::draw(list, Icon::Lock, lockLow, ImGui::GetColorU32(palette::accentText));
@@ -1658,7 +1635,7 @@ namespace editor_ui
                 }
                 if (isLockHovered)
                 {
-                    ImGui::SetTooltip("%s", isLocked ? "Unlock: the node can be picked and moved in the view again" : "Lock: the node cannot be picked or moved in the view");
+                    ImGui::SetTooltip("%s", isLocked ? "Unlock: the object can be picked and moved in the view again" : "Lock: the object cannot be picked or moved in the view");
                 }
                 if (!row.m_instance.empty())
                 {
@@ -1770,9 +1747,13 @@ namespace editor_ui
                 if (ImGui::BeginPopupContextItem(("node-menu-" + row.m_id).c_str()))
                 {
                     m_editor.select(row.m_id);
-                    if (ImGui::MenuItem("Add Child Node..."))
+                    if (ImGui::MenuItem("Add Child Object..."))
                     {
                         showCreateNode(row.m_id);
+                    }
+                    if (ImGui::MenuItem("Add Component..."))
+                    {
+                        showAddComponent(row.m_id);
                     }
                     if (ImGui::BeginMenu("Instance Child Scene"))
                     {
@@ -1783,7 +1764,7 @@ namespace editor_ui
                     {
                         openSceneFile(m_editor.scenePathOf(row.m_instance));
                     }
-                    if (row.m_instance.empty() && ImGui::MenuItem("Change Type..."))
+                    if (row.m_instance.empty() && ImGui::MenuItem("Change Transform Type..."))
                     {
                         showChangeType(row.m_id);
                     }
@@ -1793,7 +1774,16 @@ namespace editor_ui
                         m_renameText = row.m_name;
                         m_isRenameAsked = true;
                     }
-                    if (ImGui::MenuItem("Use as Camera"))
+                    if (ImGui::MenuItem(row.m_isActive ? "Deactivate" : "Activate"))
+                    {
+                        m_editor.setActive(row.m_id, !row.m_isActive);
+                    }
+                    bool hasCamera = false;
+                    for (const fried::editor::ComponentRef &ref : m_editor.document().componentsOf(row.m_id))
+                    {
+                        hasCamera = hasCamera || ref.m_type == "Camera" || ref.m_type == "Camera3D";
+                    }
+                    if (ImGui::MenuItem("Use as Camera", nullptr, false, hasCamera))
                     {
                         m_editor.setCameraToSelected();
                     }
@@ -1953,7 +1943,7 @@ namespace editor_ui
 
     bool Panels::referenceField(const FieldView &field, AssetKind wanted)
     {
-        return referenceEditor(field.m_value, wanted, [&](const Json &value) { m_editor.setField(field.m_schema.m_name, value); });
+        return referenceEditor(field.m_value, wanted, [&](const Json &value) { m_editor.setField(m_component, field.m_schema.m_name, value); });
     }
 
     bool Panels::referenceEditor(const Json &current, AssetKind wanted, const std::function<void(const Json &)> &commit)
@@ -2228,7 +2218,7 @@ namespace editor_ui
             caption(name);
             if (isRevertable(field) && revertArrow(rowStart))
             {
-                m_editor.revertFields({name});
+                m_editor.revertFields(m_component, {name});
             }
         }
 
@@ -2237,7 +2227,7 @@ namespace editor_ui
             int value = field.m_value.is_number() ? field.m_value.get<int>() : 0;
             if (dragInt("##v", &value))
             {
-                m_editor.setField(name, Json(value));
+                m_editor.setField(m_component, name, Json(value));
             }
         }
         else if (kind == "float")
@@ -2246,7 +2236,7 @@ namespace editor_ui
             float speed = name == "rotation" ? 0.5f : (name.find("scale") == 0 || name == "zoom" ? 0.01f : 1.0f);
             if (dragFloat("##v", &value, speed, 0, 0, "%.3f"))
             {
-                m_editor.setField(name, Json((double)value));
+                m_editor.setField(m_component, name, Json((double)value));
             }
         }
         else if (kind == "bool")
@@ -2254,7 +2244,7 @@ namespace editor_ui
             bool value = field.m_value.is_boolean() && field.m_value.get<bool>();
             if (ImGui::Checkbox("##v", &value))
             {
-                m_editor.setField(name, Json(value));
+                m_editor.setField(m_component, name, Json(value));
             }
         }
         else if (kind == "string")
@@ -2262,7 +2252,7 @@ namespace editor_ui
             std::string value = field.m_value.is_string() ? field.m_value.get<std::string>() : std::string();
             if (isTextArea ? textArea("##v", &value) : textField("##v", &value))
             {
-                m_editor.setField(name, Json(value));
+                m_editor.setField(m_component, name, Json(value));
             }
         }
         else if (kind == "color")
@@ -2270,7 +2260,7 @@ namespace editor_ui
             ImVec4 color = vectorOf(field.m_value);
             if (ImGui::ColorEdit4("##v", &color.x, ImGuiColorEditFlags_AlphaPreviewHalf))
             {
-                m_editor.setField(name,
+                m_editor.setField(m_component, name,
                                   Json{{"r", channel(color.x)}, {"g", channel(color.y)}, {"b", channel(color.z)}, {"a", channel(color.w)}});
             }
         }
@@ -2284,7 +2274,7 @@ namespace editor_ui
                 {
                     if (ImGui::Selectable(option.c_str(), option == current))
                     {
-                        m_editor.setField(name, Json(option));
+                        m_editor.setField(m_component, name, Json(option));
                     }
                 }
                 ImGui::EndCombo();
@@ -2295,7 +2285,7 @@ namespace editor_ui
             bool isUsed = field.m_value.is_object();
             if (ImGui::Checkbox("whole image", &isUsed) == true)
             {
-                m_editor.setField(name, isUsed ? Json{{"x", 0}, {"y", 0}, {"width", 32}, {"height", 32}} : Json());
+                m_editor.setField(m_component, name, isUsed ? Json{{"x", 0}, {"y", 0}, {"width", 32}, {"height", 32}} : Json());
             }
             if (field.m_value.is_object())
             {
@@ -2303,7 +2293,7 @@ namespace editor_ui
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 if (dragInt4("##region", values))
                 {
-                    m_editor.setField(name, Json{{"x", values[0]}, {"y", values[1]}, {"width", values[2]}, {"height", values[3]}});
+                    m_editor.setField(m_component, name, Json{{"x", values[0]}, {"y", values[1]}, {"width", values[2]}, {"height", values[3]}});
                 }
             }
         }
@@ -2324,14 +2314,14 @@ namespace editor_ui
             {
                 if (ImGui::Selectable("(none)", current.empty()))
                 {
-                    m_editor.setField(name, Json());
+                    m_editor.setField(m_component, name, Json());
                 }
                 for (const auto &row : rows)
                 {
                     ImGui::PushID(row.m_id.c_str());
                     if (ImGui::Selectable(row.m_name.c_str(), row.m_id == current))
                     {
-                        m_editor.setField(name, Json(row.m_id));
+                        m_editor.setField(m_component, name, Json(row.m_id));
                     }
                     ImGui::PopID();
                 }
@@ -2340,7 +2330,7 @@ namespace editor_ui
         }
         else if (kind == "mesh" || kind == "material")
         {
-            resourceEditor(field.m_value, kind, kind == "mesh", [&](const Json &value) { m_editor.setField(name, value); });
+            resourceEditor(field.m_value, kind, kind == "mesh", [&](const Json &value) { m_editor.setField(m_component, name, value); });
         }
         else
         {
@@ -2368,7 +2358,7 @@ namespace editor_ui
         }
         if (!revertable.empty() && revertArrow(rowStart))
         {
-            m_editor.revertFields(revertable);
+            m_editor.revertFields(m_component, revertable);
         }
         float spacing = ImGui::GetStyle().ItemSpacing.x;
         float cell = (ImGui::GetContentRegionAvail().x - spacing * (axes.size() - 1)) / axes.size();
@@ -2390,7 +2380,7 @@ namespace editor_ui
             float speed = name.find("otation") != std::string::npos ? 0.5f : name.find("cale") != std::string::npos ? 0.01f : 1.0f;
             if (dragFloat("##v", &value, speed, 0, 0, "%.3f"))
             {
-                m_editor.setField(name, Json((double)value));
+                m_editor.setField(m_component, name, Json((double)value));
             }
             ImGui::PopID();
         }
@@ -2421,7 +2411,7 @@ namespace editor_ui
             float value = field->m_value.is_number() ? field->m_value.get<float>() : 0.0f;
             if (dragFloat("##v", &value, 1.0f, 0, 0, "%.0f"))
             {
-                m_editor.setField(name, Json((double)value));
+                m_editor.setField(m_component, name, Json((double)value));
             }
             ImGui::PopID();
         };
@@ -2602,6 +2592,31 @@ namespace editor_ui
             }
             ImGui::TreePop();
         }
+    }
+
+    // The header of a transform or a component: its class with its icon, and for a component a cross at the end that asks for it to be removed.
+    bool Panels::componentHeader(const fried::editor::ComponentView &component, bool *isRemoved)
+    {
+        bool isOpen = classHeader(component.m_type);
+        if (component.m_ref.m_isTransform)
+        {
+            return isOpen;
+        }
+        ImVec2 low = ImGui::GetItemRectMin();
+        ImVec2 high = ImGui::GetItemRectMax();
+        float size = Icons::size();
+        ImVec2 crossLow(high.x - size - scaled(8), low.y + (high.y - low.y - size) / 2);
+        bool isHovered = ImGui::IsMouseHoveringRect(crossLow, ImVec2(crossLow.x + size, crossLow.y + size)) && ImGui::IsWindowHovered();
+        Icons::draw(ImGui::GetWindowDrawList(), Icon::Remove, crossLow, IM_COL32(255, 255, 255, isHovered ? 230 : 90));
+        if (isHovered)
+        {
+            ImGui::SetTooltip("Remove %s", component.m_type.c_str());
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                *isRemoved = true;
+            }
+        }
+        return isOpen;
     }
 
     bool Panels::classHeader(const std::string &name)
@@ -2867,32 +2882,70 @@ namespace editor_ui
             ImGui::Separator();
         }
 
-        for (const auto &view : m_editor.inspector())
+        const fried::editor::ObjectView &object = m_editor.inspector();
+        m_component = fried::editor::ComponentRef();
+        bool isActive = object.m_active.m_value.is_boolean() ? object.m_active.m_value.get<bool>() : true;
+        if (ImGui::Checkbox("##object-active", &isActive))
         {
-            ImGui::PushID(view.m_class.c_str());
-            bool isOpen = classHeader(view.m_class);
-            if (isOpen && view.m_class == "Control")
+            m_editor.setActive(object.m_id, isActive);
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Active: an inactive object and what is under it is neither updated nor drawn");
+        }
+        ImGui::SameLine();
+        fieldEditor(object.m_name);
+        ImGui::Separator();
+
+        for (std::size_t position = 0; position < object.m_components.size(); ++position)
+        {
+            const fried::editor::ComponentView &component = object.m_components[position];
+            m_component = component.m_ref;
+            ImGui::PushID((int)position);
+            bool isRemoved = false;
+            bool isOpen = componentHeader(component, &isRemoved);
+            if (isOpen)
             {
-                controlEditor(view);
-            }
-            else if (isOpen)
-            {
-                const std::vector<FieldView> &fields = view.m_fields;
-                for (std::size_t index = 0; index < fields.size(); ++index)
+                bool isRect = component.m_ref.m_isTransform && m_editor.isClassOf(component.m_type, "RectTransform");
+                for (const fried::editor::ClassView &view : component.m_classes)
                 {
-                    std::vector<const FieldView *> axes;
-                    std::string label;
-                    if (isAxisStart(fields, index, &axes, &label))
+                    if (isRect && view.m_class == "RectTransform")
                     {
-                        vectorEditor(label, axes);
-                        index += axes.size() - 1;
+                        controlEditor(view);
                         continue;
                     }
-                    fieldEditor(fields[index]);
+                    const std::vector<FieldView> &fields = view.m_fields;
+                    for (std::size_t index = 0; index < fields.size(); ++index)
+                    {
+                        std::vector<const FieldView *> axes;
+                        std::string label;
+                        if (isAxisStart(fields, index, &axes, &label))
+                        {
+                            vectorEditor(label, axes);
+                            index += axes.size() - 1;
+                            continue;
+                        }
+                        fieldEditor(fields[index]);
+                    }
                 }
                 ImGui::Dummy(ImVec2(0, scaled(2)));
             }
             ImGui::PopID();
+            if (isRemoved)
+            {
+                m_editor.removeComponent(object.m_id, component.m_ref);
+                break;
+            }
+        }
+        m_component = fried::editor::ComponentRef();
+        ImGui::Spacing();
+        if (ImGui::Button("Add Component", ImVec2(-FLT_MIN, 0)))
+        {
+            showAddComponent(object.m_id);
+        }
+        if (object.m_instance.empty() && ImGui::Button("Change Transform Type...", ImVec2(-FLT_MIN, 0)))
+        {
+            showChangeType(object.m_id);
         }
     }
 
@@ -2915,7 +2968,7 @@ namespace editor_ui
         else
         {
             std::vector<std::pair<const Json *, std::string>> pending;
-            const Json &roots = m_editor.document().data()["nodes"];
+            const Json &roots = m_editor.document().data()["objects"];
             for (const Json &root : roots)
             {
                 pending.push_back({&root, ""});
@@ -3031,7 +3084,7 @@ namespace editor_ui
             ImGui::SetKeyboardFocusHere();
         }
         ImGui::SetNextItemWidth(-FLT_MIN);
-        if (ImGui::InputTextWithHint("##quick", "Open a scene or find an asset, > for a command, @ for a node", &m_quickText))
+        if (ImGui::InputTextWithHint("##quick", "Open a scene or find an asset, > for a command, @ for an object", &m_quickText))
         {
             m_quickIndex = 0;
         }
@@ -3201,6 +3254,10 @@ namespace editor_ui
             {
                 for (const fried::editor::ClassSchema &schema : m_editor.classes())
                 {
+                    if (schema.m_kind != "component")
+                    {
+                        continue;
+                    }
                     if (ImGui::Selectable(schema.m_name.c_str(), schema.m_name == m_newScriptBase))
                     {
                         m_newScriptBase = schema.m_name;
@@ -3841,10 +3898,10 @@ namespace editor_ui
 
     void Panels::showNewScript(const std::string &folder)
     {
-        // Scenes find the nodes that are written under src/nodes, so that is where a script goes.
-        m_newScriptFolder = folder == "src/nodes" || folder.compare(0, 10, "src/nodes/") == 0 ? folder : "src/nodes";
-        m_newScriptName = "NewNode";
-        m_newScriptBase = "Node";
+        // Scenes find the components that are written under src/components, so that is where a script goes.
+        m_newScriptFolder = folder == "src/components" || folder.compare(0, 15, "src/components/") == 0 ? folder : "src/components";
+        m_newScriptName = "NewComponent";
+        m_newScriptBase = "Component";
         m_isNewScriptAsked = true;
     }
 
@@ -3876,6 +3933,7 @@ namespace editor_ui
     {
         m_isCreateNodeAsked = true;
         m_isChangingType = false;
+        m_isAddingComponent = false;
         m_createParent = parent;
     }
 
@@ -3883,7 +3941,16 @@ namespace editor_ui
     {
         m_isCreateNodeAsked = true;
         m_isChangingType = true;
+        m_isAddingComponent = false;
         m_changeTypeId = id;
+    }
+
+    void Panels::showAddComponent(const std::string &id)
+    {
+        m_isCreateNodeAsked = true;
+        m_isChangingType = false;
+        m_isAddingComponent = true;
+        m_addComponentId = id;
     }
 
     void Panels::createNodeDialog()
@@ -3892,32 +3959,50 @@ namespace editor_ui
         {
             m_isCreateNodeAsked = false;
             m_createFilter.clear();
-            m_createChosen = m_isChangingType ? m_editor.document().typeOf(m_changeTypeId) : std::string("Node");
-            ImGui::OpenPopup("Create New Node");
+            m_createChosen = m_isChangingType ? m_editor.document().transformTypeOf(m_changeTypeId) : m_isAddingComponent ? std::string() : std::string("Empty");
+            ImGui::OpenPopup("Create New Object");
         }
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(scaled(520), scaled(560)), ImGuiCond_Appearing);
-        if (!ImGui::BeginPopupModal("Create New Node", nullptr, ImGuiWindowFlags_NoSavedSettings))
+        if (!ImGui::BeginPopupModal("Create New Object", nullptr, ImGuiWindowFlags_NoSavedSettings))
         {
             return;
         }
-        const std::vector<fried::editor::ClassSchema> &classes = m_editor.classes();
+        // What can be chosen: the transforms when one is changed, and else the components that fit, with the empty objects first when an object is made.
+        static const std::vector<std::pair<std::string, std::string>> s_empties = {{"Empty", ""}, {"Empty 2D", "Transform2D"}, {"Empty 3D", "Transform3D"}, {"Empty UI", "RectTransform"}};
+        auto isAbstract = [](const std::string &name) { return name == "Component" || name == "Renderer2D" || name == "Transform"; };
+        std::vector<fried::editor::ClassSchema> classes;
+        for (const fried::editor::ClassSchema &schema : m_editor.classes())
+        {
+            bool isFit = m_isChangingType ? schema.m_kind == "transform" || schema.m_name == "Transform"
+                                          : schema.m_kind == "component" && !isAbstract(schema.m_name) && (!m_isAddingComponent || m_editor.canHaveComponent(m_addComponentId, schema.m_name));
+            if (isFit)
+            {
+                fried::editor::ClassSchema entry = schema;
+                entry.m_parent.clear();
+                classes.push_back(std::move(entry));
+            }
+        }
         bool isCreating = false;
         if (m_isChangingType)
         {
-            ImGui::TextDisabled("Change the class of %s", m_changeTypeId.c_str());
+            ImGui::TextDisabled("Change the transform of %s", m_changeTypeId.c_str());
+        }
+        else if (m_isAddingComponent)
+        {
+            ImGui::TextDisabled("Add a component to %s", m_addComponentId.c_str());
         }
         else
         {
-            ImGui::TextDisabled(m_createParent ? "Create a node under %s" : "Create a node in the scene", m_createParent ? m_createParent->c_str() : "");
+            ImGui::TextDisabled(m_createParent ? "Create an object under %s" : "Create an object in the scene", m_createParent ? m_createParent->c_str() : "");
         }
         if (ImGui::IsWindowAppearing())
         {
             ImGui::SetKeyboardFocusHere();
         }
         ImGui::SetNextItemWidth(-FLT_MIN);
-        ImGui::InputTextWithHint("##create-filter", "Search nodes", &m_createFilter);
+        ImGui::InputTextWithHint("##create-filter", m_isChangingType ? "Search transforms" : m_isAddingComponent ? "Search components" : "Search components", &m_createFilter);
 
         ImGui::BeginChild("##create-classes", ImVec2(0, -scaled(38)), ImGuiChildFlags_Borders);
         const bool isFiltering = !m_createFilter.empty();
@@ -3963,12 +4048,11 @@ namespace editor_ui
         };
         if (isFiltering)
         {
-            // A search is a flat list, each class with the one it extends.
             for (const fried::editor::ClassSchema &schema : classes)
             {
                 if (containsIgnoringCase(schema.m_name, m_createFilter))
                 {
-                    if (row(schema.m_name, true, schema.m_parent.empty() ? std::string() : "extends " + schema.m_parent))
+                    if (row(schema.m_name, true, std::string()))
                     {
                         ImGui::TreePop();
                     }
@@ -3977,22 +4061,31 @@ namespace editor_ui
         }
         else
         {
-            std::function<void(const std::string &)> tree = [&](const std::string &parent) {
-                for (const fried::editor::ClassSchema &schema : classes)
+            if (!m_isChangingType && !m_isAddingComponent)
+            {
+                for (const auto &empty : s_empties)
                 {
-                    if (schema.m_parent != parent)
+                    if (row(empty.first, true, empty.second.empty() ? "a plain transform" : empty.second))
                     {
-                        continue;
-                    }
-                    bool hasSubclasses = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &other) { return other.m_parent == schema.m_name; });
-                    if (row(schema.m_name, !hasSubclasses, std::string()))
-                    {
-                        tree(schema.m_name);
                         ImGui::TreePop();
                     }
                 }
-            };
-            tree("");
+            }
+            if (m_isChangingType && row("Transform", true, "no position"))
+            {
+                ImGui::TreePop();
+            }
+            for (const fried::editor::ClassSchema &schema : classes)
+            {
+                if (m_isChangingType && schema.m_name == "Transform")
+                {
+                    continue;
+                }
+                if (row(schema.m_name, true, std::string()))
+                {
+                    ImGui::TreePop();
+                }
+            }
         }
         ImGui::EndChild();
 
@@ -4010,13 +4103,15 @@ namespace editor_ui
             m_isCreateScrollAsked = true;
         }
 
-        bool isKnown = std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &schema) { return schema.m_name == m_createChosen; });
+        bool isEmpty = !m_isChangingType && !m_isAddingComponent && std::any_of(s_empties.begin(), s_empties.end(), [&](const auto &empty) { return empty.first == m_createChosen; });
+        bool isKnown = isEmpty || (m_isChangingType && m_createChosen == "Transform")
+                       || std::any_of(classes.begin(), classes.end(), [&](const fried::editor::ClassSchema &schema) { return schema.m_name == m_createChosen; });
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", isKnown ? m_createChosen.c_str() : "Nothing chosen");
         float buttons = scaled(170);
         ImGui::SameLine(ImGui::GetWindowWidth() - buttons - ImGui::GetStyle().WindowPadding.x);
         ImGui::BeginDisabled(!isKnown);
-        if (ImGui::Button(m_isChangingType ? "Change" : "Create", ImVec2(scaled(80), 0)) || (isKnown && ImGui::IsKeyPressed(ImGuiKey_Enter)))
+        if (ImGui::Button(m_isChangingType ? "Change" : m_isAddingComponent ? "Add" : "Create", ImVec2(scaled(80), 0)) || (isKnown && ImGui::IsKeyPressed(ImGuiKey_Enter)))
         {
             isCreating = true;
         }
@@ -4027,11 +4122,20 @@ namespace editor_ui
         {
             if (m_isChangingType)
             {
-                m_editor.changeType(m_changeTypeId, m_createChosen);
+                m_editor.changeTransformType(m_changeTypeId, m_createChosen == "Transform" ? std::string() : m_createChosen);
+            }
+            else if (m_isAddingComponent)
+            {
+                m_editor.addComponent(m_addComponentId, m_createChosen);
+            }
+            else if (isEmpty)
+            {
+                auto empty = std::find_if(s_empties.begin(), s_empties.end(), [&](const auto &entry) { return entry.first == m_createChosen; });
+                m_editor.addObject(empty->second, std::string(), m_createParent);
             }
             else
             {
-                m_editor.addNode(m_createChosen, m_createParent);
+                m_editor.addObject(std::string(), m_createChosen, m_createParent);
             }
             ImGui::CloseCurrentPopup();
         }
@@ -4047,7 +4151,7 @@ namespace editor_ui
         if (m_isNewSceneAsked)
         {
             m_newSceneName = "NewScene";
-            m_newSceneType = "Node2D";
+            m_newSceneType = "Transform2D";
             m_newSceneError.clear();
             ImGui::OpenPopup("New Scene");
             m_isNewSceneAsked = false;
@@ -4056,12 +4160,12 @@ namespace editor_ui
         {
             return;
         }
-        ImGui::TextDisabled("Root node");
+        ImGui::TextDisabled("Root object");
         const struct
         {
             const char *m_label;
             const char *m_type;
-        } presets[] = {{"2D Scene", "Node2D"}, {"3D Scene", "Node3D"}, {"User Interface", "Control"}};
+        } presets[] = {{"2D Scene", "Transform2D"}, {"3D Scene", "Transform3D"}, {"User Interface", "RectTransform"}, {"Empty", "Transform"}};
         bool isPreset = false;
         for (const auto &preset : presets)
         {
@@ -4081,24 +4185,7 @@ namespace editor_ui
             }
             ImGui::SameLine();
         }
-        if (!isPreset)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button, palette::accentAt(0.45f));
-        }
-        if (ImGui::Button(isPreset ? "Other Node..." : (m_newSceneType + "...").c_str()))
-        {
-            ImGui::OpenPopup("new-scene-class");
-        }
-        if (!isPreset)
-        {
-            ImGui::PopStyleColor();
-        }
-        if (ImGui::BeginPopup("new-scene-class"))
-        {
-            classMenu(m_editor.classes(), "", [&](const std::string &type) { m_newSceneType = type; });
-            ImGui::EndPopup();
-        }
-
+        ImGui::NewLine();
         ImGui::Spacing();
         ImGui::TextDisabled("Name");
         ImGui::SetNextItemWidth(scaled(320));
@@ -4445,7 +4532,7 @@ namespace editor_ui
             for (const std::string &path : m_editor.scenePaths())
             {
                 std::string name = std::filesystem::path(path).filename().string();
-                name.resize(name.size() - std::string(".scene.json").size());
+                name = fried::core::sceneName(name);
                 bool isUsable = m_editor.instanceProblem(name).empty();
                 if (ImGui::MenuItem(name.c_str(), nullptr, false, isUsable))
                 {

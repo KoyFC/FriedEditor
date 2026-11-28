@@ -10,16 +10,17 @@ All notable changes to Fried Editor are written here, newest version first.
 ## vX.Y.Z
 
 ### Added
+- Game objects and components: the hierarchy lists the scene's objects, each with its transform and its components, as in Unity. The inspector shows the active switch and name, the transform and one section for each component, with Add Component, Remove, Change Transform Type and Create New Object, and the running game's values are shown by component. A project with version 2 scenes is offered the engine's `fried_import migrate-scenes` when it opens.
 - Projects open and save in YAML: the project file, the scenes (`.scene.yaml`) and the import settings are written as YAML in the order a person reads them, and a project that is still in JSON is offered a conversion when it opens, with a backup of the originals in `.fried/json-backup/`.
 - The `mesh` and `material` fields of a `MeshInstance3D` are a list of the meshes and materials the engine has, with the fields of the one chosen under it, and a mesh can be a model file (`.obj`, `.gltf` or `.glb`), which the Assets panel lists and filters as Models.
 - Play Mode Changes: when the game stops, the edits made while it ran are listed and the ones ticked are made again on the scene.
 - Window > Undo History, a list of the scene's undo steps that goes to any of them.
-- Quick Open finds commands with `>` and nodes of the scene with `@`.
+- Quick Open finds commands with `>` and objects of the scene with `@`.
 - The cells of a tilemap are edited as a text area, and the Game stats show the time of each section of the frame when the project's player is built with `-D fried_profile`.
 - `UIDocument` fields: the `document` and `theme` of a document are chosen from the project's HTML and CSS files, an `.html` file dropped on the scene or added from the Assets dock makes a `UIDocument`, and a `.css` file dropped on a document sets its theme. The Game stats list the time of the UI style and layout.
 
 ### Changed
-- A scene that names a `MeshInstance`, or gives a `MeshInstance3D` a `shape` and a `color`, is opened with a `mesh` and a material instead, and says it was migrated. The protocol with the player is 6, so a player built before has to be built again.
+- Scenes are version 3 (`objects`, `transform` and `components`) and the protocol with the player is 7, so a player built before has to be built again. New scripts extend `Component` and go under `src/components`, and the project's autoloads are component classes or scenes.
 
 ### Fixed
 - Panning the view with the right or middle button works in a Wayland session whose SDL2 is `sdl2-compat`, where the pointer is neither locked nor wrapped (see the scene view's documentation).

@@ -89,6 +89,7 @@ namespace editor_ui
         // Godot's Create New Node window: a search and the tree of the node classes, for a node under a parent, or for a node that changes class. It is drawn by createNodeDialog.
         void showCreateNode(const std::optional<std::string> &parent);
         void showChangeType(const std::string &id);
+        void showAddComponent(const std::string &id);
         void createNodeDialog();
 
         // A key that went down, by its SDL scancode, for the input map page to bind.
@@ -131,6 +132,7 @@ namespace editor_ui
 
         // The title of a class in the inspector, with its icon. True while it is open.
         bool classHeader(const std::string &name);
+        bool componentHeader(const fried::editor::ComponentView &component, bool *isRemoved);
         void enterAssetFolder(const std::string &folder);
         void controlEditor(const fried::editor::ClassView &view);
         void fieldEditor(const fried::editor::FieldView &field);
@@ -243,6 +245,9 @@ namespace editor_ui
         bool m_isQuickOpenAsked = false;
         bool m_isCreateNodeAsked = false;
         bool m_isChangingType = false;
+        bool m_isAddingComponent = false;
+        std::string m_addComponentId;
+        fried::editor::ComponentRef m_component;
         std::optional<std::string> m_createParent;
         std::string m_changeTypeId;
         std::string m_createFilter;
@@ -255,7 +260,7 @@ namespace editor_ui
         std::string m_migrationReport;
         std::string m_saveAsName;
         std::string m_saveAsError;
-        std::string m_newSceneType = "Node2D";
+        std::string m_newSceneType = "Transform2D";
         std::string m_newSceneError;
         std::string m_quickText;
         std::vector<PaletteCommand> m_paletteCommands;
