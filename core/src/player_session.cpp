@@ -289,6 +289,40 @@ namespace fried::editor
         }
     }
 
+    const ClassSchema *PlayerSession::classNamed(const std::string &name) const
+    {
+        for (const ClassSchema &schema : m_schema)
+        {
+            if (schema.m_name == name)
+            {
+                return &schema;
+            }
+        }
+        return nullptr;
+    }
+
+    const ResourceSchema *PlayerSession::resourceNamed(const std::string &name) const
+    {
+        for (const ResourceSchema &resource : m_resources)
+        {
+            if (resource.m_name == name)
+            {
+                return &resource;
+            }
+        }
+        return nullptr;
+    }
+
+    std::vector<const ClassSchema *> PlayerSession::classChain(const std::string &name) const
+    {
+        std::vector<const ClassSchema *> chain;
+        for (const ClassSchema *schema = classNamed(name); schema && chain.size() < m_schema.size(); schema = classNamed(schema->m_parent))
+        {
+            chain.push_back(schema);
+        }
+        return chain;
+    }
+
     void PlayerSession::setEditorCamera(double x, double y, double zoom)
     {
         if (m_channel)
