@@ -15,6 +15,7 @@ add_library(fried_editor_core STATIC
     src/input_map.cpp
     src/log_tail.cpp
     src/message_channel.cpp
+    src/modules.cpp
     src/player_builder.cpp
     src/player_session.cpp
     src/project_settings.cpp

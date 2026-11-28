@@ -13,6 +13,7 @@ add_executable(core_tests
     gizmo_test.cpp
     input_map_test.cpp
     log_tail_test.cpp
+    modules_test.cpp
     game_session_test.cpp
     import_settings_test.cpp
     player_session_test.cpp

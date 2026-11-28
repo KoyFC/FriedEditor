@@ -2,6 +2,7 @@
 
 #include "fried/editor/input_map.h"
 #include "fried/editor/message_channel.h"
+#include "fried/editor/modules.h"
 #include "fried/editor/transport.h"
 
 #include <nlohmann/json.hpp>
@@ -33,6 +34,10 @@ namespace fried::editor
 
         // The transform class an object needs to have this component, empty when any will do.
         std::string m_requires;
+
+        // The module and backend the class belongs to, empty for a class that belongs to none.
+        std::string m_module;
+        std::string m_backend;
 
         // Whether the engine has the class, as opposed to the project.
         bool m_isBuiltin = false;
@@ -118,7 +123,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 7;
+        static constexpr int s_protocol = 8;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);
@@ -137,6 +142,8 @@ namespace fried::editor
         // The names of keys, buttons and axes the engine writes input actions with, which arrive with the schema.
         const InputNames &inputNames() const { return m_inputNames; }
         const ClassSchema *classNamed(const std::string &name) const;
+        // The modules of the engine the player was built from, which arrive with the schema.
+        const std::vector<ModuleSchema> &modules() const { return m_modules; }
 
         const std::vector<ResourceSchema> &resources() const { return m_resources; }
         const ResourceSchema *resourceNamed(const std::string &name) const;
@@ -178,6 +185,7 @@ namespace fried::editor
         std::unique_ptr<MessageChannel> m_channel;
         State m_state = State::Waiting;
         std::string m_platform;
+        std::vector<ModuleSchema> m_modules;
         std::vector<ClassSchema> m_schema;
         std::vector<ResourceSchema> m_resources;
         InputNames m_inputNames;

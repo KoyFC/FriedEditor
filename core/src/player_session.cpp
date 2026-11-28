@@ -107,6 +107,8 @@ namespace fried::editor
                 schema.m_parent = entry.contains("parent") && entry["parent"].is_string() ? entry["parent"].get<std::string>() : "";
                 schema.m_isBuiltin = entry.value("builtin", false);
                 schema.m_kind = entry.value("kind", std::string("component"));
+                schema.m_module = entry.contains("module") && entry["module"].is_string() ? entry["module"].get<std::string>() : "";
+                schema.m_backend = entry.contains("backend") && entry["backend"].is_string() ? entry["backend"].get<std::string>() : "";
                 schema.m_requires = entry.contains("requires") && entry["requires"].is_string() ? entry["requires"].get<std::string>() : "";
                 for (const auto &field : listOf(entry, "fields"))
                 {
@@ -121,6 +123,12 @@ namespace fried::editor
                     schema.m_fields.push_back(std::move(fieldSchema));
                 }
                 m_schema.push_back(std::move(schema));
+            }
+            m_modules.clear();
+            auto modules = header.find("modules");
+            if (modules != header.end() && modules->is_object() && modules->contains("manifest") && (*modules)["manifest"].is_string())
+            {
+                m_modules = modulesFromManifest(nlohmann::json::parse((*modules)["manifest"].get<std::string>(), nullptr, false));
             }
             m_resources.clear();
             for (const auto &entry : listOf(header, "resources"))
