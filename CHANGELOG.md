@@ -9,6 +9,8 @@ All notable changes to Fried Editor are written here, newest version first.
 
 ## vX.Y.Z
 
+## v0.4.0 - 2026-11-28
+
 ### Added
 - Game objects and components: the hierarchy lists the scene's objects, each with its transform and its components, as in Unity. The inspector shows the active switch and name, the transform and one section for each component, with Add Component, Remove, Change Transform Type and Create New Object, and the running game's values are shown by component. A project with version 2 scenes is offered the engine's `fried_import migrate-scenes` when it opens.
 - Projects open and save in YAML: the project file, the scenes (`.scene.yaml`) and the import settings are written as YAML in the order a person reads them, and a project that is still in JSON is offered a conversion when it opens, with a backup of the originals in `.fried/json-backup/`.
