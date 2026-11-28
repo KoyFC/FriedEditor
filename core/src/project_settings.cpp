@@ -120,7 +120,7 @@ namespace fried::editor
         {
             if (!contains(known, scenes[index]))
             {
-                problem = "The project has no scene or node class named " + scenes[index] + ".";
+                problem = "The project has no scene or component class named " + scenes[index] + ".";
             }
             else if (std::count(scenes.begin(), scenes.end(), scenes[index]) > 1)
             {

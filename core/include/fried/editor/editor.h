@@ -28,15 +28,19 @@
 
 namespace fried::editor
 {
-    // One node of the scene's tree as the hierarchy lists it, parents before their children.
+    // One object of the scene's tree as the hierarchy lists it, parents before their children.
     struct HierarchyRow
     {
         std::string m_id;
         std::string m_name;
-        std::string m_type;
-        bool m_isCamera = false;
 
-        // The scene this node instances, empty for a node of the scene's own.
+        // The class of the object's first component, or of its transform when it has none, which is what its icon follows.
+        std::string m_type;
+        std::string m_transformType;
+        bool m_isCamera = false;
+        bool m_isActive = true;
+
+        // The scene this object instances, empty for an object of the scene's own.
         std::string m_instance;
         int m_depth = 0;
         bool m_hasChildren = false;
@@ -113,11 +117,29 @@ namespace fried::editor
         const std::vector<fried::core::OutputLine> *m_lines = nullptr;
     };
 
-    // What one class of the selected node's chain declares, with the node's values for it. The inspector shows one section for each, the node's own class first.
+    // What one class of a component's chain declares, with the component's values for it.
     struct ClassView
     {
         std::string m_class;
         std::vector<FieldView> m_fields;
+    };
+
+    // The transform or one component of the selected object, with the classes it is made of, its own first.
+    struct ComponentView
+    {
+        ComponentRef m_ref;
+        std::string m_type;
+        std::vector<ClassView> m_classes;
+    };
+
+    // What the inspector shows of the selected object: its own fields, its transform and then its components in order.
+    struct ObjectView
+    {
+        std::string m_id;
+        FieldView m_name;
+        FieldView m_active;
+        std::string m_instance;
+        std::vector<ComponentView> m_components;
     };
 
     // Everything the editor does that is not drawing: a backend shows these models, forwards its input and calls the methods.
@@ -140,7 +162,7 @@ namespace fried::editor
             Look
         };
 
-        // Whether the viewport shows the scene's plane or its 3D space. A scene that has a Node3D starts in 3D.
+        // Whether the viewport shows the scene's plane or its 3D space. A scene that has a Transform3D starts in 3D.
         enum class ViewMode
         {
             TwoD,
@@ -161,6 +183,11 @@ namespace fried::editor
         void declineYamlMigration() { m_isYamlMigrationOffered = false; }
         // Rewrites them, keeping the originals in .fried/json-backup, and opens the project again. The report says what was done or what went wrong.
         bool migrateToYaml(std::string *report);
+
+        // Whether the project that was just opened has scenes from before game objects, which fried_import rewrites. The originals are kept in .fried/v2-backup. The report says what was done or what went wrong, and the project is opened again.
+        bool isSceneMigrationOffered() const { return m_isSceneMigrationOffered; }
+        void declineSceneMigration() { m_isSceneMigrationOffered = false; }
+        bool migrateScenes(std::string *report);
 
         // Called often by the backend, from its own thread.
         void pump();
@@ -261,8 +288,16 @@ namespace fried::editor
         // Worked out again only after the document changed.
         const std::vector<HierarchyRow> &hierarchy() const;
 
-        // Adds a node of a class as the last child of a node, or at the top of the scene with no parent, and selects it. A node that is placed by a position starts at the center of the view.
-        void addNode(const std::string &type, const std::optional<std::string> &parentId = std::nullopt);
+        // Adds an object as the last child of an object, or at the top of the scene with no parent, and selects it. It has a transform of the class given, or the one its component needs when that is empty, and the component when there is one. An object that is placed by a position starts at the center of the view.
+        void addObject(const std::string &transformType, const std::string &component, const std::optional<std::string> &parentId = std::nullopt);
+
+        // Puts a component of a class on an object with the defaults of its class. False with the reason in the message when its transform is not the one it needs.
+        bool addComponent(const std::string &id, const std::string &type);
+        void removeComponent(const std::string &id, const ComponentRef &component);
+
+        // Whether the object has the kind of transform the class needs, which is always so for a class that needs none.
+        bool canHaveComponent(const std::string &id, const std::string &type) const;
+        void setActive(const std::string &id, bool isActive);
         void removeSelected();
 
         // Adds a scene of the project as one node under a node, or at the top of the scene with no parent, and selects it. False with the reason in error for a scene that cannot be instanced here.
@@ -296,13 +331,14 @@ namespace fried::editor
 
         // Moves a node under another, or to the top of the scene with an empty parent. The index is its place among the new siblings as they are now.
         void reparent(const std::string &id, const std::string &parentId, int index);
-        void changeType(const std::string &id, const std::string &type);
+        // Gives the object a transform of another class, keeping the values the new class has too. The plain Transform is the empty name.
+        void changeTransformType(const std::string &id, const std::string &type);
         void setCameraToSelected();
         void rename(const std::string &id, const std::string &name);
         void renameSelected(const std::string &name);
 
-        // The selected node's class sections, the node's own class first. Worked out again only after the document or the selection changed.
-        const std::vector<ClassView> &inspector() const;
+        // The selected object as the inspector shows it. Worked out again only after the document or the selection changed.
+        const ObjectView &inspector() const;
 
         // Every class the player knows, each after the class it extends, which is what a menu of node types is made from.
         const std::vector<ClassSchema> &classes() const { return m_session.schema(); }
@@ -313,9 +349,9 @@ namespace fried::editor
 
         // The class and the ones it extends, its own name first, which is how a class without a look of its own takes its parent's.
         std::vector<std::string> classChain(const std::string &type) const;
-        // Takes the fields out of the selected node's data, in one step to undo.
-        void revertFields(const std::vector<std::string> &fields);
-        void setField(const std::string &field, const std::optional<nlohmann::json> &value);
+        // Takes the fields out of a component of the selected object, in one step to undo.
+        void revertFields(const ComponentRef &component, const std::vector<std::string> &fields);
+        void setField(const ComponentRef &component, const std::string &field, const std::optional<nlohmann::json> &value);
 
         // The selected Control's anchors and box for the backend to draw, when it is one and the player has shown it.
         std::optional<RectPreview> rectPreview() const;
@@ -340,16 +376,16 @@ namespace fried::editor
         bool deleteAsset(const std::string &reference, std::string *error);
         bool duplicateAsset(const std::string &reference, std::string *error);
 
-        // Writes a new script into a folder of the game's source, as "src/nodes/enemies", that extends a class of the engine or of the game. Scripts are found by scenes only under src/nodes. A class is known to the editor once the player is built again.
+        // Writes a new script into a folder of the game's source, as "src/components/enemies", that extends a class of the engine or of the game. Scripts are found by scenes only under src/components. A class is known to the editor once the player is built again.
         bool createScript(const std::string &folder, const std::string &name, const std::string &baseClass, std::string *error);
 
         // The scene files that name the asset, or a file under it when it is a folder.
         std::vector<std::string> assetUsers(const std::string &reference) const;
 
-        // An image dropped on a node that has a texture becomes its texture, and anywhere else a new Sprite. A font becomes a new Label.
+        // An image dropped on an object that has a texture becomes its texture, and anywhere else a new object with a SpriteRenderer. A font becomes a new object with a Label.
         void dropAsset(const std::string &root, const std::string &path, double frameX, double frameY);
 
-        // Puts an asset in the tree as a child of a node, or at the top with no parent: a scene is instanced, an image becomes a Sprite and a font a Label. Anything else is left alone.
+        // Puts an asset in the tree as a child of a node, or at the top with no parent: a scene is instanced, an image becomes an object with a SpriteRenderer and a font one with a Label. Anything else is left alone.
         void addAssetNode(const std::string &root, const std::string &path, const std::string &parentId);
 
         // What is wrong with the project's assets for the platform being previewed, and putting one right.
@@ -517,7 +553,11 @@ namespace fried::editor
         double gameCameraZoom() const;
         void execute(std::unique_ptr<Command> command, bool merge);
         void setTransformFields(const std::string &id, const std::map<std::string, double> &fields, bool merge);
-        nlohmann::json newNode(const std::string &type) const;
+        nlohmann::json newObject(const std::string &transformType, const std::string &component) const;
+        nlohmann::json componentDefaults(const std::string &type) const;
+        std::string requiredTransform(const std::string &type) const;
+        std::optional<ComponentRef> componentWithField(const std::string &id, const std::string &field) const;
+        void placeAtView(nlohmann::json *object, const std::string &transformType) const;
         std::string playerLogFile() const;
         std::map<std::string, double> snapped(std::map<std::string, double> fields) const;
         bool insertCopy(const nlohmann::json &source, const std::string &parentId, int index, const std::string &label);
@@ -549,8 +589,8 @@ namespace fried::editor
         std::vector<std::string> m_tabs;
         mutable std::map<std::string, std::pair<std::filesystem::file_time_type, nlohmann::json>> m_sceneFiles;
         std::map<std::string, OpenScene> m_parked;
-        // The values the running game last reported for each node, over what the file holds. They show in the inspector and in the scene view while it runs.
-        std::map<std::string, nlohmann::json> m_liveFields;
+        // The values the running game last reported for each component of each object, by class and place among those of the class, over what the file holds. They show in the inspector and in the scene view while it runs.
+        std::map<std::string, std::map<std::pair<std::string, int>, nlohmann::json>> m_liveFields;
         unsigned long long m_liveSerial = 0;
         mutable unsigned long long m_inspectorLiveSerial = 0;
         // Set while the player is rebuilt so that the game can start with it, true when it is to start from the project's start scene.
@@ -559,6 +599,7 @@ namespace fried::editor
         unsigned long long m_gameFrameSerial = 0;
         bool m_isFailureShown = false;
         bool m_isYamlMigrationOffered = false;
+        bool m_isSceneMigrationOffered = false;
         std::string m_failedTitle;
         std::vector<fried::core::OutputLine> m_failedLines;
         std::string m_failedMessage;
@@ -605,7 +646,7 @@ namespace fried::editor
 
         mutable std::vector<HierarchyRow> m_hierarchyRows;
         mutable unsigned long m_hierarchyVersion = 0;
-        mutable std::vector<ClassView> m_inspectorViews;
+        mutable ObjectView m_inspectorView;
         mutable unsigned long m_inspectorVersion = 0;
         mutable std::optional<std::string> m_inspectorSelected;
         mutable std::size_t m_inspectorSchemaSize = 0;
