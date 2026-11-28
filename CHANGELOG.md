@@ -11,6 +11,7 @@ All notable changes to Fried Editor are written here, newest version first.
 
 ### Added
 - Modules in Player Settings: the General page and each platform's page choose the backend of each module (such as `kinematic` or `box2d` for 2D physics), and the ones a platform cannot run are listed and refused.
+- The inspector greys the settings the platform shown does not use, such as a collider's `friction` or a body's `bullet` where 2D physics is the default one, and a line above the components lists the platforms. Their tooltip names the module and the platforms.
 - The inspector warns about components left out of a platform's build by the modules, and greys the ones a platform shown does not use. Add Component lists the ones no platform uses, and cannot add them.
 
 ### Changed

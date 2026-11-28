@@ -18,10 +18,13 @@ namespace fried::editor
         std::vector<std::string> m_platforms;
         // Planned backends are listed and cannot be chosen yet.
         bool m_isPlanned = false;
+        // The settings of a component the backend does not use, as component and field.
+        std::vector<std::pair<std::string, std::string>> m_unsupported;
         // Where the backend only works in part, the platform and what is missing.
         std::vector<std::pair<std::string, std::string>> m_degraded;
 
         bool runsOn(fried::core::Platform platform) const;
+        bool ignores(const std::string &component, const std::string &field) const;
         // The text saying what a platform lacks, empty when it lacks nothing.
         std::string degradedOn(fried::core::Platform platform) const;
     };
@@ -38,6 +41,16 @@ namespace fried::editor
         // Why a backend cannot be chosen for a platform, empty when it can.
         std::string refusal(const std::string &backend, fried::core::Platform platform) const;
     };
+
+    // The platforms, among those given, where the backend the project uses does not use a setting of a component, and the module and backend that say so.
+    struct IgnoredSetting
+    {
+        std::vector<fried::core::Platform> m_platforms;
+        std::string m_module;
+        std::string m_backend;
+    };
+    IgnoredSetting settingIgnoredOn(const std::vector<ModuleSchema> &modules, const fried::core::Project &project, const std::string &component,
+                                    const std::string &field, const std::vector<fried::core::Platform> &considered);
 
     // The manifest of modules the player sends with its schema, which is the manifest of the engine it was built from.
     std::vector<ModuleSchema> modulesFromManifest(const nlohmann::json &manifest);

@@ -11,7 +11,7 @@ namespace
     {
         return modulesFromManifest(nlohmann::json::parse(R"({
             "physics2d": {"default": "kinematic", "backends": {
-                "kinematic": {"platforms": "all"},
+                "kinematic": {"platforms": "all", "unsupportedFields": {"Body2D": ["bullet"]}},
                 "box2d": {"platforms": ["pc", "vita"], "native": "box2d"}}},
             "audio": {"default": "native", "backends": {
                 "native": {"platforms": "all", "degraded": {"cg50": "No audio output."}}}},
@@ -89,4 +89,19 @@ TEST_CASE("a component is left out where its backend is not the one in use or on
     CHECK_FALSE(isLeftOut(modules, "audio", "native", value, Platform::Pc));
     CHECK(isLeftOut(modules, "audio", "native", value, Platform::Cg50));
     CHECK_FALSE(isLeftOut(modules, "unknown", "x", value, Platform::Pc));
+}
+
+TEST_CASE("a setting is ignored on the platforms whose backend does not use it")
+{
+    std::vector<ModuleSchema> modules = sample();
+    fried::core::Project value = project();
+    value.setModuleBackend(Platform::Pc, "physics2d", "box2d");
+    std::vector<Platform> considered = {Platform::Pc, Platform::NintendoDs, Platform::Vita};
+
+    IgnoredSetting ignored = settingIgnoredOn(modules, value, "Body2D", "bullet", considered);
+    CHECK(ignored.m_platforms == std::vector<Platform>{Platform::NintendoDs, Platform::Vita});
+    CHECK(ignored.m_module == "physics2d");
+    CHECK(ignored.m_backend == "kinematic");
+    CHECK(settingIgnoredOn(modules, value, "Body2D", "velocityX", considered).m_platforms.empty());
+    CHECK(settingIgnoredOn(modules, value, "Collider2D", "bullet", considered).m_platforms.empty());
 }

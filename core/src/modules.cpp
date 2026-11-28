@@ -9,6 +9,18 @@ namespace fried::editor
         return m_isOnEveryPlatform || std::find(m_platforms.begin(), m_platforms.end(), fried::core::platformKey(platform)) != m_platforms.end();
     }
 
+    bool ModuleBackend::ignores(const std::string &component, const std::string &field) const
+    {
+        for (const auto &entry : m_unsupported)
+        {
+            if (entry.first == component && entry.second == field)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     std::string ModuleBackend::degradedOn(fried::core::Platform platform) const
     {
         for (const auto &entry : m_degraded)
@@ -93,6 +105,24 @@ namespace fried::editor
                         }
                     }
                     backend.m_isPlanned = entry.value().value("planned", false);
+                    auto unsupported = entry.value().find("unsupportedFields");
+                    if (unsupported != entry.value().end() && unsupported->is_object())
+                    {
+                        for (auto component = unsupported->begin(); component != unsupported->end(); ++component)
+                        {
+                            if (!component.value().is_array())
+                            {
+                                continue;
+                            }
+                            for (const auto &field : component.value())
+                            {
+                                if (field.is_string())
+                                {
+                                    backend.m_unsupported.emplace_back(component.key(), field.get<std::string>());
+                                }
+                            }
+                        }
+                    }
                     auto degraded = entry.value().find("degraded");
                     if (degraded != entry.value().end() && degraded->is_object())
                     {
@@ -126,5 +156,25 @@ namespace fried::editor
             return found != nullptr && !found->degradedOn(platform).empty();
         }
         return false;
+    }
+
+    IgnoredSetting settingIgnoredOn(const std::vector<ModuleSchema> &modules, const fried::core::Project &project, const std::string &component,
+                                    const std::string &field, const std::vector<fried::core::Platform> &considered)
+    {
+        IgnoredSetting result;
+        for (const ModuleSchema &module : modules)
+        {
+            for (fried::core::Platform platform : considered)
+            {
+                const ModuleBackend *backend = module.backendNamed(module.backendFor(project, platform));
+                if (backend != nullptr && backend->ignores(component, field))
+                {
+                    result.m_platforms.push_back(platform);
+                    result.m_module = module.m_name;
+                    result.m_backend = backend->m_name;
+                }
+            }
+        }
+        return result;
     }
 }

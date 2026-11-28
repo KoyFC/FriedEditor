@@ -1333,8 +1333,8 @@ namespace editor_ui
             {"SpriteRenderer", Icon::Sprite2D},
             {"Camera", Icon::Camera2D},
             {"Camera3D", Icon::Camera3D},
-            {"Collider", Icon::CollisionShape2D},
-            {"KinematicBody", Icon::CharacterBody2D},
+            {"Collider2D", Icon::CollisionShape2D},
+            {"Body2D", Icon::CharacterBody2D},
             {"MeshRenderer", Icon::MeshInstance3D},
             {"Light", Icon::DirectionalLight3D},
             {"Canvas", Icon::Control},
@@ -2987,6 +2987,37 @@ namespace editor_ui
             ImGui::PopStyleColor();
         }
 
+        std::vector<fried::core::Platform> considered = m_editor.project().declaredPlatforms();
+        if (considered.empty())
+        {
+            considered.assign(fried::core::s_platforms.begin(), fried::core::s_platforms.end());
+        }
+        std::vector<fried::core::Platform> ignoring;
+        for (const fried::editor::ComponentView &component : object.m_components)
+        {
+            for (const fried::editor::ClassView &view : component.m_classes)
+            {
+                for (const FieldView &field : view.m_fields)
+                {
+                    for (fried::core::Platform platform :
+                         fried::editor::settingIgnoredOn(m_editor.modules(), m_editor.project(), view.m_class, field.m_schema.m_name, considered).m_platforms)
+                    {
+                        if (std::find(ignoring.begin(), ignoring.end(), platform) == ignoring.end())
+                        {
+                            ignoring.push_back(platform);
+                        }
+                    }
+                }
+            }
+        }
+        if (!ignoring.empty())
+        {
+            std::sort(ignoring.begin(), ignoring.end());
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::warning);
+            ImGui::TextWrapped("Some settings are not used on: %s.", platformList(ignoring).c_str());
+            ImGui::PopStyleColor();
+        }
+
         for (std::size_t position = 0; position < object.m_components.size(); ++position)
         {
             const fried::editor::ComponentView &component = object.m_components[position];
@@ -3033,7 +3064,25 @@ namespace editor_ui
                             index += axes.size() - 1;
                             continue;
                         }
+                        fried::editor::IgnoredSetting ignored =
+                            fried::editor::settingIgnoredOn(m_editor.modules(), m_editor.project(), view.m_class, fields[index].m_schema.m_name, considered);
+                        bool isUnused = !ignored.m_platforms.empty()
+                                        && (ignored.m_platforms.size() == considered.size()
+                                            || std::find(ignored.m_platforms.begin(), ignored.m_platforms.end(), m_editor.platform()) != ignored.m_platforms.end());
+                        if (isUnused)
+                        {
+                            ImGui::BeginDisabled();
+                        }
                         fieldEditor(fields[index]);
+                        if (isUnused)
+                        {
+                            ImGui::EndDisabled();
+                        }
+                        if (!ignored.m_platforms.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                        {
+                            ImGui::SetTooltip("%s: %s does not use this setting on %s.", ignored.m_module.c_str(), ignored.m_backend.c_str(),
+                                              platformList(ignored.m_platforms).c_str());
+                        }
                     }
                 }
                 ImGui::Dummy(ImVec2(0, scaled(2)));
