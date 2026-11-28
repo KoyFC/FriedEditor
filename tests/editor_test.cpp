@@ -17,6 +17,13 @@ using namespace fried::editor;
 
 namespace
 {
+    ComponentRef transformRef()
+    {
+        ComponentRef ref;
+        ref.m_isTransform = true;
+        return ref;
+    }
+
     void pumpUntil(Editor &editor, const std::function<bool()> &done)
     {
         for (int attempt = 0; attempt < 1000 && !done(); ++attempt)
@@ -46,13 +53,13 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     CHECK(editor.selected() == std::optional<std::string>("sprite"));
     editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
     editor.pointerUp();
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(288));
 
     editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
     editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
     editor.pointerMove(view.worldToFrameX(320) + 40, view.worldToFrameY(200) + 20);
     editor.pointerUp();
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(328));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(328));
     CHECK(editor.document().isModified());
 
     size_t frames = editor.frame().m_rgba.size();
@@ -61,7 +68,7 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     CHECK(frames > 0);
 
     editor.commands().undo();
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(288));
 
     // Scale mode puts a handle on the sprite's right edge, which is 128 world pixels wide.
     editor.setGizmoMode(GizmoMode::Scale);
@@ -75,14 +82,14 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     editor.pointerDown(handleX, handleY, Editor::Pointer::Primary);
     editor.pointerMove(handleX + 64 * view.zoom(), handleY);
     editor.pointerUp();
-    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(12.0));
-    CHECK(editor.document().nodeField("sprite", "scaleY") == nlohmann::json(8));
+    CHECK(editor.document().componentField("sprite", transformRef(), "scaleX") == nlohmann::json(12.0));
+    CHECK(editor.document().componentField("sprite", transformRef(), "scaleY") == nlohmann::json(8));
     editor.commands().undo();
-    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(8));
+    CHECK(editor.document().componentField("sprite", transformRef(), "scaleX") == nlohmann::json(8));
 
     // An image dropped on the sprite swaps its texture, and dropped on empty space makes a new sprite there.
     editor.dropAsset("game", "icon.png", view.worldToFrameX(320), view.worldToFrameY(200));
-    CHECK(editor.document().nodeField("sprite", "texture") == nlohmann::json({{"root", "game"}, {"path", "icon.png"}}));
+    CHECK(editor.document().componentField("sprite", ComponentRef{"SpriteRenderer", 0, false}, "texture") == nlohmann::json({{"root", "game"}, {"path", "icon.png"}}));
     editor.dropAsset("game", "sprite.png", 10, 10);
     CHECK(editor.hierarchy().size() == 5);
     CHECK(editor.selected() == std::optional<std::string>("sprite-2"));
@@ -94,22 +101,23 @@ TEST_CASE("the editor shows a project's scene, picks and drags an object, and un
     // A row knows its type, and the classes it extends come after its own name.
     auto sprite = std::find_if(editor.hierarchy().begin(), editor.hierarchy().end(), [](const HierarchyRow &row) { return row.m_id == "sprite"; });
     REQUIRE(sprite != editor.hierarchy().end());
-    CHECK(sprite->m_type == "Sprite");
+    CHECK(sprite->m_type == "SpriteRenderer");
+    CHECK(sprite->m_transformType == "Transform2D");
     std::vector<std::string> chain = editor.classChain(sprite->m_type);
     REQUIRE(!chain.empty());
-    CHECK(chain.front() == "Sprite");
-    CHECK(std::find(chain.begin(), chain.end(), "Node2D") != chain.end());
+    CHECK(chain.front() == "SpriteRenderer");
+    CHECK(std::find(chain.begin(), chain.end(), "Renderer2D") != chain.end());
 
-    editor.addNode("Label");
+    editor.addObject("", "Label");
     CHECK(editor.hierarchy().size() == 5);
-    CHECK(editor.inspector().size() == 4);
+    CHECK(editor.inspector().m_components.size() == 2);
     editor.commands().undo();
 
     // Changing the platform only changes what the viewport previews, so an edit still reaches the one value the scene has.
     editor.setPlatform(Platform::NintendoDs);
     editor.select(std::string("sprite"));
-    editor.setField("scaleX", nlohmann::json(2));
-    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(2));
+    editor.setField(transformRef(), "scaleX", nlohmann::json(2));
+    CHECK(editor.document().componentField("sprite", transformRef(), "scaleX") == nlohmann::json(2));
     CHECK(editor.document().data().find("platforms") == editor.document().data().end());
     pumpUntil(editor, [&] { return false; });
     CHECK(editor.status() == Editor::Status::Ready);
@@ -143,28 +151,33 @@ TEST_CASE("the editor shows the sandbox's scene with the nodes of the game" * do
 
     editor.select(std::string("camera-follow"));
     bool hasReference = false;
-    for (const ClassView &view : editor.inspector())
+    for (const ComponentView &component : editor.inspector().m_components)
     {
-        for (const FieldView &field : view.m_fields)
+        for (const ClassView &view : component.m_classes)
         {
-            if (view.m_class == "CameraFollow" && field.m_schema.m_name == "target")
+            for (const FieldView &field : view.m_fields)
             {
-                hasReference = field.m_schema.m_kind == "object" && field.m_value == "player";
+                if (view.m_class == "CameraFollow" && field.m_schema.m_name == "target")
+                {
+                    hasReference = field.m_schema.m_kind == "object" && field.m_value == "player";
+                }
             }
         }
     }
     CHECK(hasReference);
 
-    // The inspector has a section for each class of the chain, the node's own first, and the name in the last.
+    // The inspector has the transform first and then a section for each component, each with the classes of its chain, its own first.
     editor.select(std::string("player"));
-    std::vector<ClassView> sections = editor.inspector();
-    REQUIRE(sections.size() == 5);
-    CHECK(sections[0].m_class == "Player");
-    CHECK(sections[1].m_class == "Sprite");
-    CHECK(sections[2].m_class == "Node2D");
-    CHECK(sections[3].m_class == "CanvasItem");
-    CHECK(sections[4].m_class == "Node");
-    CHECK(sections[4].m_fields[0].m_schema.m_name == "name");
+    const ObjectView &view = editor.inspector();
+    REQUIRE(view.m_components.size() == 3);
+    CHECK(view.m_components[0].m_ref.m_isTransform);
+    CHECK(view.m_components[0].m_type == "Transform2D");
+    CHECK(view.m_components[0].m_classes[0].m_class == "Transform2D");
+    CHECK(view.m_components[1].m_type == "SpriteRenderer");
+    CHECK(view.m_components[1].m_classes[1].m_class == "Renderer2D");
+    CHECK(view.m_components[2].m_type == "Player");
+    CHECK(view.m_name.m_schema.m_name == "name");
+    CHECK(view.m_active.m_value == nlohmann::json(true));
 }
 
 TEST_CASE("the move handle of a child is where the child is in the world, not at the world's origin" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
@@ -241,12 +254,12 @@ TEST_CASE("the move handle of a child is where the child is in the world, not at
     }
     REQUIRE(found);
     CHECK(editor.pointerTarget(pressX, pressY).m_kind == Editor::PointerTarget::Kind::Object);
-    auto before = editor.document().nodeField("post-0", "x");
+    auto before = editor.document().componentField("post-0", transformRef(), "x");
     editor.pointerDown(pressX, pressY, Editor::Pointer::Primary);
     editor.pointerMove(pressX + 20 * view.zoom(), pressY);
     editor.pointerUp();
     CHECK(editor.selected() == std::optional<std::string>("post-0"));
-    CHECK(editor.document().nodeField("post-0", "x") != before);
+    CHECK(editor.document().componentField("post-0", transformRef(), "x") != before);
 
     // The hitbox's own x and y are zero, its parent's are not, and the handle follows where it is drawn.
     editor.select(std::string("post-0-hitbox"));
@@ -396,7 +409,7 @@ TEST_CASE("the display frame is the display's size divided by the camera's zoom"
     CHECK(frameWidth() == doctest::Approx(640 * zoom));
 
     editor.select(std::string("camera"));
-    editor.setField("zoom", nlohmann::json(2.0));
+    editor.setField(ComponentRef{"Camera", 0, false}, "zoom", nlohmann::json(2.0));
     unsigned long serial = editor.frameSerial();
     pumpUntil(editor, [&] { return editor.frameSerial() > serial + 1; });
     CHECK(frameWidth() == doctest::Approx(320 * zoom));
@@ -503,7 +516,7 @@ TEST_CASE("a node is duplicated, copied and pasted with its children, under new 
     CHECK(editor.hierarchy().size() == before + 1);
     REQUIRE(editor.selected());
     CHECK(*editor.selected() != "sprite");
-    CHECK(editor.document().typeOf(*editor.selected()) == editor.document().typeOf("sprite"));
+    CHECK(editor.document().primaryTypeOf(*editor.selected()) == editor.document().primaryTypeOf("sprite"));
     CHECK(editor.document().parentOf(*editor.selected()) == editor.document().parentOf("sprite"));
     CHECK(editor.document().indexOf(*editor.selected()) == editor.document().indexOf("sprite") + 1);
     CHECK(editor.document().nodeField(*editor.selected(), "name").value_or("").get<std::string>() == name + "2");
@@ -551,21 +564,21 @@ TEST_CASE("dragging a node snaps to the grid when it is on, or when the snap key
     auto isOnGrid = [&](double value) { return std::fmod(value, 16.0) == 0; };
 
     drag();
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(325));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(325));
     editor.commands().undo();
 
     Editor::GridSettings settings = editor.grid();
     settings.m_isSnapping = true;
     editor.setGrid(settings);
     drag();
-    CHECK(isOnGrid(editor.document().nodeField("sprite", "x")->get<double>()));
-    CHECK(isOnGrid(editor.document().nodeField("sprite", "y")->get<double>()));
+    CHECK(isOnGrid(editor.document().componentField("sprite", transformRef(), "x")->get<double>()));
+    CHECK(isOnGrid(editor.document().componentField("sprite", transformRef(), "y")->get<double>()));
     editor.commands().undo();
 
     // Holding the key turns snapping the other way.
     editor.setSnapHeld(true);
     drag();
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(325));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(325));
     editor.setSnapHeld(false);
 }
 
@@ -653,7 +666,7 @@ TEST_CASE("a locked node is not picked or moved in the view, and the lock is rem
         editor.pointerMove(view.worldToFrameX(320) + 30, view.worldToFrameY(200) + 10);
         editor.pointerMove(view.worldToFrameX(320) + 40, view.worldToFrameY(200) + 20);
         editor.pointerUp();
-        CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+        CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(288));
         editor.select(std::nullopt);
         editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
         editor.pointerUp();
@@ -691,7 +704,7 @@ TEST_CASE("scenes open in tabs that keep their own changes and history" * doctes
     CHECK(editor.activeSceneIndex() == (int)editor.openScenes().size() - 1);
 
     editor.select(std::string("hints"));
-    editor.setField("text", nlohmann::json("changed"));
+    editor.setField(ComponentRef{"Label", 0, false}, "text", nlohmann::json("changed"));
     CHECK(editor.isSceneModified(scenes + "sandbox_ui.scene.yaml"));
     CHECK_FALSE(editor.isSceneModified(scenes + "sandbox.scene.yaml"));
 
@@ -703,7 +716,7 @@ TEST_CASE("scenes open in tabs that keep their own changes and history" * doctes
     CHECK(editor.hasModifiedScenes());
     REQUIRE(editor.openScene(scenes + "sandbox_ui.scene.yaml", &error));
     CHECK(editor.commands().canUndo());
-    CHECK(editor.document().nodeField("hints", "text") == nlohmann::json("changed"));
+    CHECK(editor.document().componentField("hints", ComponentRef{"Label", 0, false}, "text") == nlohmann::json("changed"));
     editor.commands().undo();
     CHECK_FALSE(editor.hasModifiedScenes());
 
@@ -729,20 +742,24 @@ TEST_CASE("a scene that instances another shows as one node of the class of the 
     REQUIRE(editor.status() == Editor::Status::Ready);
     REQUIRE(editor.openScene(scenes + "sandbox.scene.yaml", &error));
     CHECK(editor.instanceOf("player") == "player");
-    CHECK(editor.document().typeOf("player") == "Player");
+    CHECK(editor.document().primaryTypeOf("player") == "SpriteRenderer");
+    CHECK(editor.document().transformTypeOf("player") == "Transform2D");
 
     // What the entry does not set is what the instanced file says, not the engine's default.
     editor.select(std::string("player"));
     bool isSpeedFound = false;
-    for (const ClassView &view : editor.inspector())
+    for (const ComponentView &component : editor.inspector().m_components)
     {
-        for (const FieldView &field : view.m_fields)
+        for (const ClassView &view : component.m_classes)
         {
-            if (field.m_schema.m_name == "speed")
+            for (const FieldView &field : view.m_fields)
             {
-                isSpeedFound = true;
-                CHECK_FALSE(field.m_isSet);
-                CHECK(field.m_value == nlohmann::json(240));
+                if (field.m_schema.m_name == "speed")
+                {
+                    isSpeedFound = true;
+                    CHECK_FALSE(field.m_isSet);
+                    CHECK(field.m_value == nlohmann::json(240));
+                }
             }
         }
     }
@@ -789,10 +806,10 @@ TEST_CASE("the root node cannot be deleted, duplicated or moved, and what has no
     CHECK(editor.document().parentOf(root).empty());
 
     // With the root selected or with nothing selected, a new node, a pasted one and an instance go under the root.
-    editor.addNode("Label");
+    editor.addObject("", "Label");
     CHECK(editor.document().parentOf(*editor.selected()) == root);
     editor.select(root);
-    editor.addNode("Sprite", editor.selected());
+    editor.addObject("", "SpriteRenderer", editor.selected());
     CHECK(editor.document().parentOf(*editor.selected()) == root);
     editor.copySelected();
     editor.select(root);
@@ -815,7 +832,7 @@ TEST_CASE("G, R and S change the selected node with the pointer or a typed numbe
     editor.pointerDown(view.worldToFrameX(320), view.worldToFrameY(200), Editor::Pointer::Primary);
     editor.pointerUp();
     REQUIRE(editor.selected() == std::optional<std::string>("sprite"));
-    REQUIRE(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+    REQUIRE(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(288));
 
     double startX = view.worldToFrameX(320);
     double startY = view.worldToFrameY(200);
@@ -824,13 +841,13 @@ TEST_CASE("G, R and S change the selected node with the pointer or a typed numbe
     REQUIRE(editor.beginModal(Editor::Modal::Move, startX, startY));
     editor.modalAxis('x');
     editor.modalMove(startX + 30 * view.zoom(), startY + 50 * view.zoom());
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(318));
-    CHECK(editor.document().nodeField("sprite", "y") == nlohmann::json(160));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(318));
+    CHECK(editor.document().componentField("sprite", transformRef(), "y") == nlohmann::json(160));
     CHECK(editor.modalText() == "Move X");
     editor.confirmModal();
     CHECK_FALSE(editor.isModal());
     editor.commands().undo();
-    CHECK(editor.document().nodeField("sprite", "x") == nlohmann::json(288));
+    CHECK(editor.document().componentField("sprite", transformRef(), "x") == nlohmann::json(288));
 
     // A typed number replaces the pointer.
     REQUIRE(editor.beginModal(Editor::Modal::Move, startX, startY));
@@ -839,24 +856,24 @@ TEST_CASE("G, R and S change the selected node with the pointer or a typed numbe
     editor.modalType('1');
     editor.modalType('2');
     CHECK(editor.modalText() == "Move Y: -12");
-    CHECK(editor.document().nodeField("sprite", "y") == nlohmann::json(148));
+    CHECK(editor.document().componentField("sprite", transformRef(), "y") == nlohmann::json(148));
     editor.modalBackspace();
-    CHECK(editor.document().nodeField("sprite", "y") == nlohmann::json(159));
+    CHECK(editor.document().componentField("sprite", transformRef(), "y") == nlohmann::json(159));
     editor.confirmModal();
     editor.commands().undo();
 
     // Cancelling puts the node back and there is nothing to redo.
     REQUIRE(editor.beginModal(Editor::Modal::Scale, startX + 10, startY));
     editor.modalType('3');
-    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(24));
+    CHECK(editor.document().componentField("sprite", transformRef(), "scaleX") == nlohmann::json(24));
     editor.cancelModal();
-    CHECK(editor.document().nodeField("sprite", "scaleX") == nlohmann::json(8));
+    CHECK(editor.document().componentField("sprite", transformRef(), "scaleX") == nlohmann::json(8));
     CHECK_FALSE(editor.commands().canRedo());
 
     REQUIRE(editor.beginModal(Editor::Modal::Rotate, startX + 10, startY));
     editor.modalType('9');
     editor.modalType('0');
-    CHECK(editor.document().nodeField("sprite", "rotation") == nlohmann::json(90.0));
+    CHECK(editor.document().componentField("sprite", transformRef(), "rotation") == nlohmann::json(90.0));
     editor.cancelModal();
     CHECK(editor.commands().canRedo() == false);
 }
@@ -877,7 +894,7 @@ TEST_CASE("save scene as writes a new file, edits it and leaves the old one as i
     const std::string target = engine + "/sandbox/assets/scenes/SaveAsTest.scene.yaml";
     std::filesystem::remove(target);
 
-    editor.addNode("Label");
+    editor.addObject("", "Label");
     REQUIRE(editor.saveSceneAs(" SaveAsTest ", &error));
     CHECK(std::filesystem::path(editor.scenePath()).filename().string() == "SaveAsTest.scene.yaml");
     CHECK(std::filesystem::exists(target));

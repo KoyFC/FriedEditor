@@ -68,7 +68,7 @@ TEST_CASE("a new script extends the class that was chosen and imports it")
     std::string sibling = scriptTemplate("nodes", "Slime", "nodes.Enemy");
     CHECK(sibling.find("import") == std::string::npos);
     CHECK(sibling.find("extends Enemy {") != std::string::npos);
-    CHECK(scriptTemplate("nodes", "Plain", "").find("extends Node {") != std::string::npos);
+    CHECK(scriptTemplate("nodes", "Plain", "").find("extends Component {") != std::string::npos);
 }
 
 TEST_CASE("creating a script writes the file and refuses to overwrite one")
@@ -98,13 +98,13 @@ TEST_CASE("moving a script fixes its package and renaming it fixes its class")
     CHECK(read(file).find("package nodes;\n\nclass Blob") == 0);
 }
 
-TEST_CASE("renaming a script renames the nodes of that type in the scenes")
+TEST_CASE("renaming a script renames the components of that type in the scenes")
 {
     fs::path directory = workspace();
-    std::ofstream(directory / "scenes" / "main.scene.json") << R"({"nodes":[{"id":"a","type":"Slime","children":[{"id":"b","type":"Sprite"},{"id":"c","type":"Slime"}]}]})";
+    std::ofstream(directory / "scenes" / "main.scene.json") << R"({"objects":[{"id":"a","components":[{"type":"Slime"}],"children":[{"id":"b","components":[{"type":"SpriteRenderer"}]},{"id":"c","components":[{"type":"Slime"}]}]}]})";
     CHECK(renameSceneType((directory / "scenes").string(), "Slime", "Blob") == 2);
     std::string text = read(directory / "scenes" / "main.scene.json");
     CHECK(text.find("Slime") == std::string::npos);
-    CHECK(text.find("\"Sprite\"") != std::string::npos);
+    CHECK(text.find("\"SpriteRenderer\"") != std::string::npos);
     CHECK(renameSceneType((directory / "scenes").string(), "Slime", "Blob") == 0);
 }

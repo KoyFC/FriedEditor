@@ -13,9 +13,9 @@ using Json = nlohmann::json;
 
 namespace
 {
-    Json node(const std::string &id, const std::string &name, const std::string &type = "Node2D")
+    Json node(const std::string &id, const std::string &name, const std::string &transform = "Transform2D")
     {
-        return {{"id", id}, {"name", name}, {"type", type}, {"x", 1}, {"y", 2}};
+        return {{"id", id}, {"name", name}, {"transform", {{"type", transform}, {"x", 1}, {"y", 2}}}, {"components", Json::array({{{"type", "SpriteRenderer"}}})}};
     }
 
     // a (with children a1 and a2), b
@@ -37,7 +37,7 @@ namespace
 
 TEST_CASE("the file text is stable, so a scene read and written is the same bytes")
 {
-    SceneDocument document = SceneDocument::withRoot("Main", "Node2D");
+    SceneDocument document = SceneDocument::withRoot("Main", "Transform2D");
     REQUIRE(document.insertNode("main", 0, node("a", "A")));
     REQUIRE(document.insertNode("a", 0, node("a1", "A1")));
     std::string first = document.dump();
@@ -47,7 +47,7 @@ TEST_CASE("the file text is stable, so a scene read and written is the same byte
     REQUIRE(again.parse(first, &error));
     CHECK(again.dump() == first);
     CHECK(first.back() == '\n');
-    CHECK(first.find("version") < first.find("nodes"));
+    CHECK(first.find("version") < first.find("objects"));
 }
 
 TEST_CASE("the scene files the engine's sandbox ships round-trip byte for byte" * doctest::skip(std::getenv("FRIED_ENGINE") == nullptr))
@@ -80,7 +80,8 @@ TEST_CASE("nodes are listed parents first, with their parent, place and depth")
     CHECK(document.depthOf("b") == 0);
     CHECK(document.isInside("a2", "a"));
     CHECK_FALSE(document.isInside("a", "a2"));
-    CHECK(document.typeOf("a1") == "Node2D");
+    CHECK(document.transformTypeOf("a1") == "Transform2D");
+    CHECK(document.primaryTypeOf("a1") == "SpriteRenderer");
     CHECK(document.contains("b"));
     CHECK_FALSE(document.contains("zzz"));
 }
@@ -172,35 +173,100 @@ TEST_CASE("a node field can be set, read back and left to the engine's default a
     std::vector<DocumentChange> changes;
     document.m_onChange = [&](const DocumentChange &change) { changes.push_back(change); };
 
-    CHECK(document.setNodeField("a", "x", 40));
-    CHECK(document.nodeField("a", "x") == Json(40));
-    CHECK(document.setNodeField("a", "x", std::nullopt));
-    CHECK_FALSE(document.nodeField("a", "x").has_value());
+    ComponentRef transform;
+    transform.m_isTransform = true;
+    CHECK(document.setComponentField("a", transform, "x", 40));
+    CHECK(document.componentField("a", transform, "x") == Json(40));
+    CHECK(document.setComponentField("a", transform, "x", std::nullopt));
+    CHECK_FALSE(document.componentField("a", transform, "x").has_value());
     CHECK(document.setNodeField("a1", "name", Json("renamed")));
     CHECK(document.nodeField("a1", "name") == Json("renamed"));
 
     CHECK_FALSE(document.setNodeField("nope", "x", 1));
     CHECK_FALSE(document.setNodeField("a", "id", Json("z")));
-    CHECK_FALSE(document.setNodeField("a", "type", Json("Sprite")));
+    CHECK_FALSE(document.setNodeField("a", "components", Json::array()));
+    CHECK_FALSE(document.setNodeField("a", "transform", Json::object()));
     CHECK_FALSE(document.setNodeField("a", "children", Json::array()));
 
     REQUIRE(changes.size() == 3);
     CHECK(changes[0].m_kind == DocumentChange::Kind::Field);
     CHECK(changes[0].m_nodeId == "a");
     CHECK(changes[0].m_field == "x");
+    CHECK(changes[0].m_isTransform);
     CHECK(changes[0].m_value == 40);
 }
 
-TEST_CASE("replacing a node's contents keeps its children")
+TEST_CASE("replacing an object's transform keeps its children and components")
 {
     SceneDocument document = sample();
     Json before;
-    REQUIRE(document.replaceNode("a", Json{{"id", "a"}, {"type", "Sprite"}, {"name", "A"}}, &before));
-    CHECK(document.typeOf("a") == "Sprite");
+    REQUIRE(document.replaceTransform("a", Json{{"type", "RectTransform"}}, &before));
+    CHECK(document.transformTypeOf("a") == "RectTransform");
     CHECK(document.childrenOf("a") == ids({"a1", "a2"}));
-    CHECK(before["type"] == "Node2D");
-    CHECK_FALSE(before.contains("children"));
-    CHECK_FALSE(document.replaceNode("a", Json{{"id", "other"}, {"type", "Sprite"}}, &before));
+    CHECK(document.primaryTypeOf("a") == "SpriteRenderer");
+    CHECK(before["type"] == "Transform2D");
+    CHECK(before["x"] == 1);
+
+    Json ignored;
+    REQUIRE(document.replaceTransform("a", nullptr, &ignored));
+    CHECK(document.transformTypeOf("a") == "Transform");
+    CHECK_FALSE(document.node("a")->contains("transform"));
+    CHECK_FALSE(document.replaceTransform("nope", nullptr, &ignored));
+}
+
+TEST_CASE("components are added in a place, found by class and index, and taken out again")
+{
+    SceneDocument document = sample();
+    std::vector<DocumentChange> changes;
+    document.m_onChange = [&](const DocumentChange &change) { changes.push_back(change); };
+
+    REQUIRE(document.insertComponent("a", 1, Json{{"type", "SpriteRenderer"}, {"flip", "Horizontal"}}));
+    REQUIRE(document.insertComponent("a", 0, Json{{"type", "Player"}}));
+    std::vector<ComponentRef> list = document.componentsOf("a");
+    REQUIRE(list.size() == 3);
+    CHECK(list[0].m_type == "Player");
+    CHECK(list[1].m_type == "SpriteRenderer");
+    CHECK(list[1].m_index == 0);
+    CHECK(list[2].m_index == 1);
+    CHECK(document.primaryTypeOf("a") == "Player");
+
+    ComponentRef second{"SpriteRenderer", 1, false};
+    CHECK(document.componentField("a", second, "flip") == Json("Horizontal"));
+    CHECK(document.setComponentField("a", second, "flip", std::nullopt));
+    CHECK_FALSE(document.componentField("a", second, "flip").has_value());
+
+    Json removed;
+    int position = -1;
+    CHECK(document.removeComponent("a", second, &removed, &position));
+    CHECK(position == 2);
+    CHECK(removed["type"] == "SpriteRenderer");
+    CHECK(document.componentsOf("a").size() == 2);
+    CHECK_FALSE(document.removeComponent("a", second, &removed, &position));
+
+    REQUIRE(document.removeComponent("a1", ComponentRef{"SpriteRenderer", 0, false}, &removed, &position));
+    CHECK_FALSE(document.node("a1")->contains("components"));
+
+    CHECK(changes.front().m_kind == DocumentChange::Kind::ComponentAdded);
+    CHECK(changes.back().m_kind == DocumentChange::Kind::ComponentRemoved);
+}
+
+TEST_CASE("an instance holds only what it changes, and the maps that become empty are dropped")
+{
+    SceneDocument document = SceneDocument::empty("Main");
+    REQUIRE(document.insertNode("", 0, Json{{"id", "enemy"}, {"instance", "enemy"}}));
+    ComponentRef transform;
+    transform.m_isTransform = true;
+    ComponentRef player{"Player", 0, false};
+
+    CHECK(document.setComponentField("enemy", transform, "x", 40));
+    CHECK(document.setComponentField("enemy", player, "speed", 300));
+    CHECK(document.node("enemy")->at("transform")["x"] == 40);
+    CHECK(document.node("enemy")->at("components").size() == 1);
+
+    CHECK(document.setComponentField("enemy", transform, "x", std::nullopt));
+    CHECK(document.setComponentField("enemy", player, "speed", std::nullopt));
+    CHECK_FALSE(document.node("enemy")->contains("transform"));
+    CHECK_FALSE(document.node("enemy")->contains("components"));
 }
 
 TEST_CASE("a file that is not a scene is refused with a reason")
@@ -208,21 +274,25 @@ TEST_CASE("a file that is not a scene is refused with a reason")
     SceneDocument document;
     std::string error;
     CHECK_FALSE(document.parse("[]", &error));
-    CHECK_FALSE(document.parse(R"({"version": 1, "nodes": []})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 1, "objects": []})", &error));
     CHECK(error.find("version 1") != std::string::npos);
-    CHECK_FALSE(document.parse(R"({"version": 2, "objects": []})", &error));
-    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": [{"type": "Node", "name": "no id"}]})", &error));
-    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": [{"id": "a"}]})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": []})", &error));
+    CHECK(error.find("migrate-scenes") != std::string::npos);
+    CHECK_FALSE(document.parse(R"({"version": 3, "nodes": []})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 3, "objects": [{"name": "no id"}]})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 3, "objects": [{"id": "a", "components": [{"x": 1}]}]})", &error));
     CHECK(error.find("no type") != std::string::npos);
-    CHECK_FALSE(document.parse(R"({"version": 2, "nodes": [{"id": "a", "type": "Node", "children": [{"id": "a", "type": "Node"}]}]})", &error));
+    CHECK_FALSE(document.parse(R"({"version": 3, "objects": [{"id": "a", "children": [{"id": "a"}]}]})", &error));
     CHECK(error.find("used twice") != std::string::npos);
+    CHECK_FALSE(document.parse(R"({"version": 3, "objects": [{"id": "a", "instance": "b", "children": [{"id": "c"}]}]})", &error));
+    CHECK(error.find("cannot have") != std::string::npos);
     CHECK_FALSE(document.load("/nonexistent/scene.json", &error));
 }
 
-TEST_CASE("a node of a type the player does not know is kept as it is")
+TEST_CASE("a component of a type the player does not know is kept as it is")
 {
     SceneDocument document = SceneDocument::empty("Main");
-    Json custom = {{"id", "a"}, {"name", "A"}, {"type", "Mystery"}, {"target", "b"}, {"depth", 3}};
+    Json custom = {{"id", "a"}, {"name", "A"}, {"components", Json::array({{{"type", "Mystery"}, {"target", "b"}, {"depth", 3}}})}};
     REQUIRE(document.insertNode("", 0, custom));
 
     std::string path = (std::filesystem::temp_directory_path() / "fried-unknown-type.scene.json").string();
@@ -230,39 +300,15 @@ TEST_CASE("a node of a type the player does not know is kept as it is")
     REQUIRE(document.save(path, &error));
     SceneDocument reloaded = SceneDocument::empty("Other");
     REQUIRE(reloaded.load(path, &error));
-    CHECK(reloaded.data()["nodes"][0] == custom);
+    CHECK(reloaded.data()["objects"][0] == custom);
     std::filesystem::remove(path);
-}
-
-TEST_CASE("a MeshInstance with a shape and a color is read as a MeshInstance3D with a mesh, and says so")
-{
-    std::string text = R"({"version": 2, "name": "Level", "nodes": [{"id": "root", "type": "Node", "children": [
-        {"id": "ball", "type": "MeshInstance", "shape": "Sphere", "color": {"r": 1, "g": 2, "b": 3, "a": 255}},
-        {"id": "box", "type": "MeshInstance3D"}]}]})";
-    SceneDocument document;
-    std::string error;
-    REQUIRE(document.parse(text, &error));
-    CHECK(document.wasMigrated());
-    CHECK(document.typeOf("ball") == "MeshInstance3D");
-
-    nlohmann::json dumped;
-    REQUIRE(fried::core::parseYaml(document.dump(), &dumped, &error));
-    const nlohmann::json &ball = dumped["nodes"][0]["children"][0];
-    CHECK_FALSE(ball.contains("shape"));
-    CHECK_FALSE(ball.contains("color"));
-    CHECK(ball["mesh"]["type"] == "SphereMesh");
-    CHECK(ball["mesh"]["material"]["albedoColor"]["b"] == 3);
-
-    SceneDocument again;
-    REQUIRE(again.parse(document.dump(), &error));
-    CHECK_FALSE(again.wasMigrated());
 }
 
 TEST_CASE("a new scene has one root named like it, of the type chosen")
 {
-    SceneDocument document = SceneDocument::withRoot("Level One", "Node3D");
+    SceneDocument document = SceneDocument::withRoot("Level One", "Transform3D");
     CHECK(document.rootId() == "level-one");
-    CHECK(document.typeOf("level-one") == "Node3D");
+    CHECK(document.transformTypeOf("level-one") == "Transform3D");
     CHECK(document.nodeCount() == 1);
     CHECK_FALSE(document.wasMigrated());
 }
@@ -275,7 +321,7 @@ TEST_CASE("a file with several top-level nodes is read with them under a plain r
     REQUIRE(read.parse(document.dump(), &error));
     CHECK(read.wasMigrated());
     CHECK(read.rootId() == "main-root");
-    CHECK(read.typeOf("main-root") == "Node");
+    CHECK(read.transformTypeOf("main-root") == "Transform");
     CHECK(read.childrenOf("main-root") == ids({"a", "b"}));
     CHECK(read.parentOf("a1") == "a");
 
@@ -289,8 +335,8 @@ TEST_CASE("a scene is read from YAML and saved in the format of the file it goes
 {
     SceneDocument document;
     std::string error;
-    REQUIRE(document.parse("version: 2\nname: Level\nnodes:\n  - type: Node2D\n    id: root\n    x: 1.5\n", &error));
-    CHECK(document.typeOf("root") == "Node2D");
+    REQUIRE(document.parse("version: 3\nname: Level\nobjects:\n  - id: root\n    transform:\n      type: Transform2D\n      x: 1.5\n", &error));
+    CHECK(document.transformTypeOf("root") == "Transform2D");
 
     std::filesystem::path directory = std::filesystem::temp_directory_path() / "fried-editor-test-yaml-scene";
     std::filesystem::create_directories(directory);
@@ -302,7 +348,7 @@ TEST_CASE("a scene is read from YAML and saved in the format of the file it goes
     std::stringstream yamlText, jsonText;
     yamlText << yamlFile.rdbuf();
     jsonText << jsonFile.rdbuf();
-    CHECK(yamlText.str().rfind("version: 2\n", 0) == 0);
+    CHECK(yamlText.str().rfind("version: 3\n", 0) == 0);
     CHECK(jsonText.str().front() == '{');
 
     SceneDocument fromYaml, fromJson;
