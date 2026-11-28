@@ -9,6 +9,14 @@ All notable changes to Fried Editor are written here, newest version first.
 
 ## vX.Y.Z
 
+### Added
+- Modules in Player Settings: the General page and each platform's page choose the backend of each module (such as `kinematic` or `box2d` for 2D physics), and the ones a platform cannot run are listed and refused.
+- The inspector warns about components left out of a platform's build by the modules, and greys the ones a platform shown does not use. Add Component lists the ones no platform uses, and cannot add them.
+
+### Changed
+- The settings of each platform are saved in `platforms.<platform>` of `project.fried`, and a project in the old layout is upgraded when it is saved.
+- The editor protocol is 8, which carries the modules of the engine, so the player has to be rebuilt.
+
 ## v0.4.0 - 2026-11-28
 
 ### Added
