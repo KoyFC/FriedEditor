@@ -225,7 +225,7 @@ namespace editor_ui
         }
 
         ImGui::SeparatorText("Autoload");
-        ImGui::TextDisabled("Node classes of the project, or scenes, loaded once when the game starts and kept while it runs, for what the whole game needs. They are reached with SceneManager.autoload. A scene dragged from the Assets tab is added too.");
+        ImGui::TextDisabled("Component classes of the project, or scenes, loaded once when the game starts and kept while it runs, for what the whole game needs. They are reached with SceneManager.autoload. A scene dragged from the Assets tab is added too.");
         {
             const ImVec2 sectionLow = ImGui::GetCursorScreenPos();
             std::vector<std::string> listed = project.autoloads();
