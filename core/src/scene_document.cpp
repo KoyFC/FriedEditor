@@ -30,67 +30,78 @@ namespace fried::editor
 
         bool isReserved(const std::string &field)
         {
-            return field == "id" || field == "type" || field == "children" || field == "instance";
+            return field == "id" || field == "children" || field == "transform" || field == "components";
         }
 
-        bool migrateMeshInstance(Json &node)
+        // Whether the list of components is a list of maps that each name a class, and what is wrong when it is not.
+        bool checkObject(const Json &node, const std::string &id, std::string *error)
         {
-            if (!node.is_object() || !node.contains("type") || !node["type"].is_string())
+            if (node.contains("transform") && (!node["transform"].is_object() || (node["transform"].contains("type") && !node["transform"]["type"].is_string())))
             {
+                *error = "The transform of " + id + " is not a map with a type.";
                 return false;
             }
-            bool isChanged = false;
-            if (node["type"] == "MeshInstance")
+            if (node.contains("components"))
             {
-                node["type"] = "MeshInstance3D";
-                isChanged = true;
-            }
-            if (node["type"] == "MeshInstance3D" && (node.contains("shape") || node.contains("color")))
-            {
-                std::string shape = node.contains("shape") && node["shape"].is_string() ? node["shape"].get<std::string>() : "Cube";
-                Json color = node.contains("color") ? node["color"] : Json{{"r", 200}, {"g", 200}, {"b", 200}, {"a", 255}};
-                node.erase("shape");
-                node.erase("color");
-                if (!node.contains("mesh"))
+                if (!node["components"].is_array())
                 {
-                    Json mesh;
-                    if (shape == "Plane")
-                    {
-                        mesh = {{"type", "PlaneMesh"}, {"sizeX", 1}, {"sizeZ", 1}, {"subdivideWidth", 15}, {"subdivideDepth", 15}};
-                    }
-                    else if (shape == "Sphere")
-                    {
-                        mesh = {{"type", "SphereMesh"}, {"radialSegments", 8}, {"rings", 6}};
-                    }
-                    else if (shape == "Pyramid")
-                    {
-                        mesh = {{"type", "CylinderMesh"}, {"topRadius", 0}, {"bottomRadius", 0.7071}, {"height", 1}, {"radialSegments", 4}, {"rings", 0}, {"capTop", false}};
-                    }
-                    else
-                    {
-                        mesh = {{"type", "BoxMesh"}};
-                    }
-                    mesh["material"] = {{"type", "StandardMaterial3D"}, {"albedoColor", color}};
-                    node["mesh"] = mesh;
+                    *error = "The components of " + id + " are not a list.";
+                    return false;
                 }
-                isChanged = true;
+                for (const Json &component : node["components"])
+                {
+                    if (!component.is_object() || !component.contains("type") || !component["type"].is_string())
+                    {
+                        *error = "A component of " + id + " has no type.";
+                        return false;
+                    }
+                }
             }
-            return isChanged;
+            if (node.contains("instance"))
+            {
+                if (!node["instance"].is_string())
+                {
+                    *error = "The instance of " + id + " is not the name of a scene.";
+                    return false;
+                }
+                if (node.contains("children"))
+                {
+                    *error = "The instance " + id + " has children, which an instance cannot have.";
+                    return false;
+                }
+            }
+            return true;
         }
 
-        bool migrateMeshInstances(Json &nodes)
+        // The place of a component among those of its class, which is how the engine names it.
+        int positionOf(const Json &list, const ComponentRef &component)
         {
-            bool isChanged = false;
-            for (Json &node : nodes)
+            int seen = 0;
+            for (std::size_t position = 0; position < list.size(); ++position)
             {
-                isChanged = migrateMeshInstance(node) || isChanged;
-                auto children = node.find("children");
-                if (children != node.end() && children->is_array())
+                if (list[position].value("type", "") == component.m_type)
                 {
-                    isChanged = migrateMeshInstances(*children) || isChanged;
+                    if (seen == component.m_index)
+                    {
+                        return (int)position;
+                    }
+                    seen++;
                 }
             }
-            return isChanged;
+            return -1;
+        }
+
+        int indexAmongClass(const Json &list, int position)
+        {
+            int seen = 0;
+            for (int index = 0; index < position; ++index)
+            {
+                if (list[index].value("type", "") == list[position].value("type", ""))
+                {
+                    seen++;
+                }
+            }
+            return seen;
         }
 
         void collectIds(const Json &node, std::vector<std::string> *ids)
@@ -109,6 +120,26 @@ namespace fried::editor
 
     namespace
     {
+        bool checkSubtree(const Json &node, std::string *error)
+        {
+            if (!node.is_object() || !checkObject(node, node.value("id", ""), error))
+            {
+                return false;
+            }
+            auto children = node.find("children");
+            if (children != node.end() && children->is_array())
+            {
+                for (const Json &child : *children)
+                {
+                    if (!checkSubtree(child, error))
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
         std::string slugOf(const std::string &text)
         {
             std::string slug;
@@ -134,7 +165,7 @@ namespace fried::editor
     SceneDocument SceneDocument::empty(const std::string &name)
     {
         SceneDocument document;
-        document.m_data = {{"version", s_version}, {"name", name}, {"nodes", Json::array()}};
+        document.m_data = {{"version", s_version}, {"name", name}, {"objects", Json::array()}};
         document.m_name = name;
         return document;
     }
@@ -142,8 +173,12 @@ namespace fried::editor
     SceneDocument SceneDocument::withRoot(const std::string &name, const std::string &rootType)
     {
         SceneDocument document;
-        Json root = {{"id", slugOf(name)}, {"name", name}, {"type", rootType}};
-        document.m_data = {{"version", s_version}, {"name", name}, {"nodes", Json::array({root})}};
+        Json root = {{"id", slugOf(name)}, {"name", name}};
+        if (!rootType.empty() && rootType != "Transform")
+        {
+            root["transform"] = {{"type", rootType}};
+        }
+        document.m_data = {{"version", s_version}, {"name", name}, {"objects", Json::array({root})}};
         document.m_name = name;
         document.reindex();
         return document;
@@ -151,7 +186,7 @@ namespace fried::editor
 
     std::string SceneDocument::rootId() const
     {
-        const Json &nodes = m_data["nodes"];
+        const Json &nodes = m_data["objects"];
         return nodes.is_array() && !nodes.empty() && nodes[0].is_object() ? nodes[0].value("id", "") : std::string();
     }
 
@@ -164,19 +199,16 @@ namespace fried::editor
             std::string id = node.is_object() ? node.value("id", "") : "";
             if (id.empty())
             {
-                *error = "A node in the scene file has no id.";
+                *error = "An object in the scene file has no id.";
                 return false;
             }
-            bool hasType = node.contains("type") && node["type"].is_string();
-            bool isInstance = node.contains("instance") && node["instance"].is_string() && !node.contains("type");
-            if (!hasType && !isInstance)
+            if (!checkObject(node, id, error))
             {
-                *error = "The node " + id + " has no type.";
                 return false;
             }
             if (m_index.count(id))
             {
-                *error = "The node id " + id + " is used twice.";
+                *error = "The object id " + id + " is used twice.";
                 return false;
             }
             m_index[id] = {parent, position++, depth};
@@ -203,7 +235,7 @@ namespace fried::editor
         m_index.clear();
         m_order.clear();
         std::string ignored;
-        indexList(m_data["nodes"], "", 0, &ignored);
+        indexList(m_data["objects"], "", 0, &ignored);
     }
 
     bool SceneDocument::parse(const std::string &text, std::string *error)
@@ -223,26 +255,22 @@ namespace fried::editor
         if (parsed.value("version", 0) != s_version)
         {
             *error = "The scene file is version " + std::to_string(parsed.value("version", 0)) + ", and this editor reads version "
-                + std::to_string(s_version) + ". Scenes are rewritten by hand when the engine's format changes.";
+                + std::to_string(s_version) + ". Run fried_import migrate-scenes on the project to rewrite its scenes.";
             return false;
         }
-        if (!parsed.contains("nodes") || !parsed["nodes"].is_array())
+        if (!parsed.contains("objects") || !parsed["objects"].is_array())
         {
-            *error = "The scene file has no list of nodes.";
+            *error = "The scene file has no list of objects.";
             return false;
         }
 
         SceneDocument next;
         next.m_data = std::move(parsed);
-        if (migrateMeshInstances(next.m_data["nodes"]))
+        if (next.m_data["objects"].size() != 1)
         {
-            next.m_wasMigrated = true;
-        }
-        if (next.m_data["nodes"].size() != 1)
-        {
-            // A scene has exactly one root, so the nodes of an older file go under a plain Node that changes nothing about them.
+            // A scene has exactly one root, so the objects of another file go under a plain root that changes nothing about them.
             std::vector<std::string> used;
-            for (const Json &node : next.m_data["nodes"])
+            for (const Json &node : next.m_data["objects"])
             {
                 collectIds(node, &used);
             }
@@ -252,15 +280,15 @@ namespace fried::editor
             {
                 id += "-x";
             }
-            Json root = {{"id", id}, {"name", name}, {"type", "Node"}};
-            if (!next.m_data["nodes"].empty())
+            Json root = {{"id", id}, {"name", name}};
+            if (!next.m_data["objects"].empty())
             {
-                root["children"] = next.m_data["nodes"];
+                root["children"] = next.m_data["objects"];
             }
-            next.m_data["nodes"] = Json::array({root});
+            next.m_data["objects"] = Json::array({root});
             next.m_wasMigrated = true;
         }
-        if (!next.indexList(next.m_data["nodes"], "", 0, error))
+        if (!next.indexList(next.m_data["objects"], "", 0, error))
         {
             return false;
         }
@@ -311,7 +339,7 @@ namespace fried::editor
     {
         if (parentId.empty())
         {
-            return &m_data["nodes"];
+            return &m_data["objects"];
         }
         Json *parent = find(parentId);
         if (!parent)
@@ -347,25 +375,75 @@ namespace fried::editor
         return const_cast<SceneDocument *>(this)->find(id);
     }
 
-    std::string SceneDocument::typeOf(const std::string &id) const
+    std::string SceneDocument::transformTypeOf(const std::string &id) const
     {
         const Json *found = node(id);
         if (!found)
         {
             return "";
         }
-        if (found->contains("type") && (*found)["type"].is_string())
+        if (found->contains("transform") && (*found)["transform"].contains("type"))
         {
-            return (*found)["type"].get<std::string>();
+            return (*found)["transform"]["type"].get<std::string>();
         }
         std::string scene = instanceOf(id);
-        return !scene.empty() && m_instanceType ? m_instanceType(scene) : "";
+        if (!scene.empty() && m_instanceRoot)
+        {
+            Json root = m_instanceRoot(scene);
+            if (root.is_object() && root.contains("transform") && root["transform"].contains("type"))
+            {
+                return root["transform"]["type"].get<std::string>();
+            }
+        }
+        return "Transform";
+    }
+
+    std::vector<ComponentRef> SceneDocument::componentsOf(const std::string &id) const
+    {
+        std::vector<ComponentRef> result;
+        const Json *found = node(id);
+        if (!found)
+        {
+            return result;
+        }
+        auto add = [&](const Json &list) {
+            for (std::size_t position = 0; position < list.size(); ++position)
+            {
+                ComponentRef ref;
+                ref.m_type = list[position].value("type", "");
+                ref.m_index = indexAmongClass(list, (int)position);
+                if (std::find(result.begin(), result.end(), ref) == result.end())
+                {
+                    result.push_back(ref);
+                }
+            }
+        };
+        std::string scene = instanceOf(id);
+        if (!scene.empty() && m_instanceRoot)
+        {
+            Json root = m_instanceRoot(scene);
+            if (root.is_object() && root.contains("components") && root["components"].is_array())
+            {
+                add(root["components"]);
+            }
+        }
+        if (found->contains("components") && (*found)["components"].is_array())
+        {
+            add((*found)["components"]);
+        }
+        return result;
+    }
+
+    std::string SceneDocument::primaryTypeOf(const std::string &id) const
+    {
+        std::vector<ComponentRef> components = componentsOf(id);
+        return components.empty() ? transformTypeOf(id) : components.front().m_type;
     }
 
     std::string SceneDocument::instanceOf(const std::string &id) const
     {
         const Json *found = node(id);
-        return found && found->contains("instance") && (*found)["instance"].is_string() && !found->contains("type") ? (*found)["instance"].get<std::string>() : "";
+        return found && found->contains("instance") && (*found)["instance"].is_string() ? (*found)["instance"].get<std::string>() : "";
     }
 
     std::string SceneDocument::parentOf(const std::string &id) const
@@ -377,7 +455,7 @@ namespace fried::editor
     std::vector<std::string> SceneDocument::childrenOf(const std::string &id) const
     {
         std::vector<std::string> ids;
-        const Json *list = id.empty() ? &m_data["nodes"] : (node(id) && node(id)->contains("children") ? &(*node(id))["children"] : nullptr);
+        const Json *list = id.empty() ? &m_data["objects"] : (node(id) && node(id)->contains("children") ? &(*node(id))["children"] : nullptr);
         if (list)
         {
             for (const Json &child : *list)
@@ -392,7 +470,7 @@ namespace fried::editor
     {
         if (id.empty())
         {
-            return (int)m_data["nodes"].size();
+            return (int)m_data["objects"].size();
         }
         const Json *found = node(id);
         return found && found->contains("children") ? (int)(*found)["children"].size() : 0;
@@ -469,9 +547,8 @@ namespace fried::editor
                 return false;
             }
         }
-        bool isTyped = inserted.contains("type") && inserted["type"].is_string();
-        bool isInstance = inserted.contains("instance") && inserted["instance"].is_string();
-        if (!isTyped && !isInstance)
+        std::string problem;
+        if (!checkSubtree(inserted, &problem))
         {
             return false;
         }
@@ -563,8 +640,8 @@ namespace fried::editor
     bool SceneDocument::setNodeField(const std::string &id, const std::string &field, const std::optional<Json> &value)
     {
         Json *found = find(id);
-        bool isInstanceChoice = field == "instance" && value && found && found->contains("instance") && !found->contains("type");
-        if (!found || (isReserved(field) && !isInstanceChoice))
+        bool isInstanceChoice = field == "instance" && value && value->is_string() && found && found->contains("instance");
+        if (!found || ((isReserved(field) || field == "instance") && !isInstanceChoice))
         {
             return false;
         }
@@ -573,23 +650,181 @@ namespace fried::editor
         return true;
     }
 
-    bool SceneDocument::replaceNode(const std::string &id, const Json &contents, Json *before)
+    bool SceneDocument::replaceTransform(const std::string &id, const Json &transform, Json *before)
     {
         Json *found = find(id);
-        if (!found || !contents.is_object() || contents.value("id", "") != id || !(contents.contains("type") || contents.contains("instance")))
+        if (!found || (!transform.is_null() && !transform.is_object()))
         {
             return false;
         }
-        *before = *found;
-        before->erase("children");
-        Json next = contents;
-        next.erase("children");
-        if (found->contains("children"))
+        *before = found->contains("transform") ? (*found)["transform"] : Json();
+        if (transform.is_null())
         {
-            next["children"] = (*found)["children"];
+            found->erase("transform");
         }
-        *found = std::move(next);
+        else
+        {
+            (*found)["transform"] = transform;
+        }
         changed({DocumentChange::Kind::Structure, id});
+        return true;
+    }
+
+    Json *SceneDocument::componentJson(const std::string &id, const ComponentRef &component, bool create)
+    {
+        Json *found = find(id);
+        if (!found)
+        {
+            return nullptr;
+        }
+        bool isInstance = found->contains("instance");
+        if (component.m_isTransform)
+        {
+            if (!found->contains("transform"))
+            {
+                if (!create || !isInstance)
+                {
+                    return nullptr;
+                }
+                (*found)["transform"] = Json::object();
+            }
+            return &(*found)["transform"];
+        }
+        if (!found->contains("components"))
+        {
+            if (!create || !isInstance)
+            {
+                return nullptr;
+            }
+            (*found)["components"] = Json::array();
+        }
+        Json &list = (*found)["components"];
+        int position = positionOf(list, component);
+        if (position < 0)
+        {
+            if (!create || !isInstance || component.m_index != 0)
+            {
+                return nullptr;
+            }
+            list.push_back({{"type", component.m_type}});
+            position = (int)list.size() - 1;
+        }
+        return &list[position];
+    }
+
+    const Json *SceneDocument::componentJson(const std::string &id, const ComponentRef &component) const
+    {
+        return const_cast<SceneDocument *>(this)->componentJson(id, component, false);
+    }
+
+    std::optional<Json> SceneDocument::componentField(const std::string &id, const ComponentRef &component, const std::string &field) const
+    {
+        if (component.isObject())
+        {
+            return nodeField(id, field);
+        }
+        const Json *found = componentJson(id, component);
+        if (!found || !found->contains(field) || field == "type")
+        {
+            return std::nullopt;
+        }
+        return (*found)[field];
+    }
+
+    bool SceneDocument::setComponentField(const std::string &id, const ComponentRef &component, const std::string &field, const std::optional<Json> &value)
+    {
+        if (component.isObject())
+        {
+            return setNodeField(id, field, value);
+        }
+        if (field == "type")
+        {
+            return false;
+        }
+        Json *found = componentJson(id, component, value.has_value());
+        if (!found)
+        {
+            return false;
+        }
+        assign(*found, field, value);
+
+        // What an instance no longer changes stops being mentioned.
+        Json *object = find(id);
+        if (object->contains("instance"))
+        {
+            if (component.m_isTransform)
+            {
+                if (found->empty())
+                {
+                    object->erase("transform");
+                }
+            }
+            else if (found->size() == 1)
+            {
+                Json &list = (*object)["components"];
+                list.erase(list.begin() + positionOf(list, component));
+                if (list.empty())
+                {
+                    object->erase("components");
+                }
+            }
+        }
+        DocumentChange change{DocumentChange::Kind::Field, id, field, value ? *value : Json()};
+        change.m_component = component.m_type;
+        change.m_componentIndex = component.m_index;
+        change.m_isTransform = component.m_isTransform;
+        changed(change);
+        return true;
+    }
+
+    bool SceneDocument::insertComponent(const std::string &id, int position, const Json &component)
+    {
+        Json *found = find(id);
+        if (!found || !component.is_object() || !component.contains("type") || !component["type"].is_string())
+        {
+            return false;
+        }
+        Json &list = (*found)["components"];
+        if (list.is_null())
+        {
+            list = Json::array();
+        }
+        if (position < 0 || position > (int)list.size())
+        {
+            return false;
+        }
+        list.insert(list.begin() + position, component);
+        DocumentChange change{DocumentChange::Kind::ComponentAdded, id, "", component, "", position};
+        change.m_component = component["type"].get<std::string>();
+        change.m_componentIndex = indexAmongClass(list, position);
+        changed(change);
+        return true;
+    }
+
+    bool SceneDocument::removeComponent(const std::string &id, const ComponentRef &component, Json *removed, int *position)
+    {
+        Json *found = find(id);
+        if (!found || component.m_isTransform || !found->contains("components"))
+        {
+            return false;
+        }
+        Json &list = (*found)["components"];
+        int at = positionOf(list, component);
+        if (at < 0)
+        {
+            return false;
+        }
+        *removed = list[at];
+        *position = at;
+        list.erase(list.begin() + at);
+        if (list.empty())
+        {
+            found->erase("components");
+        }
+        DocumentChange change{DocumentChange::Kind::ComponentRemoved, id, "", Json(), "", at};
+        change.m_component = component.m_type;
+        change.m_componentIndex = component.m_index;
+        changed(change);
         return true;
     }
 
