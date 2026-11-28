@@ -8,7 +8,7 @@ A shortcut with a panel under Where works only while that panel has the keyboard
 | Ctrl+S | Save | |
 | Ctrl+Shift+S | Save Scene As | |
 | Ctrl+Alt+S | Save All | |
-| Ctrl+P | Quick Open (`>` runs a command, `@` selects a node) | |
+| Ctrl+P | Quick Open (`>` runs a command, `@` selects an object) | |
 | Ctrl+Q | Quit | |
 | Ctrl+B | Build and Run | |
 | Ctrl+Z | Undo | |
@@ -18,13 +18,13 @@ A shortcut with a panel under Where works only while that panel has the keyboard
 | F7 | Pause or resume | also while the game has the keyboard |
 | F10 | Next frame, while paused | also while the game has the keyboard |
 | F8 | Stop | also while the game has the keyboard |
-| Ctrl+A | Create New Node under the selected node | |
+| Ctrl+A | Create New Object under the selected object | |
 | W, E, T | Move, Rotate and Scale tools | |
-| F | Frame the selected node | |
-| Delete | Delete the selected node | Hierarchy, Scene |
-| Ctrl+D | Duplicate the selected node | Hierarchy, Scene |
-| Ctrl+C, Ctrl+V | Copy and paste the selected node | Hierarchy, Scene |
-| F2 | Rename the selected node | Hierarchy |
+| F | Frame the selected object | |
+| Delete | Delete the selected object | Hierarchy, Scene |
+| Ctrl+D | Duplicate the selected object | Hierarchy, Scene |
+| Ctrl+C, Ctrl+V | Copy and paste the selected object | Hierarchy, Scene |
+| F2 | Rename the selected object | Hierarchy |
 | Up, Down, Left, Right | Move through the tree, fold and unfold | Hierarchy |
 | Delete | Delete the chosen file, after asking | Assets |
 | Ctrl+D | Duplicate the chosen file | Assets |
