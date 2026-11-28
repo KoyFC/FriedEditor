@@ -344,10 +344,12 @@ TEST_CASE("a scene is read from YAML and saved in the format of the file it goes
     std::string json = (directory / "b.scene.json").string();
     REQUIRE(document.save(yaml, &error));
     REQUIRE(document.save(json, &error));
-    std::ifstream yamlFile(yaml), jsonFile(json);
     std::stringstream yamlText, jsonText;
-    yamlText << yamlFile.rdbuf();
-    jsonText << jsonFile.rdbuf();
+    {
+        std::ifstream yamlFile(yaml), jsonFile(json);
+        yamlText << yamlFile.rdbuf();
+        jsonText << jsonFile.rdbuf();
+    }
     CHECK(yamlText.str().rfind("version: 3\n", 0) == 0);
     CHECK(jsonText.str().front() == '{');
 
