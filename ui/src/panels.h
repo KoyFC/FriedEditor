@@ -144,6 +144,8 @@ namespace editor_ui
         void platformPage(fried::editor::Platform platform);
         void iconSection(fried::editor::Platform platform);
         void precisionSection(fried::editor::Platform platform);
+        // The backend of each module, for every platform when no platform is given and for that platform otherwise.
+        void modulesSection(const fried::editor::Platform *platform);
         void packagingSection(fried::editor::Platform platform);
         void buildSection(fried::editor::Platform platform);
         void buildSettingsStrip(fried::editor::Platform platform);

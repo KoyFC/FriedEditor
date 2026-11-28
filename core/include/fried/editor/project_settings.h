@@ -2,7 +2,7 @@
 
 #include "fried/editor/core_types.h"
 #include "fried/editor/input_map.h"
-#include "fried/editor/core_types.h"
+#include "fried/editor/modules.h"
 
 #include "fried/core/build.h"
 #include "fried/core/step_runner.h"
@@ -35,6 +35,10 @@ namespace fried::editor
 
         // The width of Haxe's Float in the build for a platform. The calculator takes only double, which is refused for single, and the default is written as no key at all.
         std::string setPrecision(Platform platform, Precision value);
+
+        // The backend of a module for every platform, or for one platform when a platform is given, where an empty backend inherits. One that does not run on the platform or is planned is refused.
+        std::string setModuleBackend(const ModuleSchema &module, const std::string &backend);
+        std::string setModuleBackend(Platform platform, const ModuleSchema &module, const std::string &backend);
 
         // Adds the platform to the ones the project declares, or takes it out. A project that declares none builds for every platform, so taking one out first declares all the others. The last one cannot be taken out, since the engine refuses a project that builds for nothing.
         std::string setPlatformDeclared(Platform platform, bool isDeclared);

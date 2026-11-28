@@ -191,6 +191,26 @@ namespace fried::editor
         return apply(problem, [&](Project &project) { project.setPrecision(platform, value); });
     }
 
+    std::string ProjectSettings::setModuleBackend(const ModuleSchema &module, const std::string &backend)
+    {
+        std::string problem;
+        if (!backend.empty() && module.backendNamed(backend) == nullptr)
+        {
+            problem = module.refusal(backend, Platform::Pc);
+        }
+        else if (!backend.empty() && module.backendNamed(backend)->m_isPlanned)
+        {
+            problem = module.refusal(backend, Platform::Pc);
+        }
+        return apply(problem, [&](Project &project) { project.setModuleBackend(module.m_name, backend == module.m_default ? std::string() : backend); });
+    }
+
+    std::string ProjectSettings::setModuleBackend(Platform platform, const ModuleSchema &module, const std::string &backend)
+    {
+        std::string problem = backend.empty() ? std::string() : module.refusal(backend, platform);
+        return apply(problem, [&](Project &project) { project.setModuleBackend(platform, module.m_name, backend); });
+    }
+
     std::string ProjectSettings::setDisplay(const DisplaySettings &value)
     {
         std::string problem;

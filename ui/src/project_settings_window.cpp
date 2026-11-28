@@ -196,6 +196,8 @@ namespace editor_ui
             ImGui::PopStyleColor();
         }
 
+        modulesSection(nullptr);
+
         ImGui::Spacing();
         ImGui::TextDisabled("Every change is saved to project.fried as it is made.");
     }
@@ -494,7 +496,70 @@ namespace editor_ui
         iconSection(platform);
         packagingSection(platform);
         precisionSection(platform);
+        modulesSection(&platform);
         buildSection(platform);
+    }
+
+    void Panels::modulesSection(const fried::editor::Platform *platform)
+    {
+        const std::vector<fried::editor::ModuleSchema> &modules = m_editor.modules();
+        if (modules.empty())
+        {
+            return;
+        }
+
+        const fried::editor::Project &project = m_editor.project();
+        ImGui::SeparatorText("Modules");
+        for (const fried::editor::ModuleSchema &module : modules)
+        {
+            row(module.m_name.c_str());
+            std::string own = platform != nullptr ? project.moduleBackend(*platform, module.m_name) : project.moduleBackend(module.m_name);
+            std::string inherited = platform != nullptr ? (project.moduleBackend(module.m_name).empty() ? module.m_default : project.moduleBackend(module.m_name)) : module.m_default;
+            std::string shown = own.empty() ? (platform != nullptr ? "Inherit (" + inherited + ")" : module.m_default + " (default)") : own;
+            std::string id = "##module-" + module.m_name;
+            if (ImGui::BeginCombo(id.c_str(), shown.c_str()))
+            {
+                if (platform != nullptr && ImGui::Selectable(("Inherit (" + inherited + ")").c_str(), own.empty()) && !own.empty())
+                {
+                    m_settingErrors["Modules"] = m_editor.projectSettings().setModuleBackend(*platform, module, "");
+                }
+                for (const fried::editor::ModuleBackend &backend : module.m_backends)
+                {
+                    fried::editor::Platform target = platform != nullptr ? *platform : fried::editor::Platform::Pc;
+                    std::string refusal = platform != nullptr ? module.refusal(backend.m_name, target) : (backend.m_isPlanned ? module.refusal(backend.m_name, target) : std::string());
+                    std::string label = backend.m_name + (platform == nullptr && backend.m_name == module.m_default ? " (default)" : "");
+                    bool isCurrent = platform != nullptr ? own == backend.m_name : (own.empty() ? backend.m_name == module.m_default : own == backend.m_name);
+                    if (ImGui::Selectable(label.c_str(), isCurrent, refusal.empty() ? 0 : ImGuiSelectableFlags_Disabled) && !isCurrent)
+                    {
+                        m_settingErrors["Modules"] = platform != nullptr ? m_editor.projectSettings().setModuleBackend(*platform, module, backend.m_name)
+                                                                          : m_editor.projectSettings().setModuleBackend(module, backend.m_name);
+                    }
+                    if (!refusal.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    {
+                        ImGui::SetTooltip("%s", refusal.c_str());
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            std::string effective = platform != nullptr ? module.backendFor(project, *platform) : (own.empty() ? module.m_default : own);
+            const fried::editor::ModuleBackend *used = module.backendNamed(effective);
+            if (platform != nullptr && used != nullptr && !used->degradedOn(*platform).empty())
+            {
+                ImGui::SetCursorPosX(scaled(s_labelBase));
+                ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+                ImGui::TextWrapped("%s", used->degradedOn(*platform).c_str());
+                ImGui::PopStyleColor();
+            }
+        }
+        ImGui::SetCursorPosX(scaled(s_labelBase));
+        ImGui::TextDisabled("The components of a backend a platform does not use are left out of its build and of the editor when playing as it. Takes effect at the next build.");
+        const std::string &problem = m_settingErrors["Modules"];
+        if (!problem.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, palette::tomato);
+            ImGui::TextWrapped("%s", problem.c_str());
+            ImGui::PopStyleColor();
+        }
     }
 
     void Panels::precisionSection(Platform platform)
