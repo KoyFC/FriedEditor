@@ -135,7 +135,7 @@ namespace fried::editor
                 frame.m_stats.m_fps = stats.value("fps", 0.0);
                 frame.m_stats.m_frameMs = stats.value("frameMs", 0.0);
                 frame.m_stats.m_workMs = stats.value("workMs", 0.0);
-                frame.m_stats.m_nodes = stats.value("nodes", 0);
+                frame.m_stats.m_objects = stats.value("objects", 0);
                 if (stats.contains("sections") && stats["sections"].is_array())
                 {
                     for (const auto &section : stats["sections"])
@@ -155,9 +155,9 @@ namespace fried::editor
         }
         else if (type == "state")
         {
-            if (m_onState && header.contains("nodes") && header["nodes"].is_array())
+            if (m_onState && header.contains("objects") && header["objects"].is_array())
             {
-                m_onState(header["nodes"]);
+                m_onState(header["objects"]);
             }
         }
         else if (type == "error")
@@ -202,24 +202,34 @@ namespace fried::editor
         }
     }
 
-    void GameSession::setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value)
+    void GameSession::setField(const std::string &objectId, const std::string &component, int index, const std::string &field, const nlohmann::json &value)
     {
-        send({{"type", "setField"}, {"id", nodeId}, {"field", field}, {"value", value}});
+        send({{"type", "setField"}, {"id", objectId}, {"component", component}, {"index", index}, {"field", field}, {"value", value}});
     }
 
-    void GameSession::addNode(const std::string &parentId, int index, const nlohmann::json &node)
+    void GameSession::addObject(const std::string &parentId, int index, const nlohmann::json &object)
     {
-        send({{"type", "addNode"}, {"parent", parentId}, {"index", index}, {"node", node}});
+        send({{"type", "addObject"}, {"parent", parentId}, {"index", index}, {"object", object}});
     }
 
-    void GameSession::removeNode(const std::string &nodeId)
+    void GameSession::removeObject(const std::string &objectId)
     {
-        send({{"type", "removeNode"}, {"id", nodeId}});
+        send({{"type", "removeObject"}, {"id", objectId}});
     }
 
-    void GameSession::moveNode(const std::string &nodeId, const std::string &parentId, int index)
+    void GameSession::moveObject(const std::string &objectId, const std::string &parentId, int index)
     {
-        send({{"type", "moveNode"}, {"id", nodeId}, {"parent", parentId}, {"index", index}});
+        send({{"type", "moveObject"}, {"id", objectId}, {"parent", parentId}, {"index", index}});
+    }
+
+    void GameSession::addComponent(const std::string &objectId, const nlohmann::json &component)
+    {
+        send({{"type", "addComponent"}, {"id", objectId}, {"component", component}});
+    }
+
+    void GameSession::removeComponent(const std::string &objectId, const std::string &type, int index)
+    {
+        send({{"type", "removeComponent"}, {"id", objectId}, {"component", type}, {"index", index}});
     }
 
     void GameSession::setFrameLimit(int fps, int refreshRate)

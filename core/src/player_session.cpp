@@ -106,6 +106,8 @@ namespace fried::editor
                 schema.m_name = entry.value("name", "");
                 schema.m_parent = entry.contains("parent") && entry["parent"].is_string() ? entry["parent"].get<std::string>() : "";
                 schema.m_isBuiltin = entry.value("builtin", false);
+                schema.m_kind = entry.value("kind", std::string("component"));
+                schema.m_requires = entry.contains("requires") && entry["requires"].is_string() ? entry["requires"].get<std::string>() : "";
                 for (const auto &field : listOf(entry, "fields"))
                 {
                     FieldSchema fieldSchema;
@@ -231,78 +233,60 @@ namespace fried::editor
         }
     }
 
-    void PlayerSession::setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value)
+    void PlayerSession::setField(const std::string &objectId, const std::string &component, int index, const std::string &field, const nlohmann::json &value)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "setField"}, {"id", nodeId}, {"field", field}, {"value", value}});
+            m_channel->send({{"type", "setField"}, {"id", objectId}, {"component", component}, {"index", index}, {"field", field}, {"value", value}});
         }
     }
 
-    void PlayerSession::setFields(const nlohmann::json &nodes)
+    void PlayerSession::setFields(const nlohmann::json &objects)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "setFields"}, {"nodes", nodes}});
+            m_channel->send({{"type", "setFields"}, {"objects", objects}});
         }
     }
 
-    void PlayerSession::addNode(const std::string &parentId, int index, const nlohmann::json &node)
+    void PlayerSession::addObject(const std::string &parentId, int index, const nlohmann::json &object)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "addNode"}, {"parent", parentId}, {"index", index}, {"node", node}});
+            m_channel->send({{"type", "addObject"}, {"parent", parentId}, {"index", index}, {"object", object}});
         }
     }
 
-    void PlayerSession::removeNode(const std::string &nodeId)
+    void PlayerSession::removeObject(const std::string &objectId)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "removeNode"}, {"id", nodeId}});
+            m_channel->send({{"type", "removeObject"}, {"id", objectId}});
         }
     }
 
-    void PlayerSession::moveNode(const std::string &nodeId, const std::string &parentId, int index)
+    void PlayerSession::moveObject(const std::string &objectId, const std::string &parentId, int index)
     {
         if (m_channel)
         {
-            m_channel->send({{"type", "moveNode"}, {"id", nodeId}, {"parent", parentId}, {"index", index}});
+            m_channel->send({{"type", "moveObject"}, {"id", objectId}, {"parent", parentId}, {"index", index}});
         }
     }
 
-    const ClassSchema *PlayerSession::classNamed(const std::string &name) const
+    void PlayerSession::addComponent(const std::string &objectId, const nlohmann::json &component)
     {
-        for (const ClassSchema &schema : m_schema)
+        if (m_channel)
         {
-            if (schema.m_name == name)
-            {
-                return &schema;
-            }
+            m_channel->send({{"type", "addComponent"}, {"id", objectId}, {"component", component}});
         }
-        return nullptr;
     }
 
-    const ResourceSchema *PlayerSession::resourceNamed(const std::string &name) const
+    void PlayerSession::removeComponent(const std::string &objectId, const std::string &type, int index)
     {
-        for (const ResourceSchema &resource : m_resources)
+        if (m_channel)
         {
-            if (resource.m_name == name)
-            {
-                return &resource;
-            }
+            m_channel->send({{"type", "removeComponent"}, {"id", objectId}, {"component", type}, {"index", index}});
         }
-        return nullptr;
-    }
-
-    std::vector<const ClassSchema *> PlayerSession::classChain(const std::string &name) const
-    {
-        std::vector<const ClassSchema *> chain;
-        for (const ClassSchema *schema = classNamed(name); schema && chain.size() < m_schema.size(); schema = classNamed(schema->m_parent))
-        {
-            chain.push_back(schema);
-        }
-        return chain;
     }
 
     void PlayerSession::setEditorCamera(double x, double y, double zoom)

@@ -31,7 +31,7 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
 {
     GameSession session;
     std::string error;
-    nlohmann::json scene = {{"name", "Main"}, {"nodes", nlohmann::json::array()}};
+    nlohmann::json scene = {{"name", "Main"}, {"objects", nlohmann::json::array()}};
     REQUIRE(session.listen("main", scene, false, &error));
 
     GameFrame received;
@@ -57,7 +57,7 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(asked[3].m_header["type"] == "watch");
     CHECK(session.state() == GameSession::State::Running);
 
-    nlohmann::json stats = {{"fps", 59.5}, {"frameMs", 16.8}, {"workMs", 2.5}, {"nodes", 16}};
+    nlohmann::json stats = {{"fps", 59.5}, {"frameMs", 16.8}, {"workMs", 2.5}, {"objects", 16}};
     REQUIRE(game.send({{"type", "gameFrame"}, {"width", 2}, {"height", 1}, {"stats", stats}}));
     std::vector<Message> answered = pumpAndPoll(session, game, 1);
     REQUIRE(answered.size() == 1);
@@ -65,10 +65,10 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(frames == 1);
     CHECK(received.m_width == 2);
     CHECK(received.m_stats.m_fps == doctest::Approx(59.5));
-    CHECK(received.m_stats.m_nodes == 16);
+    CHECK(received.m_stats.m_objects == 16);
 
     session.setFrameLimit(0, 144);
-    session.setField("wall", "x", 4);
+    session.setField("wall", "Transform2D", 0, "x", 4);
     session.key(7, true);
     session.mouseButton(1, 10, 20, true);
     std::vector<Message> sent = pumpAndPoll(session, game, 4);
@@ -79,10 +79,10 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(sent[2].m_header["code"] == 7);
     CHECK(sent[3].m_header["y"] == 20);
 
-    nlohmann::json changes = nlohmann::json::array({{{"id", "wall"}, {"fields", {{"x", 4}}}}});
+    nlohmann::json changes = nlohmann::json::array({{{"id", "wall"}, {"components", nlohmann::json::array({{{"type", "Transform2D"}, {"index", 0}, {"fields", {{"x", 4}}}}})}}});
     nlohmann::json reportedState;
-    session.m_onState = [&](const nlohmann::json &nodes) { reportedState = nodes; };
-    REQUIRE(game.send({{"type", "state"}, {"nodes", changes}}));
+    session.m_onState = [&](const nlohmann::json &objects) { reportedState = objects; };
+    REQUIRE(game.send({{"type", "state"}, {"objects", changes}}));
     pumpAndPoll(session, game, 1);
     CHECK(reportedState == changes);
 
@@ -98,11 +98,11 @@ TEST_CASE("a game is told what to play when it greets, and its frames are answer
     CHECK(watching[0].m_header["selected"] == "wall");
     CHECK(watching[0].m_header["all"] == true);
 
-    REQUIRE(game.send({{"type", "error"}, {"request", "setField"}, {"message", "The scene has no node \"x\"."}}));
+    REQUIRE(game.send({{"type", "error"}, {"request", "setField"}, {"message", "The scene has no object \"x\"."}}));
     std::string reported;
     session.m_onError = [&](const std::string &message) { reported = message; };
     pumpAndPoll(session, game, 1);
-    CHECK(reported == "The scene has no node \"x\".");
+    CHECK(reported == "The scene has no object \"x\".");
     CHECK(session.state() == GameSession::State::Running);
 }
 

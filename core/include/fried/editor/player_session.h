@@ -22,11 +22,17 @@ namespace fried::editor
         nlohmann::json m_default;
     };
 
-    // A class of node: the class it extends, and the fields it declares itself, which are not the ones it inherits.
+    // A class of transform or component: the class it extends, and the fields it declares itself, which are not the ones it inherits.
     struct ClassSchema
     {
         std::string m_name;
         std::string m_parent;
+
+        // "transform" for the classes that place an object, "component" for the rest.
+        std::string m_kind = "component";
+
+        // The transform class an object needs to have this component, empty when any will do.
+        std::string m_requires;
 
         // Whether the engine has the class, as opposed to the project.
         bool m_isBuiltin = false;
@@ -112,7 +118,7 @@ namespace fried::editor
             Closed
         };
 
-        static constexpr int s_protocol = 6;
+        static constexpr int s_protocol = 7;
 
         // Starts waiting on a loopback port, which the player is told to connect to.
         bool listen(std::string *error);
@@ -139,14 +145,17 @@ namespace fried::editor
         std::vector<const ClassSchema *> classChain(const std::string &name) const;
 
         void load(const nlohmann::json &scene, int viewWidth, int viewHeight);
-        void setField(const std::string &nodeId, const std::string &field, const nlohmann::json &value);
-        // Several fields of several nodes at once, as a list of {id, fields}.
-        void setFields(const nlohmann::json &nodes);
+        // The empty component is the object itself: its name and whether it is active.
+        void setField(const std::string &objectId, const std::string &component, int index, const std::string &field, const nlohmann::json &value);
+        // Several fields of several objects at once, as a list of {id, components: [{type, index, fields}]}.
+        void setFields(const nlohmann::json &objects);
 
-        // Changes the player's tree in place. The empty parent is the top of the scene, and the index is the place among the new siblings once the node has left its old one.
-        void addNode(const std::string &parentId, int index, const nlohmann::json &node);
-        void removeNode(const std::string &nodeId);
-        void moveNode(const std::string &nodeId, const std::string &parentId, int index);
+        // Changes the player's objects in place. The empty parent is the top of the scene, and the index is the place among the new siblings once the object has left its old one.
+        void addObject(const std::string &parentId, int index, const nlohmann::json &object);
+        void removeObject(const std::string &objectId);
+        void moveObject(const std::string &objectId, const std::string &parentId, int index);
+        void addComponent(const std::string &objectId, const nlohmann::json &component);
+        void removeComponent(const std::string &objectId, const std::string &type, int index);
         void setEditorCamera(double x, double y, double zoom);
         void setEditorCamera3D(double x, double y, double z, double rotationX, double rotationY, double fieldOfView);
         // Which of the scene's two kinds of drawing the player shows, the flat nodes or the meshes.
