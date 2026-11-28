@@ -3017,6 +3017,14 @@ namespace editor_ui
             ImGui::TextWrapped("Some settings are not used on: %s.", platformList(ignoring).c_str());
             ImGui::PopStyleColor();
         }
+        if (!ignoring.empty() || m_isUnusedHidden)
+        {
+            ImGui::Checkbox("Hide unused settings", &m_isUnusedHidden);
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Hides the settings the backend of the shown platform does not use. Components left out of a platform stay shown.");
+            }
+        }
 
         for (std::size_t position = 0; position < object.m_components.size(); ++position)
         {
@@ -3069,6 +3077,10 @@ namespace editor_ui
                         bool isUnused = !ignored.m_platforms.empty()
                                         && (ignored.m_platforms.size() == considered.size()
                                             || std::find(ignored.m_platforms.begin(), ignored.m_platforms.end(), m_editor.platform()) != ignored.m_platforms.end());
+                        if (isUnused && m_isUnusedHidden)
+                        {
+                            continue;
+                        }
                         if (isUnused)
                         {
                             ImGui::BeginDisabled();

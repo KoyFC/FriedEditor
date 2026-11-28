@@ -167,6 +167,7 @@ namespace editor_ui
         int m_gameScale = 0;
         int m_gameLimit = 0;
         bool m_isStatsShown = false;
+        bool m_isUnusedHidden = false;
         bool m_isGameDrawn = false;
         bool m_isSceneDrawn = false;
         bool m_isTextureThePreview = false;
