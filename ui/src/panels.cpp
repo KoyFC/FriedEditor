@@ -4077,6 +4077,10 @@ namespace editor_ui
             }
             for (const fried::editor::ClassSchema &schema : classes)
             {
+                if (m_isChangingType && schema.m_name == "Transform")
+                {
+                    continue;
+                }
                 if (row(schema.m_name, true, std::string()))
                 {
                     ImGui::TreePop();
